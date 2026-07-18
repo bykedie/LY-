@@ -46,6 +46,8 @@ curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deplo
 cat /tmp/ly-console-bootstrap.log
 ```
 
+如果你看到类似 `脚本在第 77 行失败`，说明你运行的是较早版本脚本，那个版本没有显示真正失败的命令。重新执行最新一键命令后，报错里会多一行 `失败命令：...`，能直接看到是 `apt`、`git` 还是 `curl` 出问题。
+
 也可以手动测试服务器网络：
 
 ```bash

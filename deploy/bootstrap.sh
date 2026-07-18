@@ -35,6 +35,7 @@ YELLOW="\033[33m"
 RED="\033[31m"
 BLUE="\033[36m"
 RESET="\033[0m"
+LAST_COMMAND="尚未执行命令"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
 
@@ -42,6 +43,8 @@ on_error() {
   local line="$1"
   local code="$2"
   fail "脚本在第 ${line} 行失败，退出码：${code}"
+  echo
+  echo "失败命令：${LAST_COMMAND}"
   echo
   echo "你可以把下面这个日志文件发给接手的人排查："
   echo "$LOG_FILE"
@@ -73,6 +76,7 @@ step() {
 }
 
 run() {
+  LAST_COMMAND="$*"
   echo "+ $*"
   "$@"
 }
@@ -80,6 +84,7 @@ run() {
 run_with_timeout() {
   local seconds="$1"
   shift
+  LAST_COMMAND="timeout ${seconds}s $*"
   if command -v timeout >/dev/null 2>&1; then
     echo "+ timeout ${seconds}s $*"
     timeout "${seconds}s" "$@"
@@ -87,6 +92,28 @@ run_with_timeout() {
     echo "+ $*"
     "$@"
   fi
+}
+
+command_missing() {
+  ! command -v "$1" >/dev/null 2>&1
+}
+
+package_missing() {
+  ! dpkg -s "$1" >/dev/null 2>&1
+}
+
+apt_update_with_retry() {
+  local SUDO attempt
+  SUDO="$(need_sudo)"
+  for attempt in 1 2 3; do
+    if run $SUDO apt update; then
+      return 0
+    fi
+    warn "apt update 第 ${attempt} 次失败，10 秒后重试。"
+    echo "如果一直失败，通常是系统软件源访问异常，或 apt 被其他进程占用。"
+    sleep 10
+  done
+  return 1
 }
 
 need_sudo() {
@@ -98,11 +125,25 @@ need_sudo() {
 }
 
 install_base_tools() {
-  local SUDO
+  local SUDO missing_packages=()
   SUDO="$(need_sudo)"
   step "1/5" "检查并安装基础工具：git / curl / ca-certificates"
-  run $SUDO apt update
-  run $SUDO apt install -y git curl ca-certificates tar
+
+  command_missing git && missing_packages+=(git)
+  command_missing curl && missing_packages+=(curl)
+  command_missing tar && missing_packages+=(tar)
+  package_missing ca-certificates && missing_packages+=(ca-certificates)
+
+  if [[ "${#missing_packages[@]}" -eq 0 ]]; then
+    info "基础工具已存在，跳过 apt 安装。"
+    return 0
+  fi
+
+  echo "需要安装的软件包：${missing_packages[*]}"
+  if ! apt_update_with_retry; then
+    warn "apt update 失败，继续尝试直接安装缺失软件包。"
+  fi
+  run $SUDO apt install -y "${missing_packages[@]}"
   info "基础工具已准备完成。"
 }
 
