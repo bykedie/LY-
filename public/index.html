@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LY挂机控制台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <div class="brand">
+          <div class="brand-mark">LY</div>
+          <div class="brand-copy">
+            <h1 id="brandTitle">LY挂机控制台</h1>
+            <p id="brandSubtitle">浏览器远程管理 Minecraft 角色</p>
+          </div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-expanded="true" title="收起侧边栏">
+          <span class="toggle-open">收</span>
+          <span class="toggle-close">展</span>
+        </button>
+      </div>
+
+      <nav class="nav-list" aria-label="功能目录">
+        <button class="nav-item active" data-section="overview" title="平台概览"><span class="nav-icon">概</span><span class="nav-text">平台概览</span></button>
+        <button class="nav-item" data-section="combat" title="战斗挂机"><span class="nav-icon">战</span><span class="nav-text">战斗挂机</span></button>
+        <button class="nav-item" data-section="movement" title="移动辅助"><span class="nav-icon">移</span><span class="nav-text">移动辅助</span></button>
+        <button class="nav-item" data-section="chat" title="智能交互"><span class="nav-icon">聊</span><span class="nav-text">智能交互</span></button>
+        <button class="nav-item" data-section="lobby" title="大厅功能"><span class="nav-icon">厅</span><span class="nav-text">大厅功能</span></button>
+        <button class="nav-item" data-section="scheduler" title="定时任务"><span class="nav-icon">时</span><span class="nav-text">定时任务</span></button>
+        <button class="nav-item" data-section="config" title="服务器配置"><span class="nav-icon">服</span><span class="nav-text">服务器配置</span></button>
+        <button class="nav-item" data-section="accounts" title="批量账号"><span class="nav-icon">号</span><span class="nav-text">批量账号</span></button>
+        <button class="nav-item" data-section="runtime" title="运行控制"><span class="nav-icon">启</span><span class="nav-text">运行控制</span></button>
+        <button class="nav-item" data-section="settings" title="界面设置"><span class="nav-icon">设</span><span class="nav-text">设置</span></button>
+      </nav>
+
+      <div class="sidebar-actions">
+        <button class="side-action" id="reloadBtn" title="重新读取"><span class="nav-icon">读</span><span class="nav-text">重新读取</span></button>
+        <button class="side-action primary-action" id="saveBtn" title="保存配置"><span class="nav-icon">存</span><span class="nav-text">保存配置</span></button>
+        <button class="side-action" id="resetBtn" title="重置默认"><span class="nav-icon">重</span><span class="nav-text">重置默认</span></button>
+      </div>
+
+      <div class="health">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">读取状态中</span>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div>
+          <h2 id="pageTitle">平台概览</h2>
+          <p id="pageSub">云端自动挂机平台的信息、功能和配置集中在这里。</p>
+        </div>
+      </header>
+
+      <section class="panel page-section active" id="overview">
+        <div class="intro">
+          <p class="eyebrow">什么是落渝挂机</p>
+          <h3>一个面向 Minecraft 玩家的云端自动挂机平台</h3>
+          <p>只需要一个浏览器，就能 24 小时在线操控游戏角色。自动钓鱼、自动刷怪、自动走路、自动登录、关键词回复和实时日志都可以在控制台里集中管理。</p>
+        </div>
+        <div class="feature-grid compact">
+          <article><strong>24 小时在线</strong><span>一次配置，长期运行，断线自动重连。</span></article>
+          <article><strong>多端管理</strong><span>手机、电脑、平板，有浏览器就能操作。</span></article>
+          <article><strong>批量账号</strong><span>多个角色统一配置、统一启动、统一查看日志。</span></article>
+          <article><strong>后续可扩展</strong><span>注册、登录、指令、任务策略都预留了配置入口。</span></article>
+          <article><strong>便捷管理</strong><span>网页控制面板、实时日志、复制配置和重置设置集中在一个页面里。</span></article>
+          <article><strong>架构优势</strong><span>主控面板和执行进程分离，适合你部署到自己的服务器长期运行。</span></article>
+          <article><strong>安全可靠</strong><span>配置默认保存在服务器本机，账号密码字段只用于连接和登录自动化。</span></article>
+          <article><strong>适用人群</strong><span>钓鱼、刷怪、建筑搬运、服主管理和上班族远程查看都能覆盖。</span></article>
+        </div>
+        <table class="audience-table overview-table">
+          <thead><tr><th>用户类型</th><th>使用场景</th></tr></thead>
+          <tbody>
+            <tr><td>钓鱼玩家</td><td>自动钓鱼，挂机攒材料。</td></tr>
+            <tr><td>刷怪玩家</td><td>自动攻击，挂机升级。</td></tr>
+            <tr><td>建筑玩家</td><td>自动走路或搬运材料。</td></tr>
+            <tr><td>服务器服主</td><td>配合机器人管理服务器。</td></tr>
+            <tr><td>上班族</td><td>白天运行，晚上查看结果。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel page-section" id="combat">
+        <div class="section-head">
+          <div>
+            <h3>战斗挂机</h3>
+            <p>围绕刷怪、生存、钓鱼的长期在线功能。</p>
+          </div>
+        </div>
+        <div class="feature-list">
+          <article>
+            <div><strong>自动攻击</strong><span>自动攻击周围敌对或被动生物，后续支持单目标和多目标策略。</span></div>
+            <label class="switch"><input data-feature="combat.autoAttack" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>自动钓鱼</strong><span>自动抛竿、等待、收竿，适合材料积累。</span></div>
+            <label class="switch"><input data-feature="combat.autoFish" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>自动进食</strong><span>饥饿值过低时自动吃背包食物，减少意外死亡。</span></div>
+            <label class="switch"><input data-feature="combat.autoEat" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>自动重生</strong><span>角色死亡后自动发送重生请求，适合长期在线挂机。</span></div>
+            <label class="switch"><input data-feature="combat.autoRespawn" type="checkbox">启用</label>
+          </article>
+        </div>
+        <div class="sub-panel">
+          <div class="grid three">
+            <label>攻击模式
+              <select id="attackMode">
+                <option value="single">single 单目标</option>
+                <option value="multi">multi 多目标</option>
+              </select>
+              <span class="field-note">single 每轮攻击最近一个目标；multi 会按范围内目标列表依次攻击。</span>
+            </label>
+            <label>攻击范围<input id="attackRange" type="number" min="1" max="6" step="0.5"><span class="field-note">单位为方块，建议 3-4；过大可能打不到或显得不自然。</span></label>
+            <label>攻击间隔 ms<input id="attackIntervalMs" type="number" min="250"><span class="field-note">两次攻击之间的最小间隔，服务器延迟高时适当调大。</span></label>
+            <label>实体列表模式
+              <select id="entityListMode">
+                <option value="blacklist">blacklist 黑名单</option>
+                <option value="whitelist">whitelist 白名单</option>
+              </select>
+              <span class="field-note">黑名单表示跳过名单内实体；白名单表示只攻击名单内实体。</span>
+            </label>
+            <label>进食阈值<input id="eatThreshold" type="number" min="1" max="20"><span class="field-note">饥饿值低于或等于这个数时自动吃背包里的食物。</span></label>
+            <label>钓鱼超时 ms<input id="fishingTimeoutMs" type="number" min="10000"><span class="field-note">等待上钩的最长时间，超时后会重新抛竿。</span></label>
+          </div>
+          <div class="toggle-row">
+            <label><input id="attackHostile" type="checkbox">攻击敌对生物</label>
+            <label><input id="attackPassive" type="checkbox">攻击被动生物</label>
+          </div>
+          <div class="grid two">
+            <label>钓鱼启动延迟 ms<input id="fishingStartDelayMs" type="number" min="0"><span class="field-note">进入服务器后等待多久开始钓鱼，给背包和区块加载留时间。</span></label>
+            <label>收竿后延迟 ms<input id="fishingCastDelayMs" type="number" min="0"><span class="field-note">每次收竿后再抛竿的间隔，建议保留一点延迟。</span></label>
+          </div>
+          <label class="message-list-label">实体名单
+            <textarea id="entityList" placeholder="一行一个实体名，例如：&#10;zombie&#10;cow"></textarea>
+            <span class="field-note">一行一个英文实体名，例如 zombie、skeleton、cow、armor_stand。</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel page-section" id="movement">
+        <div class="section-head">
+          <div>
+            <h3>移动辅助</h3>
+            <p>移动、保活和快捷栏控制功能。</p>
+          </div>
+        </div>
+        <div class="feature-list">
+          <article>
+            <div><strong>自动走路</strong><span>输入坐标后，角色自动前往目标位置。</span></div>
+            <label class="switch"><input data-feature="movement.autoWalk" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>防挂机走动</strong><span>随机小幅移动或转头，降低被简单挂机检测踢出的概率。</span></div>
+            <label class="switch"><input data-feature="movement.antiAfk" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>切换手持</strong><span>按配置切换快捷栏物品，配合大厅或道具使用。</span></div>
+            <label class="switch"><input data-feature="movement.switchHeldItem" type="checkbox">启用</label>
+          </article>
+        </div>
+        <div class="sub-panel">
+          <div class="grid three">
+            <label>防挂机最小延迟 ms<input id="antiAfkMinDelayMs" type="number" min="1000"><span class="field-note">每次保活动作之间的最短等待时间。</span></label>
+            <label>防挂机最大延迟 ms<input id="antiAfkMaxDelayMs" type="number" min="1000"><span class="field-note">每次保活动作之间的最长等待时间，不能小于最小延迟。</span></label>
+            <label>切换快捷栏槽位 1-9<input id="movementHeldSlot" type="number" min="1" max="9"><span class="field-note">界面用 1-9，程序内部会自动转换成 0-8。</span></label>
+          </div>
+          <div class="grid three">
+            <label>目标 X<input id="walkTargetX" type="number" step="0.1"><span class="field-note">自动走路目标坐标 X。</span></label>
+            <label>目标 Y<input id="walkTargetY" type="number" step="0.1"><span class="field-note">自动走路目标高度 Y。</span></label>
+            <label>目标 Z<input id="walkTargetZ" type="number" step="0.1"><span class="field-note">自动走路目标坐标 Z。</span></label>
+          </div>
+          <div class="grid two">
+            <label>到达范围<input id="walkRange" type="number" min="0" step="0.5"><span class="field-note">距离目标多少方块内算到达，避免精确坐标来回抖动。</span></label>
+            <label>防挂机命令<input id="antiAfkCommand" placeholder="留空则跳跃/转头，例如 /ping"><span class="field-note">填写后优先按这个命令保活；留空时使用潜行、走动或转头。</span></label>
+          </div>
+          <div class="grid two">
+            <label>随机走动范围<input id="antiAfkWalkRange" type="number" min="0" step="0.5"><span class="field-note">以首次记录位置为中心随机走动的半径，0 表示不随机走。</span></label>
+          </div>
+          <div class="toggle-row">
+            <label><input id="antiAfkSneak" type="checkbox">防挂机时潜行</label>
+            <label><input id="antiAfkWalk" type="checkbox">防挂机随机走动</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel page-section" id="chat">
+        <div class="section-head">
+          <div>
+            <h3>智能交互</h3>
+            <p>聊天、指令、自动登录和常用消息。</p>
+          </div>
+        </div>
+        <div class="feature-list">
+          <article>
+            <div><strong>关键词自动回复</strong><span>设置关键词和回复内容，自动处理常见聊天触发。</span></div>
+            <label class="switch"><input data-feature="chat.keywordReply" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>预设消息</strong><span>保存常用消息，一键发送，也可扩展为定时发送。</span></div>
+            <label class="switch"><input data-feature="chat.presetMessages" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>发送游戏信息 / 指令</strong><span>远程向游戏内发送聊天或命令。</span></div>
+            <label class="switch"><input data-feature="chat.remoteCommand" type="checkbox">启用</label>
+          </article>
+          <article>
+            <div><strong>自动登录</strong><span>匹配服务器登录提示，自动输入密码。</span></div>
+            <label class="switch"><input data-feature="chat.autoLogin" type="checkbox">启用</label>
+          </article>
+        </div>
+        <div class="sub-panel">
+          <div class="section-head">
+            <div>
+              <h3>关键词回复规则</h3>
+              <p>消息包含关键词时，自动回复指定内容。回复里可用 {player} 代表触发玩家。</p>
+            </div>
+            <button class="ghost" id="addKeywordRuleBtn">添加规则</button>
+          </div>
+          <div class="keyword-list" id="keywordRuleList"></div>
+        </div>
+        <label class="message-list-label">预设消息
+          <textarea id="presetMessagesList" placeholder="一行一条，例如：&#10;/spawn&#10;大家好"></textarea>
+          <span class="field-note">一行一条，运行中可以在“运行控制”里一键发送。</span>
+        </label>
+      </section>
+
+      <section class="panel page-section" id="lobby">
+        <div class="section-head">
+          <div>
+            <h3>大厅功能</h3>
+            <p>进入大厅后自动切换手持物品并使用，减少重复操作。</p>
+          </div>
+        </div>
+        <div class="feature-list">
+          <article>
+            <div><strong>大厅自动使用物品</strong><span>进入大厅后按配置切换快捷栏并右键使用。</span></div>
+            <label class="switch"><input data-feature="lobby.useItem" type="checkbox">启用</label>
+          </article>
+        </div>
+        <div class="sub-panel">
+          <div class="grid three">
+            <label>执行延迟 ms<input id="lobbyDelayMs" type="number" min="0"><span class="field-note">进入服务器后等待多久再执行大厅道具操作。</span></label>
+            <label>快捷栏槽位 1-9<input id="lobbyHeldSlot" type="number" min="1" max="9"><span class="field-note">选择要切到哪个快捷栏槽位后再使用物品。</span></label>
+            <label>使用次数<input id="lobbyUseCount" type="number" min="1"><span class="field-note">连续右键使用物品的次数，适合菜单服或大厅道具。</span></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel page-section" id="scheduler">
+        <div class="section-head">
+          <div>
+            <h3>定时任务</h3>
+            <p>参考 MCC ScriptScheduler：登录后执行或按间隔执行聊天/指令。</p>
+          </div>
+          <button class="ghost" id="addSchedulerTaskBtn">添加任务</button>
+        </div>
+        <div class="feature-list">
+          <article>
+            <div><strong>启用定时任务</strong><span>任务动作会发送到游戏聊天；以 / 开头就是服务器指令。</span></div>
+            <label class="switch"><input data-feature="scheduler.enabled" type="checkbox">启用</label>
+          </article>
+        </div>
+        <div class="scheduler-list" id="schedulerTaskList"></div>
+      </section>
+
+      <section class="panel page-section" id="config">
+        <div class="grid two">
+          <label>服务器地址<input id="host" placeholder="play.example.com"><span class="field-note">这里填 Minecraft 服务器地址，不是控制台域名。例：play.example.com、127.0.0.1、你的 MC 服务器公网 IP。</span></label>
+          <label>服务器端口<input id="port" type="number" min="1" max="65535"><span class="field-note">这里填 Minecraft Java 版端口。例：默认 25565；如果你的服务端开在 25566，就填 25566。</span></label>
+          <label>服务器版本<input id="version" placeholder="false 或 1.20.1"><span class="field-note">不确定就填 false 或 auto 自动识别。例：false、1.20.1、1.16.5。</span></label>
+          <label>登录模式
+            <select id="auth">
+              <option value="offline">offline 离线模式</option>
+              <option value="microsoft">microsoft 正版登录</option>
+            </select>
+            <span class="field-note">离线服选 offline；正版服选 microsoft。例：自己开的离线服填 offline，正版验证服填 microsoft。</span>
+          </label>
+        </div>
+        <div class="sub-panel deploy-help">
+          <div class="section-head">
+            <div>
+              <h3>域名访问控制台怎么配</h3>
+              <p>你买的域名通常用于访问这个 Web 控制台，和上面的 Minecraft 服务器地址是两件事。</p>
+            </div>
+          </div>
+          <div class="feature-grid compact">
+            <article><strong>1. 域名解析</strong><span>在域名服务商后台添加 A 记录：主机记录填 @ 或 bot，记录值填你的轻量云服务器公网 IP。</span></article>
+            <article><strong>2. 面板端口</strong><span>项目默认监听 30123。服务器安全组需要放行你要访问的端口，或用 Nginx/Caddy 反代到 30123。</span></article>
+            <article><strong>3. 访问密码</strong><span>部署到公网时一定设置 DASHBOARD_PASSWORD，否则别人知道地址就能打开控制台。</span></article>
+            <article><strong>4. 推荐访问方式</strong><span>推荐让域名走 HTTPS 反向代理，例如 https://bot.你的域名.com 转发到 http://127.0.0.1:30123。</span></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel page-section" id="accounts">
+        <div class="section-head">
+          <div>
+            <h3>账号列表</h3>
+            <p>默认不发言；注册密码字段已预留给下一步自动注册功能。</p>
+          </div>
+          <button class="ghost" id="addAccountBtn">添加账号</button>
+        </div>
+        <div class="account-list" id="accountList"></div>
+      </section>
+
+      <section class="panel page-section" id="runtime">
+        <div class="grid three">
+          <label>登录间隔 ms<input id="connectIntervalMs" type="number" min="1000"><span class="field-note">批量账号依次进入服务器的间隔，账号越多建议越大。</span></label>
+          <label>重连延迟 ms<input id="reconnectDelayMs" type="number" min="1000"><span class="field-note">断线后等待多久再自动重连。</span></label>
+          <label>保活间隔 ms<input id="idleIntervalMs" type="number" min="5000"><span class="field-note">传统跳跃/转头保活的间隔；防挂机功能启用时优先使用防挂机延迟。</span></label>
+          <label>消息冷却 ms<input id="messageCooldownMs" type="number" min="0"><span class="field-note">同一账号连续发送聊天或指令的最小间隔。</span></label>
+        </div>
+        <div class="toggle-row">
+          <label><input id="reconnect" type="checkbox">断线自动重连</label>
+          <label><input id="idleActions" type="checkbox">启用跳跃/转头保活</label>
+        </div>
+        <label>全局进服发言<input id="chatOnJoin" placeholder="留空则不发言"><span class="field-note">所有账号进入服务器后发送的统一消息；留空最安静。</span></label>
+        <div class="runbar">
+          <button class="primary" id="startBtn">启动挂机</button>
+          <button class="danger" id="stopBtn">停止挂机</button>
+        </div>
+        <div class="send-box">
+          <select id="commandTarget">
+            <option value="all">全部账号</option>
+          </select>
+          <input id="commandMessage" placeholder="输入聊天内容或 / 指令">
+          <button class="primary" id="sendCommandBtn">发送</button>
+        </div>
+        <div class="preset-send-list" id="presetSendList"></div>
+        <pre class="logs" id="logs">等待日志...</pre>
+      </section>
+
+      <section class="panel page-section" id="settings">
+        <div class="section-head">
+          <div>
+            <h3>界面设置</h3>
+            <p>这些设置只影响控制台显示，不会改变服务器地址、账号或挂机行为。</p>
+          </div>
+        </div>
+        <div class="grid two">
+          <label>界面名称<input id="uiTitleInput" placeholder="LY挂机控制台"><span class="field-note">会同步到浏览器标题、侧边栏标题和顶部显示。</span></label>
+          <label>侧边栏副标题<input id="uiSubtitleInput" placeholder="浏览器远程管理 Minecraft 角色"><span class="field-note">用于侧边栏标题下方的小字，可以写成你的服务器名。</span></label>
+          <label>侧边栏位置
+            <select id="sidebarPosition">
+              <option value="left">左侧</option>
+              <option value="right">右侧</option>
+            </select>
+            <span class="field-note">部署到自己的服务器后，不同浏览器可以按习惯放左边或右边。</span>
+          </label>
+          <label class="switch setting-switch"><input id="showFieldNotes" type="checkbox">显示参数注释<span class="field-note">关闭后会隐藏每个参数下面的小提示，界面会更紧凑。</span></label>
+        </div>
+        <div class="runbar">
+          <button class="primary" id="saveUiSettingsBtn" type="button">保存界面设置</button>
+          <button class="ghost" id="resetUiSettingsBtn" type="button">恢复默认界面</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <template id="accountTemplate">
+    <article class="account-card">
+      <div class="account-main">
+        <label>账号名<input class="account-username" placeholder="Account_01"><span class="field-note">离线服显示名，多个账号不能重复。</span></label>
+        <label>单账号登录模式
+          <select class="account-auth">
+            <option value="">使用全局</option>
+            <option value="offline">offline</option>
+            <option value="microsoft">microsoft</option>
+          </select>
+          <span class="field-note">留空就跟随服务器配置里的全局登录模式。</span>
+        </label>
+        <label>进服发言<input class="account-chat" placeholder="留空则不发言"><span class="field-note">只对当前账号生效，会覆盖或补充全局进服发言。</span></label>
+        <label>注册密码预留<input class="account-password" type="password" placeholder="后续自动注册会用"><span class="field-note">自动登录/注册检测到提示后会发送 /login 或 /register。</span></label>
+      </div>
+      <div class="account-side">
+        <label class="switch"><input class="account-enabled" type="checkbox">启用</label>
+        <button class="ghost small duplicate-account" type="button">复制账号</button>
+        <button class="ghost small copy-account-config" type="button">同步配置</button>
+        <button class="danger small remove-account">删除</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="keywordRuleTemplate">
+    <article class="keyword-rule">
+      <label>关键词<input class="keyword-input" placeholder="例如：你好"><span class="field-note">聊天内容包含这个词时触发。</span></label>
+      <label>回复内容<input class="reply-input" placeholder="例如：你好，{player}"><span class="field-note">{player} 会替换为触发消息的玩家名。</span></label>
+      <button class="danger small remove-keyword-rule">删除</button>
+    </article>
+  </template>
+
+  <template id="schedulerTaskTemplate">
+    <article class="scheduler-task">
+      <label>任务名<input class="scheduler-name" placeholder="登录后 /spawn"><span class="field-note">只用于识别日志，留空也能运行。</span></label>
+      <label>触发方式
+        <select class="scheduler-trigger">
+          <option value="login">登录后执行</option>
+          <option value="interval">按间隔执行</option>
+        </select>
+        <span class="field-note">login 进服后执行一次；interval 按间隔循环执行。</span>
+      </label>
+      <label>间隔 ms<input class="scheduler-interval" type="number" min="1000"><span class="field-note">仅 interval 模式使用，最小 1000ms。</span></label>
+      <label>动作<input class="scheduler-action" placeholder="/spawn 或 普通聊天"><span class="field-note">以 / 开头会作为服务器指令发送，否则是普通聊天。</span></label>
+      <label class="switch"><input class="scheduler-enabled" type="checkbox">启用</label>
+      <button class="danger small remove-scheduler-task">删除</button>
+    </article>
+  </template>
+
+  <div class="toast" id="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "ly-console",
+  "version": "1.0.0",
+  "description": "LY控制台：用于允许挂机的 Minecraft 服务器网页化批量挂机管理面板。",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dashboard": "node src/dashboard.js",
+    "check": "node --check src/index.js && node --check src/dashboard.js && node --check public/log-renderer.js && node --check public/app.js && node --check scripts/log-renderer-test.js && node --check scripts/smoke-test.js && node --check scripts/protocol-integration-test.js && node --check scripts/fishing-integration-test.js && node --check scripts/respawn-integration-test.js && node --check scripts/anti-afk-movement-test.js && node --check scripts/auto-login-integration-test.js && node --check scripts/account-validation-test.js && node --check scripts/dashboard-protocol-test.js && node --check scripts/dashboard-auth-test.js",
+    "test": "npm run check && node scripts/log-renderer-test.js && node scripts/smoke-test.js && node scripts/protocol-integration-test.js && node scripts/fishing-integration-test.js && node scripts/respawn-integration-test.js && node scripts/anti-afk-movement-test.js && node scripts/auto-login-integration-test.js && node scripts/account-validation-test.js && node scripts/dashboard-protocol-test.js && node scripts/dashboard-auth-test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "mineflayer": "^4.26.0",
+    "mineflayer-pathfinder": "^2.4.5",
+    "prismarine-chunk": "^1.40.0",
+    "prismarine-item": "^1.17.0",
+    "vec3": "^0.1.10"
+  }
+}

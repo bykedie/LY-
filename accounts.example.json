@@ -1,0 +1,17 @@
+[
+  {
+    "username": "Account_01",
+    "enabled": true,
+    "chatOnJoin": ""
+  },
+  {
+    "username": "Account_02",
+    "enabled": true,
+    "chatOnJoin": ""
+  },
+  {
+    "username": "Account_03",
+    "enabled": false,
+    "chatOnJoin": ""
+  }
+]

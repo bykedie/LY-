@@ -1,0 +1,106 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 25565,
+    "version": false,
+    "auth": "offline"
+  },
+  "runtime": {
+    "connectIntervalMs": 15000,
+    "reconnect": true,
+    "reconnectDelayMs": 30000,
+    "idleActions": false,
+    "idleIntervalMs": 45000,
+    "messageCooldownMs": 1000,
+    "chatOnJoin": ""
+  },
+  "features": {
+    "combat": {
+      "autoAttack": false,
+      "autoFish": false,
+      "autoEat": false,
+      "autoRespawn": true,
+      "attackMode": "single",
+      "attackHostile": true,
+      "attackPassive": false,
+      "attackRange": 4,
+      "attackIntervalMs": 1200,
+      "entityListMode": "blacklist",
+      "entityList": [
+        "armor_stand"
+      ],
+      "eatThreshold": 16,
+      "fishingStartDelayMs": 3000,
+      "fishingCastDelayMs": 1200,
+      "fishingTimeoutMs": 300000
+    },
+    "movement": {
+      "autoWalk": false,
+      "antiAfk": false,
+      "switchHeldItem": false,
+      "antiAfkMinDelayMs": 45000,
+      "antiAfkMaxDelayMs": 70000,
+      "antiAfkCommand": "",
+      "antiAfkSneak": false,
+      "antiAfkWalk": true,
+      "antiAfkWalkRange": 3,
+      "walkTarget": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      "walkRange": 1,
+      "heldSlot": 0
+    },
+    "chat": {
+      "keywordReply": false,
+      "presetMessages": false,
+      "remoteCommand": false,
+      "autoLogin": false,
+      "keywordRules": [
+        {
+          "keyword": "你好",
+          "reply": "你好，{player}"
+        }
+      ],
+      "presetMessagesList": [
+        "/spawn",
+        "大家好"
+      ]
+    },
+    "lobby": {
+      "useItem": false,
+      "delayMs": 3000,
+      "heldSlot": 0,
+      "useCount": 1
+    },
+    "scheduler": {
+      "enabled": false,
+      "tasks": [
+        {
+          "name": "登录后发送 spawn",
+          "trigger": "login",
+          "intervalMs": 60000,
+          "action": "/spawn",
+          "enabled": false
+        }
+      ]
+    }
+  },
+  "accounts": [
+    {
+      "username": "Account_01",
+      "enabled": true,
+      "chatOnJoin": "",
+      "auth": "",
+      "registerPassword": ""
+    },
+    {
+      "username": "Account_02",
+      "enabled": true,
+      "chatOnJoin": "",
+      "auth": "",
+      "registerPassword": ""
+    }
+  ]
+}
