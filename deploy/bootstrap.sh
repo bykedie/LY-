@@ -94,6 +94,19 @@ run_with_timeout() {
   fi
 }
 
+run_interactive() {
+  LAST_COMMAND="$* < /dev/tty"
+  echo "+ $* < /dev/tty"
+  if [[ -r /dev/tty ]]; then
+    "$@" < /dev/tty
+  else
+    warn "当前会话没有可用的交互终端，无法自动打开菜单。"
+    echo "项目已经下载完成，请手动执行："
+    echo "cd ${INSTALL_DIR}"
+    echo "sudo ./deploy/ly-afk-manager.sh"
+  fi
+}
+
 command_missing() {
   ! command -v "$1" >/dev/null 2>&1
 }
@@ -287,7 +300,7 @@ run_manager() {
   run $SUDO chmod +x deploy/ly-afk-manager.sh
   info "项目已准备完成，正在打开 LY 控制台一键管理菜单。"
   step "5/5" "进入菜单，请根据提示选择功能"
-  run $SUDO ./deploy/ly-afk-manager.sh
+  run_interactive $SUDO ./deploy/ly-afk-manager.sh
 }
 
 main() {

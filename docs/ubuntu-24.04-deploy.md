@@ -62,6 +62,13 @@ cat /tmp/ly-console-bootstrap.log
 ls -la /opt/ly-console
 ```
 
+如果看到 `失败命令：./deploy/ly-afk-manager.sh`，通常是旧脚本在 `curl | sudo bash` 管道模式下打开交互菜单失败。新版脚本会自动把菜单输入切到 `/dev/tty`。如果你的服务器终端仍然不支持交互输入，可以手动进入菜单：
+
+```bash
+cd /opt/ly-console
+sudo ./deploy/ly-afk-manager.sh
+```
+
 也可以手动测试服务器网络：
 
 ```bash

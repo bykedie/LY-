@@ -16,6 +16,16 @@ RESET="\033[0m"
 
 cd "$PROJECT_DIR"
 
+ensure_interactive_terminal() {
+  if [[ ! -t 0 && ! -r /dev/tty ]]; then
+    echo "当前没有可用的交互终端，无法打开菜单。"
+    echo "请登录服务器后手动执行："
+    echo "cd ${PROJECT_DIR}"
+    echo "sudo ./deploy/ly-afk-manager.sh"
+    exit 0
+  fi
+}
+
 print_header() {
   clear || true
   printf "${BLUE}"
@@ -392,6 +402,7 @@ quick_install() {
 }
 
 main_menu() {
+  ensure_interactive_terminal
   while true; do
     print_header
     echo "1.  系统信息查询"
