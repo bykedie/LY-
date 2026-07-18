@@ -157,6 +157,48 @@ set_env_value() {
   chmod 600 .env
 }
 
+download_file() {
+  local url="$1"
+  local output="$2"
+  local label="${3:-下载文件}"
+  local timeout_seconds="${4:-300}"
+  local elapsed=0
+  local percent fill empty bar curl_pid exit_code
+
+  echo "+ curl -fsSL ${url} -o ${output}"
+  curl -fsSL --connect-timeout 15 "$url" -o "$output" &
+  curl_pid="$!"
+
+  while kill -0 "$curl_pid" 2>/dev/null; do
+    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+      kill "$curl_pid" 2>/dev/null || true
+      wait "$curl_pid" 2>/dev/null || true
+      printf "\r%s [##########] 超时\n" "$label"
+      return 124
+    fi
+
+    percent=$((elapsed * 90 / timeout_seconds))
+    if [[ "$percent" -lt 5 ]]; then
+      percent=5
+    fi
+    fill=$((percent / 10))
+    empty=$((10 - fill))
+    bar="$(printf '%*s' "$fill" '' | tr ' ' '#')$(printf '%*s' "$empty" '' | tr ' ' '-')"
+    printf "\r%s [%s] %s%%" "$label" "$bar" "$percent"
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  if wait "$curl_pid"; then
+    printf "\r%s [##########] 100%%\n" "$label"
+    return 0
+  fi
+
+  exit_code="$?"
+  printf "\r%s [##########] 失败\n" "$label"
+  return "$exit_code"
+}
+
 need_sudo() {
   if [[ "${EUID}" -eq 0 ]]; then
     echo ""
@@ -543,7 +585,7 @@ update_project() {
     progress "1/5" "当前不是 Git 仓库，使用压缩包方式下载最新代码"
     tmp_dir="$(mktemp -d)"
     archive_file="${tmp_dir}/ly-console.tar.gz"
-    curl -fL --progress-bar "$ARCHIVE_URL" -o "$archive_file"
+    download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" 300
     tar -xzf "$archive_file" -C "$tmp_dir"
     extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
     if [[ -z "$extracted_dir" ]]; then

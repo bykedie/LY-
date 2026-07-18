@@ -94,6 +94,49 @@ run_with_timeout() {
   fi
 }
 
+download_file() {
+  local url="$1"
+  local output="$2"
+  local label="${3:-下载文件}"
+  local timeout_seconds="${4:-300}"
+  local elapsed=0
+  local percent fill empty bar curl_pid exit_code
+
+  LAST_COMMAND="curl -fsSL ${url} -o ${output}"
+  echo "+ ${LAST_COMMAND}"
+  curl -fsSL --connect-timeout 15 "$url" -o "$output" &
+  curl_pid="$!"
+
+  while kill -0 "$curl_pid" 2>/dev/null; do
+    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+      kill "$curl_pid" 2>/dev/null || true
+      wait "$curl_pid" 2>/dev/null || true
+      printf "\r%s [##########] 超时\n" "$label"
+      return 124
+    fi
+
+    percent=$((elapsed * 90 / timeout_seconds))
+    if [[ "$percent" -lt 5 ]]; then
+      percent=5
+    fi
+    fill=$((percent / 10))
+    empty=$((10 - fill))
+    bar="$(printf '%*s' "$fill" '' | tr ' ' '#')$(printf '%*s' "$empty" '' | tr ' ' '-')"
+    printf "\r%s [%s] %s%%" "$label" "$bar" "$percent"
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  if wait "$curl_pid"; then
+    printf "\r%s [##########] 100%%\n" "$label"
+    return 0
+  fi
+
+  exit_code="$?"
+  printf "\r%s [##########] 失败\n" "$label"
+  return "$exit_code"
+}
+
 run_interactive() {
   LAST_COMMAND="$* < /dev/tty"
   echo "+ $* < /dev/tty"
@@ -229,7 +272,7 @@ check_repo_access() {
     echo "1. 给服务器配置代理后重试，例如：export https_proxy=http://你的代理IP:端口"
     echo "2. 在本机下载项目压缩包上传到服务器，再运行 deploy/ly-afk-manager.sh"
     echo "3. 把仓库同步到 Gitee 等国内 Git 平台，然后这样运行："
-    echo "   curl -fL --progress-bar 你的国内脚本地址 | sudo REPO_URL=你的国内仓库.git bash"
+    echo "   tmp=/tmp/ly-bootstrap.sh; curl -fsSL 你的国内脚本地址 -o \$tmp && sudo REPO_URL=你的国内仓库.git bash \$tmp"
     echo
     return 1
   fi
@@ -286,7 +329,7 @@ download_archive_project() {
 
   tmp_dir="$(mktemp -d)"
   archive_file="${tmp_dir}/ly-console.tar.gz"
-  run_with_timeout "$ARCHIVE_DOWNLOAD_TIMEOUT" curl -fL --progress-bar "$ARCHIVE_URL" -o "$archive_file"
+  download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" "$ARCHIVE_DOWNLOAD_TIMEOUT"
   run tar -xzf "$archive_file" -C "$tmp_dir"
   extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
   if [[ -z "$extracted_dir" ]]; then
