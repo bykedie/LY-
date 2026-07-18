@@ -91,10 +91,11 @@ print_header() {
 LOGO
   printf "${RESET}"
   echo "LY 挂机控制台一键管理脚本  v1.0.0"
+  echo "快捷入口：下次在命令行直接输入 j 可打开本界面"
+  echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
   echo "当前公网 IP：${current_public_ip}"
   echo "当前私有 IP：${current_private_ip}"
-  echo "快捷命令：j"
   echo "项目目录：${PROJECT_DIR}"
   echo "--------------------------------"
 }

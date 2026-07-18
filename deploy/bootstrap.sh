@@ -317,6 +317,7 @@ run_manager() {
   run $SUDO chmod +x deploy/ly-afk-manager.sh
   install_j_shortcut
   info "项目已准备完成，正在打开 LY 控制台一键管理菜单。"
+  echo "快捷入口：下次在命令行直接输入 j 可打开本界面。"
   step "5/5" "进入菜单，请根据提示选择功能，也可以以后直接输入 j 打开"
   run_interactive $SUDO ./deploy/ly-afk-manager.sh
 }
