@@ -21,8 +21,14 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/ly-console}"
 # 如果你的 GitHub 仓库默认分支是 master，可以运行时加：
 # BRANCH=master bash deploy/bootstrap.sh
 BRANCH="${BRANCH:-main}"
+ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/bykedie/LY-/archive/refs/heads/${BRANCH}.tar.gz}"
 LOG_FILE="${LOG_FILE:-/tmp/ly-console-bootstrap.log}"
+GIT_CHECK_TIMEOUT="${GIT_CHECK_TIMEOUT:-20}"
+GIT_CLONE_TIMEOUT="${GIT_CLONE_TIMEOUT:-300}"
+ARCHIVE_DOWNLOAD_TIMEOUT="${ARCHIVE_DOWNLOAD_TIMEOUT:-300}"
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export GIT_HTTP_LOW_SPEED_LIMIT="${GIT_HTTP_LOW_SPEED_LIMIT:-1}"
+export GIT_HTTP_LOW_SPEED_TIME="${GIT_HTTP_LOW_SPEED_TIME:-20}"
 
 GREEN="\033[32m"
 YELLOW="\033[33m"
@@ -71,6 +77,18 @@ run() {
   "$@"
 }
 
+run_with_timeout() {
+  local seconds="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    echo "+ timeout ${seconds}s $*"
+    timeout "${seconds}s" "$@"
+  else
+    echo "+ $*"
+    "$@"
+  fi
+}
+
 need_sudo() {
   if [[ "${EUID}" -eq 0 ]]; then
     echo ""
@@ -84,7 +102,7 @@ install_base_tools() {
   SUDO="$(need_sudo)"
   step "1/5" "检查并安装基础工具：git / curl / ca-certificates"
   run $SUDO apt update
-  run $SUDO apt install -y git curl ca-certificates
+  run $SUDO apt install -y git curl ca-certificates tar
   info "基础工具已准备完成。"
 }
 
@@ -92,24 +110,32 @@ check_repo_access() {
   step "2/5" "检查 GitHub 仓库是否可以访问"
   echo "仓库地址：${REPO_URL}"
   echo "目标分支：${BRANCH}"
-  if git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
+  echo "最长等待：${GIT_CHECK_TIMEOUT} 秒"
+  if run_with_timeout "$GIT_CHECK_TIMEOUT" git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
     info "仓库和分支可以访问。"
+    return 0
   else
-    fail "无法访问仓库分支：${REPO_URL} ${BRANCH}"
-    echo "请确认仓库是公开仓库，或者服务器已配置 GitHub 私有仓库凭据。"
-    echo "也可以手动测试：git ls-remote --heads ${REPO_URL} ${BRANCH}"
-    exit 1
+    warn "无法通过 git 访问仓库分支，常见原因是国内服务器访问 github.com 超时。"
+    echo "脚本会继续尝试用 GitHub 压缩包下载方式安装。"
+    echo
+    echo "如果后续仍失败，可以使用下面几种方式处理："
+    echo "1. 给服务器配置代理后重试，例如：export https_proxy=http://你的代理IP:端口"
+    echo "2. 在本机下载项目压缩包上传到服务器，再运行 deploy/ly-afk-manager.sh"
+    echo "3. 把仓库同步到 Gitee 等国内 Git 平台，然后这样运行："
+    echo "   curl -fL --progress-bar 你的国内脚本地址 | sudo REPO_URL=你的国内仓库.git bash"
+    echo
+    return 1
   fi
 }
 
-clone_or_update_project() {
-  local SUDO
+clone_or_update_with_git() {
+  local SUDO tmp_clone_dir
   SUDO="$(need_sudo)"
-  step "3/5" "拉取或更新项目代码"
+  step "3/5" "使用 Git 拉取或更新项目代码"
 
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     warn "检测到项目已存在，开始更新：${INSTALL_DIR}"
-    run $SUDO git -C "$INSTALL_DIR" fetch origin "$BRANCH"
+    run_with_timeout "$GIT_CLONE_TIMEOUT" $SUDO git -C "$INSTALL_DIR" fetch origin "$BRANCH"
     run $SUDO git -C "$INSTALL_DIR" checkout "$BRANCH"
     run $SUDO git -C "$INSTALL_DIR" pull --ff-only origin "$BRANCH"
     return
@@ -122,8 +148,56 @@ clone_or_update_project() {
   fi
 
   run $SUDO mkdir -p "$(dirname "$INSTALL_DIR")"
-  run $SUDO git clone --progress --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+  tmp_clone_dir="$(mktemp -d)"
+  if run_with_timeout "$GIT_CLONE_TIMEOUT" git clone --progress --branch "$BRANCH" "$REPO_URL" "$tmp_clone_dir/project"; then
+    run $SUDO mv "$tmp_clone_dir/project" "$INSTALL_DIR"
+    run rm -rf "$tmp_clone_dir"
+  else
+    warn "Git 克隆失败，准备尝试压缩包下载。"
+    run rm -rf "$tmp_clone_dir"
+    return 1
+  fi
   info "项目代码已拉取到：${INSTALL_DIR}"
+}
+
+download_archive_project() {
+  local SUDO tmp_dir archive_file extracted_dir
+  SUDO="$(need_sudo)"
+  step "3/5" "Git 访问失败，改用压缩包下载项目代码"
+  echo "压缩包地址：${ARCHIVE_URL}"
+  echo "最长等待：${ARCHIVE_DOWNLOAD_TIMEOUT} 秒"
+
+  if [[ -e "$INSTALL_DIR" ]]; then
+    fail "安装目录已存在，无法覆盖：${INSTALL_DIR}"
+    echo "如果这是上一次失败留下的空目录，可以先确认后删除："
+    echo "sudo rm -rf ${INSTALL_DIR}"
+    exit 1
+  fi
+
+  tmp_dir="$(mktemp -d)"
+  archive_file="${tmp_dir}/ly-console.tar.gz"
+  run_with_timeout "$ARCHIVE_DOWNLOAD_TIMEOUT" curl -fL --progress-bar "$ARCHIVE_URL" -o "$archive_file"
+  run tar -xzf "$archive_file" -C "$tmp_dir"
+  extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "$extracted_dir" ]]; then
+    fail "压缩包已下载，但没有找到解压后的项目目录。"
+    exit 1
+  fi
+  run $SUDO mkdir -p "$(dirname "$INSTALL_DIR")"
+  run $SUDO mv "$extracted_dir" "$INSTALL_DIR"
+  run rm -rf "$tmp_dir"
+  info "项目代码已通过压缩包安装到：${INSTALL_DIR}"
+}
+
+clone_or_update_project() {
+  if check_repo_access; then
+    if clone_or_update_with_git; then
+      return 0
+    fi
+    download_archive_project
+  else
+    download_archive_project
+  fi
 }
 
 run_manager() {
@@ -147,7 +221,6 @@ main() {
   echo
 
   install_base_tools
-  check_repo_access
   clone_or_update_project
   run_manager
 }

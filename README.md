@@ -24,6 +24,8 @@ curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deplo
 /tmp/ly-console-bootstrap.log
 ```
 
+如果服务器访问 `github.com` 超时，脚本会先等 20 秒，然后自动改用 GitHub 压缩包下载方式继续安装；如果压缩包下载也失败，基本就是服务器到 GitHub 网络不通，需要配置代理、换网络，或把仓库同步到国内 Git 平台后用 `REPO_URL` 覆盖。
+
 第一次进入菜单建议选择：
 
 ```text

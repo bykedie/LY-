@@ -38,6 +38,30 @@ curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deplo
 /tmp/ly-console-bootstrap.log
 ```
 
+如果卡在 `[2/5] 检查 GitHub 仓库是否可以访问`，通常不是权限问题，而是服务器访问 `github.com` 超时。新脚本会限制 GitHub 检查最多等待 20 秒，失败后自动尝试下载仓库压缩包继续安装。
+
+如果压缩包下载也失败，可以先查看日志：
+
+```bash
+cat /tmp/ly-console-bootstrap.log
+```
+
+也可以手动测试服务器网络：
+
+```bash
+curl -I --connect-timeout 10 https://github.com
+curl -I --connect-timeout 10 https://raw.githubusercontent.com
+git ls-remote --heads https://github.com/bykedie/LY-.git main
+```
+
+如果确认是国内服务器访问 GitHub 不稳定，可以选择：
+
+```text
+1. 给服务器配置 https_proxy 后重新执行一键命令
+2. 在本机下载项目压缩包上传到服务器，再运行 deploy/ly-afk-manager.sh
+3. 把仓库同步到 Gitee 等国内 Git 平台，然后用 REPO_URL=国内仓库地址 覆盖
+```
+
 ## 二、先在云服务商后台配置
 
 ### 1. 安全组 / 防火墙端口
