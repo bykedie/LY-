@@ -12,6 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
+BOOTSTRAP_VERSION="v1.0.3"
+EXPECTED_MANAGER_VERSION="v1.0.3"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -166,6 +168,23 @@ exec sudo ./deploy/ly-afk-manager.sh "\$@"
 EOF
   run $SUDO chmod +x "$shortcut_file"
   info "快捷命令已安装：以后在终端输入 j 可直接打开 LY 管理界面。"
+}
+
+detect_manager_version() {
+  if [[ -f "${INSTALL_DIR}/deploy/ly-afk-manager.sh" ]]; then
+    grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' "${INSTALL_DIR}/deploy/ly-afk-manager.sh" | head -n 1 || true
+  fi
+}
+
+show_installed_version() {
+  local version
+  version="$(detect_manager_version)"
+  if [[ -n "$version" ]]; then
+    echo "当前管理脚本版本：${version}"
+  else
+    warn "没有检测到管理脚本版本。"
+  fi
+  echo "期望最新版本：${EXPECTED_MANAGER_VERSION}"
 }
 
 command_missing() {
@@ -408,6 +427,7 @@ run_manager() {
   cd "$INSTALL_DIR"
   run $SUDO chmod +x deploy/ly-afk-manager.sh
   install_j_shortcut
+  show_installed_version
   info "项目已准备完成，正在打开 LY 控制台一键管理菜单。"
   echo "快捷入口：下次在命令行直接输入 j 可打开本界面。"
   step "5/5" "进入菜单，请根据提示选择功能，也可以以后直接输入 j 打开"
@@ -417,6 +437,7 @@ run_manager() {
 main() {
   echo "LY 控制台一键拉取与配置脚本"
   echo "--------------------------------"
+  echo "启动脚本版本：${BOOTSTRAP_VERSION}"
   echo "仓库地址：${REPO_URL}"
   echo "安装目录：${INSTALL_DIR}"
   echo "默认分支：${BRANCH}"

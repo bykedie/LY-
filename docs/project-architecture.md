@@ -190,7 +190,7 @@ renderSettings()     # 设置中心
 首次部署命令：
 
 ```bash
-tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh -o "$tmp" && echo "[##########] 100% 下载完成" && sudo bash "$tmp"
+tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL "https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" -o "$tmp" && echo "[##########] 100% 下载完成" && sudo bash "$tmp"
 ```
 
 `deploy/bootstrap.sh` 负责：

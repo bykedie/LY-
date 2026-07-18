@@ -29,7 +29,7 @@ https://bot.你的域名.com
 如果是全新服务器，最省事的方式是直接执行：
 
 ```bash
-tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh -o "$tmp" && echo "[##########] 100% 下载完成" && sudo bash "$tmp"
+tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL "https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" -o "$tmp" && echo "[##########] 100% 下载完成" && sudo bash "$tmp"
 ```
 
 执行后会显示 `[1/5]`、`[2/5]` 这样的进度。完整日志在：
