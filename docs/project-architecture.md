@@ -226,7 +226,7 @@ pm2 后台启动控制台
 配置 Nginx 域名反向代理
 申请 HTTPS 证书
 查看状态和日志
-更新项目并重启
+带进度更新项目并重启
 ```
 
 快捷命令安装后位于：
@@ -236,6 +236,13 @@ pm2 后台启动控制台
 ```
 
 以后 SSH 登录服务器后，直接输入 `j` 即可进入 `deploy/ly-afk-manager.sh` 管理菜单。
+
+更新逻辑：
+
+```text
+Git 安装：菜单 13 使用 git fetch --progress + ff-only merge 更新。
+压缩包安装：菜单 13 下载 GitHub 分支压缩包更新，并保留 .env / bot.config.json / accounts.json。
+```
 
 ## 六、常见开发位置
 

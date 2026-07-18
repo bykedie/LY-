@@ -4,6 +4,9 @@ set -Eeuo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE_NAME="ly-afk-dashboard"
+REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
+BRANCH="${BRANCH:-main}"
+ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/bykedie/LY-/archive/refs/heads/${BRANCH}.tar.gz}"
 PUBLIC_IP_CACHE=""
 PRIVATE_IP_CACHE=""
 PAUSE_AFTER_STEP=1
@@ -120,6 +123,40 @@ fail() {
   printf "${RED}[错误]${RESET} %s\n" "$1"
 }
 
+progress() {
+  printf "${BLUE}[%s]${RESET} %s\n" "$1" "$2"
+}
+
+read_with_note() {
+  local var_name="$1"
+  local prompt_text="$2"
+  local note_text="$3"
+  local example_text="$4"
+  local default_text="$5"
+
+  echo
+  echo "说明：${note_text}"
+  echo "示例：${example_text}"
+  read -r -p "${prompt_text} [${default_text}]：" "$var_name"
+}
+
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  local tmp_file
+  tmp_file="$(mktemp)"
+  if [[ -f .env ]] && grep -q "^${key}=" .env; then
+    awk -v key="$key" -v value="$value" 'BEGIN { prefix=key "=" } index($0, prefix) == 1 { print key "=" value; next } { print }' .env > "$tmp_file"
+  else
+    if [[ -f .env ]]; then
+      cat .env > "$tmp_file"
+    fi
+    echo "${key}=${value}" >> "$tmp_file"
+  fi
+  mv "$tmp_file" .env
+  chmod 600 .env
+}
+
 need_sudo() {
   if [[ "${EUID}" -eq 0 ]]; then
     echo ""
@@ -200,13 +237,33 @@ configure_env() {
   print_header
   echo "配置控制台环境变量"
   echo "--------------------------------"
-  local port host user password domain
-  read -r -p "面板端口 [30123]：" port
+  local port host user password domain access_mode
+
+  echo "下面配置的是网页控制台本身，不是 Minecraft 服务器地址。"
+  echo "Minecraft 服务器地址后面请在网页控制台的“服务器配置”里填写。"
+
+  read_with_note port "面板端口" "网页控制台在服务器本机监听的端口。Nginx 域名反代和公网直连都会转到这个端口。" "30123；访问地址可能是 http://当前公网IP:30123" "30123"
   port="${port:-30123}"
-  read -r -p "监听地址 [127.0.0.1]：" host
-  host="${host:-127.0.0.1}"
-  read -r -p "登录用户名 [admin]：" user
+
+  echo
+  echo "访问方式选择："
+  echo "1. 仅域名访问：推荐。监听 127.0.0.1，只能通过 Nginx/域名访问，30123 不直接暴露公网。"
+  echo "2. 仅公网端口访问：监听 0.0.0.0，可用 http://当前公网IP:${port} 访问。"
+  echo "3. 域名 + 公网端口共存：监听 0.0.0.0，同时可配置域名反代和 IP:${port} 直连。"
+  read -r -p "请选择访问方式 [1]：" access_mode
+  access_mode="${access_mode:-1}"
+  case "$access_mode" in
+    2|3) host="0.0.0.0" ;;
+    *) host="127.0.0.1" ;;
+  esac
+  echo "已设置监听地址 DASHBOARD_HOST=${host}"
+  echo "说明：127.0.0.1 表示只允许服务器本机访问，适合域名反代；0.0.0.0 表示允许公网端口直连。"
+
+  read_with_note user "登录用户名" "打开网页控制台时浏览器弹窗里的用户名。" "admin 或 lyadmin" "admin"
   user="${user:-admin}"
+  echo
+  echo "说明：打开网页控制台时浏览器弹窗里的密码。公网部署必须设置强密码。"
+  echo "示例：Ly_2026_Change_Me_123"
   read -r -s -p "登录密码 [留空自动生成]：" password
   echo
   if [[ -z "$password" ]]; then
@@ -216,7 +273,11 @@ configure_env() {
     fi
     warn "已自动生成密码：${password}"
   fi
-  read -r -p "控制台域名，可留空，例如 bot.example.com：" domain
+
+  read_with_note domain "控制台域名，可留空" "你购买的域名解析到当前公网 IP 后，可在这里填写完整子域名。留空也可以先用 IP 或稍后菜单 8 配置。" "bot.example.com 或 ly.example.com" "留空"
+  if [[ "$domain" == "留空" ]]; then
+    domain=""
+  fi
 
   cat > .env <<EOF
 DASHBOARD_PORT=${port}
@@ -235,6 +296,7 @@ EOF
   info ".env 已写入。"
   echo "访问用户名：${user}"
   echo "访问密码：${password}"
+  echo "访问方式：${access_mode}"
   pause
 }
 
@@ -308,15 +370,26 @@ configure_firewall() {
   print_header
   echo "配置 Ubuntu 防火墙"
   echo "--------------------------------"
-  local SUDO
+  local SUDO port
   SUDO="$(need_sudo)"
+  port="$(grep -E '^DASHBOARD_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 30123)"
   $SUDO ufw allow OpenSSH
   $SUDO ufw allow 80/tcp
   $SUDO ufw allow 443/tcp
-  warn "如果你使用 Nginx/Caddy 域名反代，不建议把 30123 直接暴露到公网。"
-  read -r -p "是否放行 30123/TCP 直连端口？[y/N]：" open_panel_port
+  echo "说明：80/443 用于域名访问，${port}/TCP 用于公网 IP 直连访问。"
+  echo "这两种方式可以共存；如果同时开启，请确保面板密码足够强。"
+  read -r -p "是否放行 ${port}/TCP 直连端口？[y/N]：" open_panel_port
   if [[ "${open_panel_port,,}" == "y" ]]; then
-    $SUDO ufw allow 30123/tcp
+    local current_host
+    current_host="$(grep -E '^DASHBOARD_HOST=' .env 2>/dev/null | cut -d= -f2 || echo 127.0.0.1)"
+    if [[ "$current_host" != "0.0.0.0" ]]; then
+      warn "公网端口直连需要 DASHBOARD_HOST=0.0.0.0，脚本将自动修改并重启控制台。"
+      set_env_value "DASHBOARD_HOST" "0.0.0.0"
+      if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+        pm2 restart "$SERVICE_NAME" --update-env
+      fi
+    fi
+    $SUDO ufw allow "${port}/tcp"
   fi
   $SUDO ufw --force enable
   $SUDO ufw status
@@ -327,8 +400,13 @@ configure_nginx() {
   print_header
   echo "配置 Nginx 域名反向代理"
   echo "--------------------------------"
-  local domain
-  read -r -p "请输入你的控制台域名，例如 bot.example.com：" domain
+  local domain port saved_domain
+  port="$(grep -E '^DASHBOARD_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 30123)"
+  saved_domain="$(grep -E '^DASHBOARD_DOMAIN=' .env 2>/dev/null | cut -d= -f2 || true)"
+  echo "说明：这里配置的是网页控制台域名，不是 Minecraft 服务器地址。"
+  echo "示例：bot.example.com，需要先在 DNS 后台把 A 记录指向当前公网 IP：$(detect_public_ip)"
+  read -r -p "请输入你的控制台域名 [${saved_domain:-bot.example.com}]：" domain
+  domain="${domain:-$saved_domain}"
   if [[ -z "$domain" ]]; then
     fail "域名不能为空。"
     pause
@@ -347,7 +425,7 @@ server {
   server_name ${domain};
 
   location / {
-    proxy_pass http://127.0.0.1:30123;
+    proxy_pass http://127.0.0.1:${port};
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
@@ -385,6 +463,47 @@ enable_https() {
   pause
 }
 
+configure_access_methods() {
+  print_header
+  echo "配置访问方式"
+  echo "--------------------------------"
+  local open_port setup_domain setup_https domain current_port current_host
+  current_port="$(grep -E '^DASHBOARD_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 30123)"
+  current_host="$(grep -E '^DASHBOARD_HOST=' .env 2>/dev/null | cut -d= -f2 || echo 127.0.0.1)"
+  domain="$(grep -E '^DASHBOARD_DOMAIN=' .env 2>/dev/null | cut -d= -f2 || true)"
+
+  echo "说明：公网端口访问和域名访问可以共存。"
+  echo "公网端口访问示例：http://$(detect_public_ip):${current_port}"
+  echo "域名访问示例：http://${domain:-bot.example.com}"
+  echo
+  echo "如果要公网端口访问，请确认 .env 里的 DASHBOARD_HOST 是 0.0.0.0。"
+  echo "如果只用域名访问，DASHBOARD_HOST 保持 127.0.0.1 更合适。"
+  echo
+
+  read -r -p "是否开放 ${current_port}/TCP 公网端口直连？[y/N]：" open_port
+  if [[ "${open_port,,}" == "y" ]]; then
+    if [[ "$current_host" != "0.0.0.0" ]]; then
+      warn "公网端口直连需要 DASHBOARD_HOST=0.0.0.0，脚本将自动修改并重启控制台。"
+      set_env_value "DASHBOARD_HOST" "0.0.0.0"
+      if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+        pm2 restart "$SERVICE_NAME" --update-env
+      fi
+    fi
+    configure_firewall
+  else
+    echo "跳过公网端口直连，仅保留 SSH/80/443 等基础端口。"
+  fi
+
+  read -r -p "是否现在配置域名访问 Nginx 反代？[y/N]：" setup_domain
+  if [[ "${setup_domain,,}" == "y" ]]; then
+    configure_nginx
+    read -r -p "是否继续申请 HTTPS 证书？[y/N]：" setup_https
+    if [[ "${setup_https,,}" == "y" ]]; then
+      enable_https
+    fi
+  fi
+}
+
 health_check() {
   print_header
   echo "运行状态检查"
@@ -413,15 +532,53 @@ update_project() {
   print_header
   echo "更新项目并重启"
   echo "--------------------------------"
+  local SUDO tmp_dir archive_file extracted_dir backup_dir parent_dir current_name
+  SUDO="$(need_sudo)"
   if [[ -d .git ]]; then
-    git pull
+    progress "1/5" "连接远程仓库并下载更新"
+    git fetch --progress origin "$BRANCH"
+    progress "2/5" "合并最新代码"
+    git merge --ff-only "origin/${BRANCH}"
   else
-    warn "当前目录不是 Git 仓库，跳过 git pull。"
+    progress "1/5" "当前不是 Git 仓库，使用压缩包方式下载最新代码"
+    tmp_dir="$(mktemp -d)"
+    archive_file="${tmp_dir}/ly-console.tar.gz"
+    curl -fL --progress-bar "$ARCHIVE_URL" -o "$archive_file"
+    tar -xzf "$archive_file" -C "$tmp_dir"
+    extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    if [[ -z "$extracted_dir" ]]; then
+      fail "压缩包已下载，但没有找到解压后的项目目录。"
+      rm -rf "$tmp_dir"
+      pause
+      return
+    fi
+    progress "2/5" "备份当前项目并替换代码"
+    parent_dir="$(dirname "$PROJECT_DIR")"
+    current_name="$(basename "$PROJECT_DIR")"
+    backup_dir="${parent_dir}/${current_name}.backup.$(date +%Y%m%d%H%M%S)"
+    cd "$parent_dir"
+    $SUDO mv "$PROJECT_DIR" "$backup_dir"
+    $SUDO mv "$extracted_dir" "$PROJECT_DIR"
+    for runtime_file in .env bot.config.json accounts.json; do
+      if [[ -f "${backup_dir}/${runtime_file}" ]]; then
+        $SUDO cp "${backup_dir}/${runtime_file}" "${PROJECT_DIR}/${runtime_file}"
+      fi
+    done
+    rm -rf "$tmp_dir"
+    cd "$PROJECT_DIR"
+    echo "旧项目已备份到：${backup_dir}"
   fi
-  npm install
+  progress "3/5" "安装/更新 npm 依赖"
+  npm install --progress=true
+  progress "4/5" "安装/修复快捷命令 j"
+  install_j_shortcut
+  progress "5/5" "重启控制台服务"
   if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
     pm2 restart "$SERVICE_NAME" --update-env
+  else
+    pm2 start src/dashboard.js --name "$SERVICE_NAME"
   fi
+  pm2 save
   info "更新流程已结束。"
   pause
 }
@@ -451,6 +608,7 @@ quick_install() {
   configure_env
   install_project_deps
   start_dashboard
+  configure_access_methods
   PAUSE_AFTER_STEP=1
   echo
   info "一键安装流程已完成。"
