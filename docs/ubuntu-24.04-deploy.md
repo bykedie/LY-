@@ -1,9 +1,9 @@
 # LY 挂机控制台 Ubuntu 24.04 部署教程
 
-这份教程按你的轻量云服务器信息编写：
+这份教程按 Ubuntu 24.04 轻量云服务器编写。脚本会在运行时自动检测当前服务器 IP：
 
-- 公网 IP 示例：`116.62.191.104`
-- 私有 IP 示例：`172.25.45.1`
+- 当前公网 IP：用于域名 DNS A 记录
+- 当前私有 IP：用于确认服务器内网地址
 - 系统镜像：`Ubuntu 24.04`
 - 推荐部署目录：`/opt/pcl-afk-bot`
 - 控制台默认端口：`30123`
@@ -37,6 +37,14 @@ curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deplo
 ```text
 /tmp/ly-console-bootstrap.log
 ```
+
+安装完成后，脚本会创建快捷命令：
+
+```bash
+j
+```
+
+以后你 SSH 登录服务器后，直接输入 `j` 就能打开 LY 控制台一键管理菜单。
 
 如果卡在 `[2/5] 检查 GitHub 仓库是否可以访问`，通常不是权限问题，而是服务器访问 `github.com` 超时。新脚本会限制 GitHub 检查最多等待 20 秒，失败后自动尝试下载仓库压缩包继续安装。
 
@@ -100,7 +108,7 @@ git ls-remote --heads https://github.com/bykedie/LY-.git main
 如果你暂时想用公网 IP 直连测试，再额外放行：
 
 ```text
-30123/TCP  直接访问 http://116.62.191.104:30123
+30123/TCP  直接访问 http://脚本显示的当前公网IP:30123
 ```
 
 直连公网端口时，`.env` 里的 `DASHBOARD_HOST` 必须改成：
@@ -122,7 +130,7 @@ DASHBOARD_HOST=127.0.0.1
 ```text
 主机记录：bot
 记录类型：A
-记录值：116.62.191.104
+记录值：脚本显示的当前公网 IP
 TTL：默认即可
 ```
 
@@ -151,7 +159,7 @@ DNS 生效通常需要几分钟到几十分钟。
 在你 Windows 本机 PowerShell 里执行，路径按你的本机实际目录：
 
 ```powershell
-scp -r "C:\Users\Administrator\Documents\IE智能体\pcl-afk-bot" root@116.62.191.104:/opt/pcl-afk-bot
+scp -r "C:\Users\Administrator\Documents\IE智能体\pcl-afk-bot" root@你的服务器公网IP:/opt/pcl-afk-bot
 ```
 
 如果服务器禁止 root 登录，就把 `root` 换成你的 Ubuntu 用户名。
@@ -159,7 +167,7 @@ scp -r "C:\Users\Administrator\Documents\IE智能体\pcl-afk-bot" root@116.62.19
 ## 四、登录服务器
 
 ```bash
-ssh root@116.62.191.104
+ssh root@你的服务器公网IP
 ```
 
 进入项目目录：
@@ -386,7 +394,7 @@ Minecraft 服务器地址类似：
 ```text
 127.0.0.1
 play.example.com
-116.62.191.104
+你的 Minecraft 服务器公网 IP
 ```
 
 再检查 Minecraft 端口、版本、登录模式，以及服务器规则是否允许这类自动挂机账号进入。

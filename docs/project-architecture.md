@@ -219,6 +219,7 @@ deploy/ly-afk-manager.sh
 
 ```text
 安装 Node.js / npm / nginx / ufw / pm2
+安装或修复快捷命令 j
 生成 .env
 安装 npm 依赖
 pm2 后台启动控制台
@@ -227,6 +228,14 @@ pm2 后台启动控制台
 查看状态和日志
 更新项目并重启
 ```
+
+快捷命令安装后位于：
+
+```text
+/usr/local/bin/j
+```
+
+以后 SSH 登录服务器后，直接输入 `j` 即可进入 `deploy/ly-afk-manager.sh` 管理菜单。
 
 ## 六、常见开发位置
 
@@ -360,4 +369,3 @@ https://github.com/bykedie/LY-.git
 ```text
 Nginx + HTTPS + DASHBOARD_HOST=127.0.0.1
 ```
-

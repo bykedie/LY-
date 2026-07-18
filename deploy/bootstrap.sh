@@ -107,6 +107,24 @@ run_interactive() {
   fi
 }
 
+install_j_shortcut() {
+  local SUDO shortcut_file
+  SUDO="$(need_sudo)"
+  shortcut_file="/usr/local/bin/j"
+
+  step "4/5" "安装快捷命令 j"
+  run $SUDO tee "$shortcut_file" >/dev/null <<EOF
+#!/usr/bin/env bash
+cd "${INSTALL_DIR}"
+if [[ "\${EUID}" -eq 0 ]]; then
+  exec ./deploy/ly-afk-manager.sh "\$@"
+fi
+exec sudo ./deploy/ly-afk-manager.sh "\$@"
+EOF
+  run $SUDO chmod +x "$shortcut_file"
+  info "快捷命令已安装：以后在终端输入 j 可直接打开 LY 管理界面。"
+}
+
 command_missing() {
   ! command -v "$1" >/dev/null 2>&1
 }
@@ -295,11 +313,11 @@ clone_or_update_project() {
 run_manager() {
   local SUDO
   SUDO="$(need_sudo)"
-  step "4/5" "准备一键管理脚本"
   cd "$INSTALL_DIR"
   run $SUDO chmod +x deploy/ly-afk-manager.sh
+  install_j_shortcut
   info "项目已准备完成，正在打开 LY 控制台一键管理菜单。"
-  step "5/5" "进入菜单，请根据提示选择功能"
+  step "5/5" "进入菜单，请根据提示选择功能，也可以以后直接输入 j 打开"
   run_interactive $SUDO ./deploy/ly-afk-manager.sh
 }
 

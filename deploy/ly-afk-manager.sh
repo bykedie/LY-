@@ -4,8 +4,8 @@ set -Eeuo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE_NAME="ly-afk-dashboard"
-DEFAULT_PUBLIC_IP="116.62.191.104"
-DEFAULT_PRIVATE_IP="172.25.45.1"
+PUBLIC_IP_CACHE=""
+PRIVATE_IP_CACHE=""
 PAUSE_AFTER_STEP=1
 
 BLUE="\033[36m"
@@ -15,6 +15,56 @@ RED="\033[31m"
 RESET="\033[0m"
 
 cd "$PROJECT_DIR"
+
+detect_public_ip() {
+  if [[ -n "$PUBLIC_IP_CACHE" ]]; then
+    echo "$PUBLIC_IP_CACHE"
+    return 0
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    PUBLIC_IP_CACHE="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$PUBLIC_IP_CACHE" ]]; then
+    PUBLIC_IP_CACHE="未检测到"
+  fi
+  echo "$PUBLIC_IP_CACHE"
+}
+
+detect_private_ip() {
+  if [[ -n "$PRIVATE_IP_CACHE" ]]; then
+    echo "$PRIVATE_IP_CACHE"
+    return 0
+  fi
+
+  PRIVATE_IP_CACHE="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+  if [[ -z "$PRIVATE_IP_CACHE" ]] && command -v ip >/dev/null 2>&1; then
+    PRIVATE_IP_CACHE="$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}' || true)"
+  fi
+
+  if [[ -z "$PRIVATE_IP_CACHE" ]]; then
+    PRIVATE_IP_CACHE="未检测到"
+  fi
+  echo "$PRIVATE_IP_CACHE"
+}
+
+install_j_shortcut() {
+  local SUDO shortcut_file
+  SUDO="$(need_sudo)"
+  shortcut_file="/usr/local/bin/j"
+
+  $SUDO tee "$shortcut_file" >/dev/null <<EOF
+#!/usr/bin/env bash
+cd "${PROJECT_DIR}"
+if [[ "\${EUID}" -eq 0 ]]; then
+  exec ./deploy/ly-afk-manager.sh "\$@"
+fi
+exec sudo ./deploy/ly-afk-manager.sh "\$@"
+EOF
+  $SUDO chmod +x "$shortcut_file"
+  info "快捷命令已安装：以后在终端输入 j 可直接打开本界面。"
+}
 
 ensure_interactive_terminal() {
   if [[ ! -t 0 && ! -r /dev/tty ]]; then
@@ -27,6 +77,9 @@ ensure_interactive_terminal() {
 }
 
 print_header() {
+  local current_public_ip current_private_ip
+  current_public_ip="$(detect_public_ip)"
+  current_private_ip="$(detect_private_ip)"
   clear || true
   printf "${BLUE}"
   cat <<'LOGO'
@@ -39,8 +92,9 @@ LOGO
   printf "${RESET}"
   echo "LY 挂机控制台一键管理脚本  v1.0.0"
   echo "适配系统：Ubuntu 24.04"
-  echo "默认公网 IP：${DEFAULT_PUBLIC_IP}"
-  echo "默认私有 IP：${DEFAULT_PRIVATE_IP}"
+  echo "当前公网 IP：${current_public_ip}"
+  echo "当前私有 IP：${current_private_ip}"
+  echo "快捷命令：j"
   echo "项目目录：${PROJECT_DIR}"
   echo "--------------------------------"
 }
@@ -89,8 +143,8 @@ show_system_info() {
   echo "--------------------------------"
   echo "系统：$(detect_os)"
   echo "当前用户：$(whoami)"
-  echo "公网 IP：${DEFAULT_PUBLIC_IP}"
-  echo "私有 IP：${DEFAULT_PRIVATE_IP}"
+  echo "当前公网 IP：$(detect_public_ip)"
+  echo "当前私有 IP：$(detect_private_ip)"
   echo "Node：$(node -v 2>/dev/null || echo '未安装')"
   echo "npm：$(npm -v 2>/dev/null || echo '未安装')"
   echo "pm2：$(pm2 -v 2>/dev/null || echo '未安装')"
@@ -136,6 +190,7 @@ install_runtime() {
   if ! command -v pm2 >/dev/null 2>&1; then
     $SUDO npm install -g pm2
   fi
+  install_j_shortcut
   info "基础环境已准备完成。"
   pause
 }
@@ -304,7 +359,7 @@ EOF
   $SUDO nginx -t
   $SUDO systemctl reload nginx
   info "Nginx 已配置完成。"
-  echo "请确认 DNS A 记录已指向 ${DEFAULT_PUBLIC_IP}。"
+  echo "请确认 DNS A 记录已指向 $(detect_public_ip)。"
   echo "现在可以先访问：http://${domain}"
   pause
 }
@@ -314,7 +369,7 @@ enable_https() {
   echo "申请 HTTPS 证书"
   echo "--------------------------------"
   local domain
-  read -r -p "请输入已经解析到 ${DEFAULT_PUBLIC_IP} 的域名：" domain
+  read -r -p "请输入已经解析到 $(detect_public_ip) 的域名：" domain
   if [[ -z "$domain" ]]; then
     fail "域名不能为空。"
     pause
@@ -382,7 +437,7 @@ show_access_hint() {
     echo "推荐访问：http://${domain}"
     echo "配置 HTTPS 后访问：https://${domain}"
   elif [[ "$host" == "0.0.0.0" ]]; then
-    echo "直连访问：http://${DEFAULT_PUBLIC_IP}:${port}"
+    echo "直连访问：http://$(detect_public_ip):${port}"
   else
     echo "当前仅监听本机：http://127.0.0.1:${port}"
     echo "如需域名访问，请执行菜单 8 配置 Nginx。"
@@ -418,6 +473,7 @@ main_menu() {
     echo "11. 查看运行状态"
     echo "12. 查看实时日志"
     echo "13. 更新项目并重启"
+    echo "14. 安装/修复快捷命令 j"
     echo
     echo "0.  退出脚本"
     echo "--------------------------------"
@@ -436,6 +492,7 @@ main_menu() {
       11) health_check ;;
       12) show_logs ;;
       13) update_project ;;
+      14) install_j_shortcut; pause ;;
       0) exit 0 ;;
       *) warn "无效选择，请重新输入。"; sleep 1 ;;
     esac
