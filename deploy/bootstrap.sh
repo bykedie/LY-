@@ -194,7 +194,7 @@ prepare_existing_install_dir() {
 
   if dir_has_project_files "$INSTALL_DIR"; then
     warn "安装目录已存在，并且看起来已经是 LY 控制台项目：${INSTALL_DIR}"
-    echo "跳过下载，直接进入一键管理菜单。"
+    echo "将先尝试更新到最新版本，再进入一键管理菜单。"
     return 2
   fi
 
@@ -285,9 +285,13 @@ clone_or_update_with_git() {
 
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     warn "检测到项目已存在，开始更新：${INSTALL_DIR}"
-    run_with_timeout "$GIT_CLONE_TIMEOUT" $SUDO git -C "$INSTALL_DIR" fetch origin "$BRANCH"
-    run $SUDO git -C "$INSTALL_DIR" checkout "$BRANCH"
-    run $SUDO git -C "$INSTALL_DIR" pull --ff-only origin "$BRANCH"
+    if run_with_timeout "$GIT_CLONE_TIMEOUT" $SUDO git -C "$INSTALL_DIR" fetch origin "$BRANCH"; then
+      run $SUDO git -C "$INSTALL_DIR" checkout "$BRANCH"
+      run $SUDO git -C "$INSTALL_DIR" merge --ff-only "origin/${BRANCH}"
+    else
+      warn "Git 更新失败，准备改用压缩包更新已有项目。"
+      return 1
+    fi
     return
   fi
 
@@ -342,14 +346,59 @@ download_archive_project() {
   info "项目代码已通过压缩包安装到：${INSTALL_DIR}"
 }
 
+update_existing_project_from_archive() {
+  local SUDO tmp_dir archive_file extracted_dir backup_dir
+  SUDO="$(need_sudo)"
+  step "3/5" "已有项目不是 Git 仓库，正在用压缩包更新到最新版本"
+  echo "压缩包地址：${ARCHIVE_URL}"
+
+  tmp_dir="$(mktemp -d)"
+  archive_file="${tmp_dir}/ly-console.tar.gz"
+  download_file "$ARCHIVE_URL" "$archive_file" "下载最新项目压缩包" "$ARCHIVE_DOWNLOAD_TIMEOUT"
+  run tar -xzf "$archive_file" -C "$tmp_dir"
+  extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "$extracted_dir" ]]; then
+    fail "压缩包已下载，但没有找到解压后的项目目录。"
+    run rm -rf "$tmp_dir"
+    exit 1
+  fi
+
+  backup_dir="${INSTALL_DIR}.backup.$(date +%Y%m%d%H%M%S)"
+  echo "当前项目备份到：${backup_dir}"
+  run $SUDO mv "$INSTALL_DIR" "$backup_dir"
+  run $SUDO mv "$extracted_dir" "$INSTALL_DIR"
+
+  for runtime_file in .env bot.config.json accounts.json; do
+    if [[ -f "${backup_dir}/${runtime_file}" ]]; then
+      run $SUDO cp "${backup_dir}/${runtime_file}" "${INSTALL_DIR}/${runtime_file}"
+    fi
+  done
+
+  run rm -rf "$tmp_dir"
+  info "已有项目已更新到最新版本，运行配置已保留。"
+}
+
 clone_or_update_project() {
+  if [[ -e "$INSTALL_DIR" ]] && dir_has_project_files "$INSTALL_DIR" && [[ ! -d "${INSTALL_DIR}/.git" ]]; then
+    update_existing_project_from_archive
+    return 0
+  fi
+
   if check_repo_access; then
     if clone_or_update_with_git; then
       return 0
     fi
-    download_archive_project
+    if [[ -e "$INSTALL_DIR" ]] && dir_has_project_files "$INSTALL_DIR"; then
+      update_existing_project_from_archive
+    else
+      download_archive_project
+    fi
   else
-    download_archive_project
+    if [[ -e "$INSTALL_DIR" ]] && dir_has_project_files "$INSTALL_DIR"; then
+      update_existing_project_from_archive
+    else
+      download_archive_project
+    fi
   fi
 }
 

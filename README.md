@@ -6,7 +6,7 @@ LY控制台 是一个面向 Minecraft Java 版服务器的网页化挂机与批�
 
 ## 一键拉取部署
 
-Ubuntu 24.04 服务器推荐使用下面这条命令。执行后会自动拉取 GitHub 仓库到 `/opt/ly-console`，然后打开一键管理菜单：
+Ubuntu 24.04 服务器推荐使用下面这条命令。执行后会自动拉取或更新 GitHub 仓库到 `/opt/ly-console`，然后打开一键管理菜单：
 
 ```bash
 tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh -o "$tmp" && echo "[##########] 100% 下载完成" && sudo bash "$tmp"
@@ -25,6 +25,8 @@ tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL ht
 ```
 
 如果服务器访问 `github.com` 超时，脚本会先等 20 秒，然后自动改用 GitHub 压缩包下载方式继续安装；如果压缩包下载也失败，基本就是服务器到 GitHub 网络不通，需要配置代理、换网络，或把仓库同步到国内 Git 平台后用 `REPO_URL` 覆盖。
+
+如果 `/opt/ly-console` 已经存在，一键命令会先更新到最新版本，再进入菜单，不会再直接打开旧版本。
 
 第一次进入菜单建议选择：
 
