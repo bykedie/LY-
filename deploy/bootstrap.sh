@@ -10,8 +10,8 @@ set -Eeuo pipefail
 # 你的 GitHub 仓库地址。
 # 推送到真实仓库后，可以把这里改成你的最终地址。
 # 也可以运行时覆盖，例如：
-# REPO_URL=https://github.com/你的用户名/LY控制台.git bash deploy/bootstrap.sh
-REPO_URL="${REPO_URL:-https://github.com/你的GitHub用户名/LY控制台.git}"
+# REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
+REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -99,4 +99,3 @@ main() {
 }
 
 main
-

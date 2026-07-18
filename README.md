@@ -9,19 +9,13 @@ LY控制台 是一个面向 Minecraft Java 版服务器的网页化挂机与批�
 Ubuntu 24.04 服务器推荐使用下面这条命令。执行后会自动拉取 GitHub 仓库到 `/opt/ly-console`，然后打开一键管理菜单：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/你的GitHub用户名/LY控制台/main/deploy/bootstrap.sh | sudo bash
-```
-
-如果你的 GitHub 仓库使用英文地址，例如 `LY-console`，就用这一条：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/你的GitHub用户名/LY-console/main/deploy/bootstrap.sh | sudo REPO_URL=https://github.com/你的GitHub用户名/LY-console.git bash
+curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo bash
 ```
 
 如果你想安装到其他目录，例如 `/opt/pcl-afk-bot`：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/你的GitHub用户名/LY控制台/main/deploy/bootstrap.sh | sudo INSTALL_DIR=/opt/pcl-afk-bot bash
+curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo INSTALL_DIR=/opt/pcl-afk-bot bash
 ```
 
 第一次进入菜单建议选择：
