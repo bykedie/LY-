@@ -26,6 +26,18 @@ https://bot.你的域名.com
 
 这样 `30123` 不需要直接暴露到公网，只开放 `80` 和 `443` 即可，更适合长期放在服务器上运行。
 
+如果是全新服务器，最省事的方式是直接执行：
+
+```bash
+curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo bash
+```
+
+执行后会显示 `[1/5]`、`[2/5]` 这样的进度。完整日志在：
+
+```text
+/tmp/ly-console-bootstrap.log
+```
+
 ## 二、先在云服务商后台配置
 
 ### 1. 安全组 / 防火墙端口
@@ -331,4 +343,3 @@ play.example.com
 ```
 
 再检查 Minecraft 端口、版本、登录模式，以及服务器规则是否允许这类自动挂机账号进入。
-

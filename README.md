@@ -9,13 +9,19 @@ LY控制台 是一个面向 Minecraft Java 版服务器的网页化挂机与批�
 Ubuntu 24.04 服务器推荐使用下面这条命令。执行后会自动拉取 GitHub 仓库到 `/opt/ly-console`，然后打开一键管理菜单：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo bash
+curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo bash
 ```
 
 如果你想安装到其他目录，例如 `/opt/pcl-afk-bot`：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo INSTALL_DIR=/opt/pcl-afk-bot bash
+curl -fL --progress-bar https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo INSTALL_DIR=/opt/pcl-afk-bot bash
+```
+
+执行后会看到 `[1/5]`、`[2/5]` 这样的状态提示。完整安装日志会写到服务器：
+
+```text
+/tmp/ly-console-bootstrap.log
 ```
 
 第一次进入菜单建议选择：
@@ -39,6 +45,14 @@ curl -fsSL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.s
 - 实时日志：网页内查看运行日志，支持 Minecraft 颜色渲染。
 - 设置中心：可调整控制台名称、导航位置、提示文案和界面偏好。
 - 部署管理：内置 Ubuntu 24.04 一键菜单，支持安装、启动、停止、重启、日志、Nginx 反代和 HTTPS 证书。
+
+## 项目结构文档
+
+交接、二次开发和排查问题可以先看：
+
+```text
+docs/project-architecture.md
+```
 
 ## 推荐方式：打开管理面板
 
