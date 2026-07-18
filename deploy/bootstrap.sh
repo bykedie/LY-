@@ -102,6 +102,41 @@ package_missing() {
   ! dpkg -s "$1" >/dev/null 2>&1
 }
 
+dir_is_empty() {
+  [[ -d "$1" ]] && [[ -z "$(find "$1" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]
+}
+
+dir_has_project_files() {
+  [[ -f "$1/package.json" ]] && [[ -f "$1/deploy/ly-afk-manager.sh" ]]
+}
+
+prepare_existing_install_dir() {
+  local SUDO backup_dir
+  SUDO="$(need_sudo)"
+
+  if [[ ! -e "$INSTALL_DIR" ]]; then
+    return 0
+  fi
+
+  if dir_has_project_files "$INSTALL_DIR"; then
+    warn "安装目录已存在，并且看起来已经是 LY 控制台项目：${INSTALL_DIR}"
+    echo "跳过下载，直接进入一键管理菜单。"
+    return 2
+  fi
+
+  if dir_is_empty "$INSTALL_DIR"; then
+    warn "安装目录已存在但为空，自动清理：${INSTALL_DIR}"
+    run $SUDO rmdir "$INSTALL_DIR"
+    return 0
+  fi
+
+  backup_dir="${INSTALL_DIR}.backup.$(date +%Y%m%d%H%M%S)"
+  warn "安装目录已存在但不是完整项目，自动备份后继续安装。"
+  echo "原目录：${INSTALL_DIR}"
+  echo "备份到：${backup_dir}"
+  run $SUDO mv "$INSTALL_DIR" "$backup_dir"
+}
+
 apt_update_with_retry() {
   local SUDO attempt
   SUDO="$(need_sudo)"
@@ -183,9 +218,11 @@ clone_or_update_with_git() {
   fi
 
   if [[ -e "$INSTALL_DIR" ]]; then
-    fail "安装目录已存在但不是 Git 仓库：${INSTALL_DIR}"
-    echo "请先备份或删除这个目录，或者指定新的 INSTALL_DIR。"
-    exit 1
+    if prepare_existing_install_dir; then
+      :
+    else
+      return 0
+    fi
   fi
 
   run $SUDO mkdir -p "$(dirname "$INSTALL_DIR")"
@@ -209,10 +246,11 @@ download_archive_project() {
   echo "最长等待：${ARCHIVE_DOWNLOAD_TIMEOUT} 秒"
 
   if [[ -e "$INSTALL_DIR" ]]; then
-    fail "安装目录已存在，无法覆盖：${INSTALL_DIR}"
-    echo "如果这是上一次失败留下的空目录，可以先确认后删除："
-    echo "sudo rm -rf ${INSTALL_DIR}"
-    exit 1
+    if prepare_existing_install_dir; then
+      :
+    else
+      return 0
+    fi
   fi
 
   tmp_dir="$(mktemp -d)"
