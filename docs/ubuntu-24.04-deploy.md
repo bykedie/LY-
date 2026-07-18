@@ -217,7 +217,7 @@ sudo ./deploy/ly-afk-manager.sh
 3. 域名 + 公网端口共存：两个入口都保留，但必须设置强密码。
 ```
 
-菜单 `13. 更新项目并重启` 会显示更新进度。如果项目是 Git 克隆安装，会走 `git fetch --progress`；如果是 GitHub 压缩包兜底安装，也能下载压缩包更新，并保留 `.env`、`bot.config.json`、`accounts.json`。
+菜单 `13. 更新项目并重启` 会显示中文状态，例如“当前正在连接 GitHub 仓库并下载更新”“当前正在安装/更新 npm 依赖”“当前正在重启 LY 控制台服务”。如果项目是 Git 克隆安装，会走 `git fetch --progress`；如果是 GitHub 压缩包兜底安装，也能下载压缩包更新，并保留 `.env`、`bot.config.json`、`accounts.json`。
 
 它会依次完成：
 

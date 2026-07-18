@@ -93,7 +93,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.1"
+  echo "LY 挂机控制台一键管理脚本  v1.0.2"
   echo "快捷打开面板：j"
   echo "快捷入口：下次在命令行直接输入 j 可打开本界面"
   echo "--------------------------------"
@@ -577,16 +577,22 @@ update_project() {
   echo "--------------------------------"
   local SUDO tmp_dir archive_file extracted_dir backup_dir parent_dir current_name
   SUDO="$(need_sudo)"
+  echo "当前正在更新 LY 控制台，请不要关闭 SSH 窗口。"
+  echo "更新过程中会保留 .env、bot.config.json、accounts.json 等运行配置。"
+  echo
   if [[ -d .git ]]; then
-    progress "1/5" "连接远程仓库并下载更新"
+    progress "1/5" "当前正在连接 GitHub 仓库并下载更新..."
     git fetch --progress origin "$BRANCH"
-    progress "2/5" "合并最新代码"
+    info "远程更新下载完成。"
+    progress "2/5" "当前正在合并最新代码..."
     git merge --ff-only "origin/${BRANCH}"
+    info "代码合并完成。"
   else
-    progress "1/5" "当前不是 Git 仓库，使用压缩包方式下载最新代码"
+    progress "1/5" "当前不是 Git 仓库，正在使用压缩包方式下载最新代码..."
     tmp_dir="$(mktemp -d)"
     archive_file="${tmp_dir}/ly-console.tar.gz"
     download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" 300
+    info "压缩包下载完成，当前正在解压。"
     tar -xzf "$archive_file" -C "$tmp_dir"
     extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
     if [[ -z "$extracted_dir" ]]; then
@@ -595,7 +601,7 @@ update_project() {
       pause
       return
     fi
-    progress "2/5" "备份当前项目并替换代码"
+    progress "2/5" "当前正在备份旧项目并替换为新代码..."
     parent_dir="$(dirname "$PROJECT_DIR")"
     current_name="$(basename "$PROJECT_DIR")"
     backup_dir="${parent_dir}/${current_name}.backup.$(date +%Y%m%d%H%M%S)"
@@ -610,19 +616,23 @@ update_project() {
     rm -rf "$tmp_dir"
     cd "$PROJECT_DIR"
     echo "旧项目已备份到：${backup_dir}"
+    info "代码替换完成。"
   fi
-  progress "3/5" "安装/更新 npm 依赖"
+  progress "3/5" "当前正在安装/更新 npm 依赖..."
   npm install --progress=true
-  progress "4/5" "安装/修复快捷命令 j"
+  info "npm 依赖安装完成。"
+  progress "4/5" "当前正在安装/修复快捷命令 j..."
   install_j_shortcut
-  progress "5/5" "重启控制台服务"
+  info "快捷命令 j 已处理完成。"
+  progress "5/5" "当前正在重启 LY 控制台服务..."
   if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
     pm2 restart "$SERVICE_NAME" --update-env
   else
     pm2 start src/dashboard.js --name "$SERVICE_NAME"
   fi
   pm2 save
-  info "更新流程已结束。"
+  info "控制台服务已重启。"
+  info "更新流程已结束，可以刷新网页控制台或重新输入 j 查看菜单。"
   pause
 }
 
