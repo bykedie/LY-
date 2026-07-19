@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.3"
-EXPECTED_MANAGER_VERSION="v1.0.3"
+BOOTSTRAP_VERSION="v1.0.5"
+EXPECTED_MANAGER_VERSION="v1.0.5"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -104,9 +104,9 @@ download_file() {
   local elapsed=0
   local percent fill empty bar curl_pid exit_code
 
-  LAST_COMMAND="curl -fsSL ${url} -o ${output}"
+  LAST_COMMAND="curl -fL ${url} -o ${output}"
   echo "+ ${LAST_COMMAND}"
-  curl -fsSL --connect-timeout 15 "$url" -o "$output" &
+  curl -fL --connect-timeout 15 --max-time "$timeout_seconds" --retry 2 --retry-delay 3 "$url" -o "$output" &
   curl_pid="$!"
 
   while kill -0 "$curl_pid" 2>/dev/null; do
@@ -132,11 +132,11 @@ download_file() {
   if wait "$curl_pid"; then
     printf "\r%s [##########] 100%%\n" "$label"
     return 0
+  else
+    exit_code="$?"
+    printf "\r%s [##########] 失败\n" "$label"
+    return "$exit_code"
   fi
-
-  exit_code="$?"
-  printf "\r%s [##########] 失败\n" "$label"
-  return "$exit_code"
 }
 
 run_interactive() {
@@ -304,7 +304,7 @@ clone_or_update_with_git() {
 
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     warn "检测到项目已存在，开始更新：${INSTALL_DIR}"
-    if run_with_timeout "$GIT_CLONE_TIMEOUT" $SUDO git -C "$INSTALL_DIR" fetch origin "$BRANCH"; then
+    if run_with_timeout "$GIT_CLONE_TIMEOUT" $SUDO git -C "$INSTALL_DIR" fetch --progress origin "$BRANCH"; then
       run $SUDO git -C "$INSTALL_DIR" checkout "$BRANCH"
       run $SUDO git -C "$INSTALL_DIR" merge --ff-only "origin/${BRANCH}"
     else

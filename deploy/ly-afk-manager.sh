@@ -93,7 +93,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.3"
+  echo "LY 挂机控制台一键管理脚本  v1.0.5"
   echo "快捷打开面板：j"
   echo "快捷入口：下次在命令行直接输入 j 可打开本界面"
   echo "--------------------------------"
@@ -166,8 +166,8 @@ download_file() {
   local elapsed=0
   local percent fill empty bar curl_pid exit_code
 
-  echo "+ curl -fsSL ${url} -o ${output}"
-  curl -fsSL --connect-timeout 15 "$url" -o "$output" &
+  echo "+ curl -fL ${url} -o ${output}"
+  curl -fL --connect-timeout 15 --max-time "$timeout_seconds" --retry 2 --retry-delay 3 "$url" -o "$output" &
   curl_pid="$!"
 
   while kill -0 "$curl_pid" 2>/dev/null; do
@@ -193,11 +193,11 @@ download_file() {
   if wait "$curl_pid"; then
     printf "\r%s [##########] 100%%\n" "$label"
     return 0
+  else
+    exit_code="$?"
+    printf "\r%s [##########] 失败\n" "$label"
+    return "$exit_code"
   fi
-
-  exit_code="$?"
-  printf "\r%s [##########] 失败\n" "$label"
-  return "$exit_code"
 }
 
 need_sudo() {

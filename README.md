@@ -9,16 +9,17 @@ LY控制台 是一个面向 Minecraft Java 版服务器的网页化挂机与批�
 Ubuntu 24.04 服务器推荐使用下面这条命令。执行后会自动拉取或更新 GitHub 仓库到 `/opt/ly-console`，然后打开一键管理菜单：
 
 ```bash
-tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL "https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" -o "$tmp" && echo "[##########] 100% 下载完成" && sudo bash "$tmp"
+tmp=/tmp/ly-console-bootstrap.sh; err=/tmp/ly-console-bootstrap-download.err; urls=("https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" "https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh?cache=$(date +%s)"); echo "[0/5] 下载启动脚本"; ok=0; for url in "${urls[@]}"; do echo "下载源：$url"; rm -f "$tmp" "$err"; curl -fL --connect-timeout 10 --max-time 90 --retry 1 --retry-delay 2 "$url" -o "$tmp" >"$err" 2>&1 & pid=$!; i=0; while kill -0 "$pid" 2>/dev/null; do p=$((i * 6 + 5)); [ "$p" -gt 95 ] && p=95; f=$((p / 10)); e=$((10 - f)); bar="$(printf "%${f}s" | tr " " "#")$(printf "%${e}s" | tr " " "-")"; printf "\r下载启动脚本 [%s] %s%%，仍在下载..." "$bar" "$p"; sleep 1; i=$((i + 1)); done; if wait "$pid"; then printf "\r下载启动脚本 [##########] 100%%，下载完成。        \n"; ok=1; break; else code=$?; printf "\n当前下载源失败，退出码：%s\n" "$code"; sed -n "1,5p" "$err" 2>/dev/null || true; echo "尝试备用源。"; fi; done; if [ "$ok" = "1" ]; then sudo bash "$tmp"; else echo "[错误] 启动脚本下载失败，请检查服务器网络或稍后重试。"; exit 1; fi
 ```
 
 如果你想安装到其他目录，例如 `/opt/pcl-afk-bot`：
 
 ```bash
-tmp=/tmp/ly-console-bootstrap.sh; echo "[0/5] 下载启动脚本"; curl -fsSL "https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" -o "$tmp" && echo "[##########] 100% 下载完成" && sudo INSTALL_DIR=/opt/pcl-afk-bot bash "$tmp"
+tmp=/tmp/ly-console-bootstrap.sh; err=/tmp/ly-console-bootstrap-download.err; urls=("https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" "https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh?cache=$(date +%s)"); echo "[0/5] 下载启动脚本"; ok=0; for url in "${urls[@]}"; do echo "下载源：$url"; rm -f "$tmp" "$err"; curl -fL --connect-timeout 10 --max-time 90 --retry 1 --retry-delay 2 "$url" -o "$tmp" >"$err" 2>&1 & pid=$!; i=0; while kill -0 "$pid" 2>/dev/null; do p=$((i * 6 + 5)); [ "$p" -gt 95 ] && p=95; f=$((p / 10)); e=$((10 - f)); bar="$(printf "%${f}s" | tr " " "#")$(printf "%${e}s" | tr " " "-")"; printf "\r下载启动脚本 [%s] %s%%，仍在下载..." "$bar" "$p"; sleep 1; i=$((i + 1)); done; if wait "$pid"; then printf "\r下载启动脚本 [##########] 100%%，下载完成。        \n"; ok=1; break; else code=$?; printf "\n当前下载源失败，退出码：%s\n" "$code"; sed -n "1,5p" "$err" 2>/dev/null || true; echo "尝试备用源。"; fi; done; if [ "$ok" = "1" ]; then sudo INSTALL_DIR=/opt/pcl-afk-bot bash "$tmp"; else echo "[错误] 启动脚本下载失败，请检查服务器网络或稍后重试。"; exit 1; fi
 ```
 
 执行后会看到 `[1/5]`、`[2/5]` 这样的状态提示。完整安装日志会写到服务器：
+下载启动脚本阶段会持续刷新 `下载启动脚本 [#####-----] xx%`。如果当前下载源失败，会显示 curl 退出码和前几行错误，然后自动尝试备用源。
 
 ```text
 /tmp/ly-console-bootstrap.log
