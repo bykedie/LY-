@@ -19,14 +19,41 @@ RESET="\033[0m"
 
 cd "$PROJECT_DIR"
 
+extract_ipv4() {
+  local raw="$1"
+  printf '%s' "$raw" | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -n 1 || true
+}
+
 detect_public_ip() {
   if [[ -n "$PUBLIC_IP_CACHE" ]]; then
     echo "$PUBLIC_IP_CACHE"
     return 0
   fi
 
-  if command -v curl >/dev/null 2>&1; then
-    PUBLIC_IP_CACHE="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || true)"
+  if [[ -n "${PUBLIC_IP:-}" ]]; then
+    PUBLIC_IP_CACHE="$(extract_ipv4 "$PUBLIC_IP")"
+  fi
+
+  if [[ -z "$PUBLIC_IP_CACHE" ]] && command -v curl >/dev/null 2>&1; then
+    local url raw ip
+    for url in \
+      "https://api.ipify.org" \
+      "https://ifconfig.me/ip" \
+      "https://icanhazip.com" \
+      "https://ident.me" \
+      "https://myip.ipip.net" \
+      "http://100.100.100.200/latest/meta-data/eipv4" \
+      "http://100.100.100.200/latest/meta-data/public-ipv4" \
+      "http://metadata.tencentyun.com/latest/meta-data/public-ipv4" \
+      "http://169.254.169.254/latest/meta-data/public-ipv4"
+    do
+      raw="$(curl -4fsSL --noproxy '*' --connect-timeout 2 --max-time 5 "$url" 2>/dev/null || true)"
+      ip="$(extract_ipv4 "$raw")"
+      if [[ -n "$ip" ]]; then
+        PUBLIC_IP_CACHE="$ip"
+        break
+      fi
+    done
   fi
 
   if [[ -z "$PUBLIC_IP_CACHE" ]]; then
@@ -93,7 +120,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.6"
+  echo "LY 挂机控制台一键管理脚本  v1.0.7"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
