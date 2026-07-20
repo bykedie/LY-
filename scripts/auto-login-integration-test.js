@@ -28,6 +28,16 @@ await runAutoLoginScenario({
 });
 
 await runAutoLoginScenario({
+  name: 'zh-register-two-step',
+  prompts: [
+    '[玩家系统] 请输入“/register <密码>”以注册',
+    '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'
+  ],
+  password: 'secret-step',
+  expected: ['/register secret-step', '/register secret-step secret-step']
+});
+
+await runAutoLoginScenario({
   name: 'login',
   prompt: 'Please use /login password',
   password: 'secret-b',
@@ -43,7 +53,7 @@ await runAutoLoginScenario({
 
 console.log('auto login integration test ok');
 
-async function runAutoLoginScenario({ name, prompt, password, expected }) {
+async function runAutoLoginScenario({ name, prompt, prompts, password, expected }) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pcl-afk-auto-login-${name}-`));
   const serverPort = 43000 + Math.floor(Math.random() * 4000);
   const receivedMessages = [];
@@ -52,7 +62,7 @@ async function runAutoLoginScenario({ name, prompt, password, expected }) {
   let server = null;
 
   try {
-    server = createTestServer(serverPort, prompt, receivedMessages);
+    server = createTestServer(serverPort, prompts || [prompt], receivedMessages);
     await once(server, 'listening');
 
     fs.writeFileSync(
@@ -161,7 +171,7 @@ function createTestConfig({ port, username, password }) {
   };
 }
 
-function createTestServer(port, prompt, receivedMessages) {
+function createTestServer(port, prompts, receivedMessages) {
   const chunk = createFlatChunk();
   const server = mc.createServer({
     'online-mode': false,
@@ -215,8 +225,12 @@ function createTestServer(port, prompt, receivedMessages) {
       receivedMessages.push(packet.message);
     });
 
-    setTimeout(() => sendSystemChat(client, prompt), 250);
-    setTimeout(() => sendSystemChat(client, prompt), 650);
+    prompts.forEach((prompt, index) => {
+      setTimeout(() => sendSystemChat(client, prompt), 250 + index * 650);
+    });
+    if (prompts.length === 1) {
+      setTimeout(() => sendSystemChat(client, prompts[0]), 650);
+    }
   });
 
   return server;

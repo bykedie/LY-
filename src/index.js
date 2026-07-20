@@ -409,6 +409,8 @@ function createBot(account) {
       lastChatAt: 0,
       fishing: false,
       loginCommandSent: false,
+      registerSingleCommandSent: false,
+      registerConfirmCommandSent: false,
       reconnectTimer: null,
       reconnecting: false,
       stopped: false
@@ -438,6 +440,8 @@ function createBot(account) {
   session.bot.once('spawn', () => {
     log(account.username, '已进入服务器。');
     session.loginCommandSent = false;
+    session.registerSingleCommandSent = false;
+    session.registerConfirmCommandSent = false;
 
     if (ACTIVE_CONFIG.idleActions || ACTIVE_FEATURES.movement.antiAfk) {
       startIdleActions(account.username);
@@ -886,7 +890,7 @@ function handleServerMessage(account, text) {
   if (!ACTIVE_FEATURES.chat.autoLogin || !account.registerPassword) return;
 
   const session = sessions.get(account.username);
-  if (!session || session.loginCommandSent) return;
+  if (!session) return;
 
   const lowerText = text.toLowerCase();
   const shouldRegister = lowerText.includes('/register') || lowerText.includes('register') || text.includes('注册');
@@ -894,12 +898,34 @@ function handleServerMessage(account, text) {
 
   if (!shouldRegister && !shouldLogin) return;
 
-  const command = shouldRegister
-    ? `/register ${account.registerPassword} ${account.registerPassword}`
-    : `/login ${account.registerPassword}`;
+  if (shouldLogin) {
+    if (session.loginCommandSent) return;
 
-  session.loginCommandSent = true;
-  enqueueChat(account.username, command, `自动登录：已发送 ${shouldRegister ? '/register' : '/login'} 指令。`);
+    session.loginCommandSent = true;
+    enqueueChat(account.username, `/login ${account.registerPassword}`, '自动登录：已发送 /login 指令。');
+    return;
+  }
+
+  const shouldConfirmRegister = isRegisterConfirmPrompt(text);
+  if (shouldConfirmRegister) {
+    if (session.registerConfirmCommandSent) return;
+
+    session.registerConfirmCommandSent = true;
+    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, '自动登录：已发送 /register 二次确认指令。');
+    return;
+  }
+
+  if (session.registerSingleCommandSent) return;
+  session.registerSingleCommandSent = true;
+  enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
+}
+
+function isRegisterConfirmPrompt(text) {
+  const lowerText = String(text || '').toLowerCase();
+  return lowerText.includes('再输入一次')
+    || lowerText.includes('确认密码')
+    || lowerText.includes('确定密码')
+    || /\/register\s+(?:<[^>]+>|\S+)\s+(?:<[^>]+>|\S+)/i.test(lowerText);
 }
 
 function logGameMessage(username, message) {
