@@ -40,6 +40,7 @@
         <button class="side-action" id="reloadBtn" title="重新读取"><span class="nav-icon">读</span><span class="nav-text">重新读取</span></button>
         <button class="side-action primary-action" id="saveBtn" title="保存配置"><span class="nav-icon">存</span><span class="nav-text">保存配置</span></button>
         <button class="side-action" id="resetBtn" title="重置默认"><span class="nav-icon">重</span><span class="nav-text">重置默认</span></button>
+        <button class="side-action danger-action hidden" id="confirmResetBtn" type="button" disabled><span class="nav-icon">确</span><span class="nav-text">确认重置 5s</span></button>
       </div>
 
       <div class="health">
@@ -153,9 +154,22 @@
           </div>
         </div>
         <div class="feature-list">
-          <article>
-            <div><strong>自动走路</strong><span>输入坐标后，角色自动前往目标位置。</span></div>
+          <article class="feature-disclosure open" id="autoWalkPanel">
+            <button class="feature-disclosure-toggle" id="autoWalkToggle" type="button" aria-expanded="true" aria-controls="autoWalkBody">
+              <span class="disclosure-arrow" aria-hidden="true">▾</span>
+              <span><strong>自动走路</strong><span>输入坐标后，角色自动前往目标位置。</span></span>
+            </button>
             <label class="switch"><input data-feature="movement.autoWalk" type="checkbox">启用</label>
+            <div class="feature-disclosure-body" id="autoWalkBody">
+              <div class="grid three">
+                <label>目标 X<input id="walkTargetX" type="number" step="0.1"><span class="field-note">自动走路目标坐标 X。例：100.5</span></label>
+                <label>目标 Y<input id="walkTargetY" type="number" step="0.1"><span class="field-note">自动走路目标高度 Y。例：64</span></label>
+                <label>目标 Z<input id="walkTargetZ" type="number" step="0.1"><span class="field-note">自动走路目标坐标 Z。例：-230</span></label>
+              </div>
+              <div class="grid two">
+                <label>到达范围<input id="walkRange" type="number" min="0" step="0.5"><span class="field-note">距离目标多少方块内算到达。例：1 表示进入目标 1 格范围就停止。</span></label>
+              </div>
+            </div>
           </article>
           <article>
             <div><strong>防挂机走动</strong><span>随机小幅移动或转头，降低被简单挂机检测踢出的概率。</span></div>
@@ -172,13 +186,7 @@
             <label>防挂机最大延迟 ms<input id="antiAfkMaxDelayMs" type="number" min="1000"><span class="field-note">每次保活动作之间的最长等待时间，不能小于最小延迟。</span></label>
             <label>切换快捷栏槽位 1-9<input id="movementHeldSlot" type="number" min="1" max="9"><span class="field-note">界面用 1-9，程序内部会自动转换成 0-8。</span></label>
           </div>
-          <div class="grid three">
-            <label>目标 X<input id="walkTargetX" type="number" step="0.1"><span class="field-note">自动走路目标坐标 X。</span></label>
-            <label>目标 Y<input id="walkTargetY" type="number" step="0.1"><span class="field-note">自动走路目标高度 Y。</span></label>
-            <label>目标 Z<input id="walkTargetZ" type="number" step="0.1"><span class="field-note">自动走路目标坐标 Z。</span></label>
-          </div>
           <div class="grid two">
-            <label>到达范围<input id="walkRange" type="number" min="0" step="0.5"><span class="field-note">距离目标多少方块内算到达，避免精确坐标来回抖动。</span></label>
             <label>防挂机命令<input id="antiAfkCommand" placeholder="留空则跳跃/转头，例如 /ping"><span class="field-note">填写后优先按这个命令保活；留空时使用潜行、走动或转头。</span></label>
           </div>
           <div class="grid two">
@@ -206,10 +214,6 @@
           <article>
             <div><strong>预设消息</strong><span>保存常用消息，一键发送，也可扩展为定时发送。</span></div>
             <label class="switch"><input data-feature="chat.presetMessages" type="checkbox">启用</label>
-          </article>
-          <article>
-            <div><strong>发送游戏信息 / 指令</strong><span>远程向游戏内发送聊天或命令。</span></div>
-            <label class="switch"><input data-feature="chat.remoteCommand" type="checkbox">启用</label>
           </article>
           <article>
             <div><strong>自动登录</strong><span>匹配服务器登录提示，自动输入密码。</span></div>
@@ -272,6 +276,27 @@
       </section>
 
       <section class="panel page-section" id="config">
+        <div class="profile-manager" id="profileManager">
+          <div class="section-head compact-head">
+            <div>
+              <h3>配置档案</h3>
+              <p>把不同服务器的地址、账号和功能参数保存成档案。更新项目后只要选择档案再载入即可继续使用。</p>
+            </div>
+          </div>
+          <div class="profile-controls">
+            <label>选择服务器配置
+              <select id="profileSelect"></select>
+              <span class="field-note">例：生存服、小游戏服、测试服。选中后点击“载入档案”。</span>
+            </label>
+            <label>配置昵称
+              <input id="profileName" placeholder="例如：生存服-116公网IP">
+              <span class="field-note">保存时会使用这个名字，方便以后按服务器区分。</span>
+            </label>
+            <button class="primary" id="saveProfileBtn" type="button">保存为档案</button>
+            <button class="ghost" id="loadProfileBtn" type="button">载入档案</button>
+            <button class="danger" id="deleteProfileBtn" type="button">删除档案</button>
+          </div>
+        </div>
         <div class="grid two">
           <label>服务器地址<input id="host" placeholder="play.example.com"><span class="field-note">这里填 Minecraft 服务器地址，不是控制台域名。例：play.example.com、127.0.0.1、你的 MC 服务器公网 IP。</span></label>
           <label>服务器端口<input id="port" type="number" min="1" max="65535"><span class="field-note">这里填 Minecraft Java 版端口。例：默认 25565；如果你的服务端开在 25566，就填 25566。</span></label>
@@ -309,6 +334,19 @@
           <button class="ghost" id="addAccountBtn">添加账号</button>
         </div>
         <div class="account-list" id="accountList"></div>
+        <div class="sub-panel account-pool-panel">
+          <div class="section-head">
+            <div>
+              <h3>账号池</h3>
+              <p>用于保存已经注册完成或准备复用的账号。备注只方便你自己识别，不会发送到游戏里。</p>
+            </div>
+            <div class="runbar compact-runbar">
+              <button class="ghost" id="saveAccountsToPoolBtn" type="button">保存启用账号到账号池</button>
+              <button class="ghost" id="addPoolAccountBtn" type="button">添加池账号</button>
+            </div>
+          </div>
+          <div class="account-pool-list" id="accountPoolList"></div>
+        </div>
       </section>
 
       <section class="panel page-section" id="runtime">
@@ -321,6 +359,12 @@
         <div class="toggle-row">
           <label><input id="reconnect" type="checkbox">断线自动重连</label>
           <label><input id="idleActions" type="checkbox">启用跳跃/转头保活</label>
+        </div>
+        <div class="feature-list runtime-feature-list">
+          <article>
+            <div><strong>发送游戏信息 / 指令</strong><span>远程向游戏内发送聊天或命令。</span></div>
+            <label class="switch"><input data-feature="chat.remoteCommand" type="checkbox">启用</label>
+          </article>
         </div>
         <label>全局进服发言<input id="chatOnJoin" placeholder="留空则不发言"><span class="field-note">所有账号进入服务器后发送的统一消息；留空最安静。</span></label>
         <div class="runbar">
@@ -369,6 +413,7 @@
     <article class="account-card">
       <div class="account-main">
         <label>账号名<input class="account-username" placeholder="Account_01"><span class="field-note">离线服显示名，多个账号不能重复。</span></label>
+        <label>账号备注<input class="account-note" placeholder="例如：生存服已注册"><span class="field-note">只保存在配置和账号池里，方便你自己区分账号。</span></label>
         <label>单账号登录模式
           <select class="account-auth">
             <option value="">使用全局</option>
@@ -378,14 +423,24 @@
           <span class="field-note">留空就跟随服务器配置里的全局登录模式。</span>
         </label>
         <label>进服发言<input class="account-chat" placeholder="留空则不发言"><span class="field-note">只对当前账号生效，会覆盖或补充全局进服发言。</span></label>
-        <label>注册密码预留<input class="account-password" type="password" placeholder="后续自动注册会用"><span class="field-note">自动登录/注册检测到提示后会发送 /login 或 /register。</span></label>
+        <label>注册密码预留<input class="account-password" type="text" placeholder="例如：abc123456"><span class="field-note">需要同时启用“智能交互 > 自动登录”。检测到 /register 提示会发送 /register 密码 密码；检测到 /login 提示会发送 /login 密码。</span></label>
       </div>
       <div class="account-side">
         <label class="switch"><input class="account-enabled" type="checkbox">启用</label>
         <button class="ghost small duplicate-account" type="button">复制账号</button>
-        <button class="ghost small copy-account-config" type="button">同步配置</button>
+        <button class="ghost small move-account-to-pool" type="button">移动到账号池</button>
         <button class="danger small remove-account">删除</button>
       </div>
+    </article>
+  </template>
+
+  <template id="accountPoolTemplate">
+    <article class="account-pool-card">
+      <label>账号名<input class="pool-username" placeholder="Account_01"><span class="field-note">保存已经注册完成或准备复用的账号名。</span></label>
+      <label>注册/登录密码<input class="pool-password" type="text" placeholder="例如：abc123456"><span class="field-note">明文显示，方便核对；部署公网时请设置面板访问密码。</span></label>
+      <label>备注<input class="pool-note" placeholder="例如：生存服 2026-07-20 已注册"><span class="field-note">写服务器名、注册时间或用途都可以。</span></label>
+      <button class="ghost small use-pool-account" type="button">加入账号列表</button>
+      <button class="danger small remove-pool-account" type="button">删除</button>
     </article>
   </template>
 

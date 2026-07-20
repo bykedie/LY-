@@ -49,12 +49,21 @@ try {
   assert(page.includes('combat.autoRespawn'), '页面缺少自动重生开关');
   assert(page.includes('antiAfkMinDelayMs'), '页面缺少防挂机参数');
   assert(page.includes('antiAfkWalkRange'), '页面缺少防挂机随机走动范围');
+  assert(page.includes('autoWalkToggle'), '页面缺少自动走路折叠入口');
+  assert(page.includes('autoWalkBody'), '页面缺少自动走路参数折叠区域');
+  assert(page.includes('profileSelect'), '页面缺少服务器配置档案选择');
+  assert(page.includes('saveProfileBtn'), '页面缺少配置档案保存按钮');
+  assert(page.includes('accountPoolList'), '页面缺少账号池列表');
+  assert(page.includes('saveAccountsToPoolBtn'), '页面缺少保存账号到账号池按钮');
+  assert(page.includes('account-note'), '页面缺少账号备注输入框');
+  assert(page.includes('account-password" type="text"'), '注册密码预留不应该隐藏输入内容');
   assert(page.includes('duplicate-account'), '页面缺少复制账号按钮');
-  assert(page.includes('copy-account-config'), '页面缺少同步账号配置按钮');
+  assert(page.includes('move-account-to-pool'), '页面缺少移动账号到账号池按钮');
   assert(page.includes('presetSendList'), '页面缺少预设消息快捷发送区域');
   assert(page.includes('messageCooldownMs'), '页面缺少消息冷却配置');
   assert(page.includes('type="module" src="/app.js"'), '页面没有以模块方式加载前端脚本');
   assert(page.includes('resetBtn'), '页面缺少重置按钮');
+  assert(page.includes('confirmResetBtn'), '页面缺少确认重置按钮');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
@@ -107,12 +116,35 @@ try {
   await requestJson('/api/config', { method: 'POST', body: JSON.stringify(testConfig) });
   const saved = await requestJson('/api/config');
   assert(saved.config.features.scheduler.enabled === true, '配置保存后缺少 scheduler.enabled');
+  const profilesBeforeSave = await requestJson('/api/profiles');
+  assert(profilesBeforeSave.profiles.some((profile) => profile.id === 'default'), '配置档案缺少默认档案');
+  const namedProfile = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Smoke Profile', config: testConfig })
+  });
+  assert(namedProfile.activeProfileId !== 'default', '保存命名配置档案后没有切换到新档案');
+  assert(namedProfile.profiles.some((profile) => profile.name === 'Smoke Profile'), '保存后配置档案列表缺少自定义名称');
+  const loadedProfile = await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id: namedProfile.activeProfileId })
+  });
+  assert(loadedProfile.config.server.host === '127.0.0.1', '载入配置档案后服务器地址不正确');
   assert(saved.config.runtime.messageCooldownMs === 1000, '配置保存后 messageCooldownMs 不正确');
   assert(saved.config.features.combat.autoRespawn === true, '配置保存后 autoRespawn 不正确');
   assert(saved.config.features.movement.antiAfkWalkRange === 3, '配置保存后 antiAfkWalkRange 不正确');
   assert(saved.config.features.combat.attackRange === 4, '配置保存后 attackRange 不正确');
   assert(saved.config.features.chat.presetMessagesList.includes('/spawn'), '配置保存后缺少预设消息');
   assert(saved.config.accounts.length === 1, '配置保存后账号数量不正确');
+  await requestJson('/api/config', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...testConfig,
+      accountPool: [{ username: 'RegisteredBot', registerPassword: 'pass-pool', note: '已注册账号' }]
+    })
+  });
+  const savedPool = await requestJson('/api/config');
+  assert(savedPool.config.accountPool[0].note === '已注册账号', '账号池备注没有保存');
+  await requestJson('/api/config', { method: 'POST', body: JSON.stringify(testConfig) });
 
   const invalid = await requestJson('/api/config', {
     method: 'POST',

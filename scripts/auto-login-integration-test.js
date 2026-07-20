@@ -21,6 +21,13 @@ await runAutoLoginScenario({
 });
 
 await runAutoLoginScenario({
+  name: 'zh-register-confirm',
+  prompt: '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册',
+  password: 'secret-zh',
+  expected: ['/register secret-zh secret-zh']
+});
+
+await runAutoLoginScenario({
   name: 'login',
   prompt: 'Please use /login password',
   password: 'secret-b',
@@ -149,7 +156,8 @@ function createTestConfig({ port, username, password }) {
         tasks: []
       }
     },
-    accounts: [{ username, enabled: true, chatOnJoin: '', auth: '', registerPassword: password }]
+    accounts: [{ username, enabled: true, note: '', chatOnJoin: '', auth: '', registerPassword: password }],
+    accountPool: []
   };
 }
 

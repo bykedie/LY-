@@ -11,6 +11,9 @@ const publicDir = path.join(projectRoot, 'public');
 const configPath = process.env.BOT_CONFIG_PATH
   ? path.resolve(process.env.BOT_CONFIG_PATH)
   : path.join(projectRoot, 'bot.config.json');
+const configBaseName = path.basename(configPath, path.extname(configPath));
+const profilesDir = path.join(path.dirname(configPath), `${configBaseName}.profiles`);
+const profilesIndexPath = path.join(profilesDir, 'profiles.json');
 const exampleConfigPath = path.join(projectRoot, 'bot.config.example.json');
 const port = Number(process.env.DASHBOARD_PORT || 30123);
 const host = (process.env.DASHBOARD_HOST || '127.0.0.1').trim() || '127.0.0.1';
@@ -21,6 +24,7 @@ let botProcess = null;
 let runningConfig = null;
 let stopping = false;
 let logs = [];
+const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
 
 function readJson(filePath) {
@@ -43,12 +47,129 @@ function saveConfig(config) {
   const normalizedConfig = mergeDefaults(defaultConfig, config);
   validateConfig(normalizedConfig);
   writeJson(configPath, normalizedConfig);
+  saveActiveProfileConfig(normalizedConfig);
 }
 
 function resetConfig() {
   const config = defaultConfig;
   writeJson(configPath, config);
   return config;
+}
+
+function ensureProfilesDir() {
+  fs.mkdirSync(profilesDir, { recursive: true });
+}
+
+function profileConfigPath(profileId) {
+  return path.join(profilesDir, `${profileId}.json`);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function normalizeProfileName(name) {
+  const normalized = String(name || '').trim().slice(0, 60);
+  if (!normalized) throw new Error('配置档案名称不能为空。');
+  return normalized;
+}
+
+function createProfileId() {
+  return `profile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function readProfileIndex() {
+  ensureProfilesDir();
+  if (!fs.existsSync(profilesIndexPath)) {
+    return { activeProfileId: defaultProfileId, profiles: [] };
+  }
+
+  const index = readJson(profilesIndexPath);
+  return {
+    activeProfileId: typeof index.activeProfileId === 'string' ? index.activeProfileId : defaultProfileId,
+    profiles: Array.isArray(index.profiles) ? index.profiles : []
+  };
+}
+
+function writeProfileIndex(index) {
+  ensureProfilesDir();
+  writeJson(profilesIndexPath, {
+    activeProfileId: index.activeProfileId || defaultProfileId,
+    profiles: index.profiles
+  });
+}
+
+function ensureDefaultProfile(index = readProfileIndex()) {
+  const profiles = [...index.profiles];
+  const existing = profiles.find((profile) => profile.id === defaultProfileId);
+  const updatedAt = fs.existsSync(configPath) ? fs.statSync(configPath).mtime.toISOString() : nowIso();
+
+  if (!existing) {
+    profiles.unshift({ id: defaultProfileId, name: '当前配置', updatedAt });
+  }
+
+  const defaultPath = profileConfigPath(defaultProfileId);
+  if (!fs.existsSync(defaultPath)) {
+    writeJson(defaultPath, readConfig());
+  }
+
+  const activeProfileId = profiles.some((profile) => profile.id === index.activeProfileId)
+    ? index.activeProfileId
+    : defaultProfileId;
+  const nextIndex = { activeProfileId, profiles };
+  writeProfileIndex(nextIndex);
+  return nextIndex;
+}
+
+function listProfiles() {
+  return ensureDefaultProfile(readProfileIndex());
+}
+
+function saveActiveProfileConfig(config) {
+  const index = ensureDefaultProfile(readProfileIndex());
+  const activeId = index.activeProfileId || defaultProfileId;
+  writeJson(profileConfigPath(activeId), config);
+  const profiles = index.profiles.map((profile) => profile.id === activeId ? { ...profile, updatedAt: nowIso() } : profile);
+  writeProfileIndex({ ...index, profiles });
+}
+
+function saveProfile({ id, name, config }) {
+  const normalizedConfig = mergeDefaults(defaultConfig, config);
+  validateConfig(normalizedConfig);
+  const index = ensureDefaultProfile(readProfileIndex());
+  const knownProfile = index.profiles.find((profile) => profile.id === id);
+  const profileId = knownProfile ? knownProfile.id : createProfileId();
+  const profileName = normalizeProfileName(name || knownProfile?.name);
+  const updatedAt = nowIso();
+  const profiles = index.profiles.filter((profile) => profile.id !== profileId);
+  profiles.push({ id: profileId, name: profileName, updatedAt });
+  writeJson(profileConfigPath(profileId), normalizedConfig);
+  writeJson(configPath, normalizedConfig);
+  writeProfileIndex({ activeProfileId: profileId, profiles });
+  return { activeProfileId: profileId, profiles, config: normalizedConfig };
+}
+
+function useProfile(id) {
+  const index = ensureDefaultProfile(readProfileIndex());
+  const profile = index.profiles.find((item) => item.id === id);
+  if (!profile) throw new Error('找不到这个配置档案。');
+
+  const config = mergeDefaults(defaultConfig, readJson(profileConfigPath(profile.id)));
+  validateConfig(config);
+  writeJson(configPath, config);
+  writeProfileIndex({ ...index, activeProfileId: profile.id });
+  return { activeProfileId: profile.id, profiles: index.profiles, config };
+}
+
+function deleteProfile(id) {
+  if (!id || id === defaultProfileId) throw new Error('默认配置档案不能删除。');
+  const index = ensureDefaultProfile(readProfileIndex());
+  if (!index.profiles.some((profile) => profile.id === id)) throw new Error('找不到这个配置档案。');
+  fs.rmSync(profileConfigPath(id), { force: true });
+  const profiles = index.profiles.filter((profile) => profile.id !== id);
+  const activeProfileId = index.activeProfileId === id ? defaultProfileId : index.activeProfileId;
+  writeProfileIndex({ activeProfileId, profiles });
+  return useProfile(activeProfileId);
 }
 
 function mergeDefaults(defaultValue, value) {
@@ -92,6 +213,7 @@ function validateConfig(config) {
   }
   requireEnum(config.server.auth, '登录模式', ['offline', 'microsoft']);
   if (!Array.isArray(config.accounts) || config.accounts.length === 0) throw new Error('至少需要填写一个账号。');
+  if (config.accountPool !== undefined) validateAccountPool(config.accountPool);
 
   requireNumber(config.runtime.connectIntervalMs, '批量登录间隔', { min: 1000 });
   requireBoolean(config.runtime.reconnect, '断线自动重连');
@@ -162,6 +284,7 @@ function validateConfig(config) {
     if (account.enabled !== undefined) requireBoolean(account.enabled, `第 ${index + 1} 个账号启用开关`);
     if (typeof account.chatOnJoin !== 'string') throw new Error(`第 ${index + 1} 个账号进服发言必须是文本。`);
     if (typeof account.registerPassword !== 'string') throw new Error(`第 ${index + 1} 个账号注册密码必须是文本。`);
+    if (account.note !== undefined && typeof account.note !== 'string') throw new Error(`第 ${index + 1} 个账号备注必须是文本。`);
     if (account.enabled !== false) enabledCount += 1;
     names.add(username);
   }
@@ -197,6 +320,18 @@ function requireNumber(value, label, options = {}) {
 function validateStringList(value, label) {
   if (!Array.isArray(value)) throw new Error(`${label}必须是数组。`);
   if (!value.every((item) => typeof item === 'string')) throw new Error(`${label}里只能填写文本。`);
+}
+
+function validateAccountPool(value) {
+  if (!Array.isArray(value)) throw new Error('账号池必须是数组。');
+  for (const [index, account] of value.entries()) {
+    requirePlainObject(account, `账号池第 ${index + 1} 个账号`);
+    if (typeof account.username !== 'string') throw new Error(`账号池第 ${index + 1} 个账号名必须是文本。`);
+    account.username = account.username.trim();
+    if (typeof account.registerPassword !== 'string') throw new Error(`账号池第 ${index + 1} 个密码必须是文本。`);
+    if (account.note !== undefined && typeof account.note !== 'string') throw new Error(`账号池第 ${index + 1} 个备注必须是文本。`);
+    if (typeof account.note === 'string') account.note = account.note.trim();
+  }
 }
 
 function validateRuleList(value, label) {
@@ -413,6 +548,32 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/config') {
       sendJson(res, 200, { ok: true, config: readConfig() });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/profiles') {
+      sendJson(res, 200, { ok: true, ...listProfiles() });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/profiles') {
+      const body = JSON.parse(await readBody(req));
+      const result = saveProfile({ id: body.id, name: body.name, config: body.config });
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/profiles/use') {
+      const body = JSON.parse(await readBody(req));
+      const result = useProfile(body.id);
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/profiles/delete') {
+      const body = JSON.parse(await readBody(req));
+      const result = deleteProfile(body.id);
+      sendJson(res, 200, { ok: true, ...result });
       return;
     }
 

@@ -91,6 +91,7 @@
     {
       "username": "Account_01",
       "enabled": true,
+      "note": "",
       "chatOnJoin": "",
       "auth": "",
       "registerPassword": ""
@@ -98,9 +99,11 @@
     {
       "username": "Account_02",
       "enabled": true,
+      "note": "",
       "chatOnJoin": "",
       "auth": "",
       "registerPassword": ""
     }
-  ]
+  ],
+  "accountPool": []
 }

@@ -739,9 +739,12 @@ update_project() {
     cd "$parent_dir"
     $SUDO mv "$PROJECT_DIR" "$backup_dir"
     $SUDO mv "$extracted_dir" "$PROJECT_DIR"
-    for runtime_file in .env bot.config.json accounts.json; do
+    for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
       if [[ -f "${backup_dir}/${runtime_file}" ]]; then
         $SUDO cp "${backup_dir}/${runtime_file}" "${PROJECT_DIR}/${runtime_file}"
+      fi
+      if [[ -d "${backup_dir}/${runtime_file}" ]]; then
+        $SUDO cp -a "${backup_dir}/${runtime_file}" "${PROJECT_DIR}/${runtime_file}"
       fi
     done
     rm -rf "$tmp_dir"

@@ -457,9 +457,12 @@ update_existing_project_from_archive() {
   run $SUDO mv "$INSTALL_DIR" "$backup_dir"
   run $SUDO mv "$extracted_dir" "$INSTALL_DIR"
 
-  for runtime_file in .env bot.config.json accounts.json; do
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
     if [[ -f "${backup_dir}/${runtime_file}" ]]; then
       run $SUDO cp "${backup_dir}/${runtime_file}" "${INSTALL_DIR}/${runtime_file}"
+    fi
+    if [[ -d "${backup_dir}/${runtime_file}" ]]; then
+      run $SUDO cp -a "${backup_dir}/${runtime_file}" "${INSTALL_DIR}/${runtime_file}"
     fi
   done
 

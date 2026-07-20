@@ -220,6 +220,16 @@ select {
   background: #195ebf;
 }
 
+.danger-action {
+  border-color: #b42318;
+  color: #ffffff;
+  background: var(--danger);
+}
+
+.hidden {
+  display: none !important;
+}
+
 .health {
   display: flex;
   align-items: center;
@@ -379,6 +389,58 @@ select {
   padding: 18px;
 }
 
+.feature-list .feature-disclosure {
+  grid-template-columns: 1fr 90px;
+  align-items: start;
+}
+
+.feature-disclosure-toggle {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  height: auto;
+  min-height: 40px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.disclosure-arrow {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--primary);
+  background: #ffffff;
+  transition: transform 0.16s ease;
+}
+
+.feature-disclosure:not(.open) .disclosure-arrow {
+  transform: rotate(-90deg);
+}
+
+.feature-disclosure-body {
+  grid-column: 1 / -1;
+  display: none;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.feature-disclosure.open .feature-disclosure-body {
+  display: grid;
+  gap: 16px;
+}
+
+.disclosure-note {
+  margin: 0;
+}
+
 .feature-grid strong,
 .feature-list strong {
   display: block;
@@ -390,6 +452,11 @@ select {
 .feature-list span {
   color: var(--muted);
   line-height: 1.6;
+}
+
+.feature-list .disclosure-arrow {
+  color: var(--primary);
+  line-height: 1;
 }
 
 .grid {
@@ -510,7 +577,7 @@ select:disabled {
 
 .account-main {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -518,6 +585,26 @@ select:disabled {
   display: grid;
   gap: 10px;
   align-content: end;
+}
+
+.account-pool-list {
+  display: grid;
+  gap: 12px;
+}
+
+.account-pool-card {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(220px, 1.4fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.compact-runbar {
+  margin: 0;
 }
 
 .switch {
@@ -554,6 +641,25 @@ select:disabled {
   border-top: 1px solid var(--line);
 }
 
+.profile-manager {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.compact-head {
+  margin-bottom: 12px;
+}
+
+.profile-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(180px, 1fr) auto auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
 .keyword-list,
 .scheduler-list {
   display: grid;
@@ -572,7 +678,12 @@ select:disabled {
 }
 
 .keyword-rule {
-  grid-template-columns: 220px 1fr 80px;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 80px;
+}
+
+.keyword-rule label,
+.keyword-rule input {
+  min-width: 0;
 }
 
 .scheduler-task {
@@ -625,6 +736,12 @@ select:disabled {
   color: #d9e7ff;
   background: #101827;
   white-space: pre-wrap;
+  user-select: text;
+  cursor: text;
+}
+
+.logs * {
+  user-select: text;
 }
 
 .mc-color-0 {
@@ -820,7 +937,9 @@ select:disabled {
   .feature-list article,
   .keyword-rule,
   .scheduler-task,
-  .send-box {
+  .account-pool-card,
+  .send-box,
+  .profile-controls {
     grid-template-columns: 1fr;
   }
 

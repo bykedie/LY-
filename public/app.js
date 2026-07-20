@@ -6,7 +6,11 @@ const state = {
   running: false,
   stopping: false,
   control: null,
-  uiSettings: null
+  uiSettings: null,
+  profiles: [],
+  activeProfileId: 'default',
+  logSelectionActive: false,
+  resetConfirmTimer: null
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -181,13 +185,15 @@ function fillForm(config) {
   renderPresetSendList(normalized.features.chat.presetMessagesList);
   renderSchedulerTasks(normalized.features.scheduler.tasks);
   renderAccounts(normalized.accounts);
+  renderAccountPool(normalized.accountPool || []);
   updateRuntimeControlState();
 }
 
 function normalizeConfig(config) {
   return {
     ...config,
-    features: mergeFeatures(config.features || {})
+    features: mergeFeatures(config.features || {}),
+    accountPool: Array.isArray(config.accountPool) ? config.accountPool : []
   };
 }
 
@@ -376,7 +382,8 @@ function readForm() {
       chatOnJoin: $('#chatOnJoin').value
     },
     features: readFeatures(),
-    accounts: readAccounts()
+    accounts: readAccounts(),
+    accountPool: readAccountPool()
   };
 }
 
@@ -392,10 +399,91 @@ function renderAccounts(accounts) {
   renderCommandTargets(accounts);
 }
 
+function renderAccountPool(accountPool = []) {
+  const list = $('#accountPoolList');
+  if (!list) return;
+
+  list.innerHTML = '';
+  for (const account of accountPool) {
+    list.appendChild(createAccountPoolCard(account));
+  }
+}
+
+function createAccountPoolCard(account = {}) {
+  const fragment = $('#accountPoolTemplate').content.cloneNode(true);
+  const card = fragment.querySelector('.account-pool-card');
+  card.querySelector('.pool-username').value = account.username || '';
+  card.querySelector('.pool-password').value = account.registerPassword || '';
+  card.querySelector('.pool-note').value = account.note || '';
+  card.querySelector('.use-pool-account').addEventListener('click', () => addAccountFromPool(card).catch((error) => showToast(error.message)));
+  card.querySelector('.remove-pool-account').addEventListener('click', () => card.remove());
+  return fragment;
+}
+
+async function addAccountFromPool(card) {
+  const account = readAccountPoolCard(card);
+  if (!account.username) {
+    showToast('账号池里的账号名不能为空');
+    return;
+  }
+  const existing = new Set(readAccounts().map((item) => item.username));
+  $('#accountList').appendChild(createAccountCard({
+    username: existing.has(account.username) ? nextCopyName(account.username) : account.username,
+    enabled: true,
+    note: account.note,
+    chatOnJoin: '',
+    auth: '',
+    registerPassword: account.registerPassword
+  }));
+  card.remove();
+  updateRuntimeControlState();
+  await saveConfig();
+  showToast('已移动到账号列表并保存');
+}
+
+async function saveEnabledAccountsToPool() {
+  const pool = readAccountPool();
+  const existing = new Map(pool.map((account) => [account.username, account]));
+  let addedCount = 0;
+
+  for (const account of readAccounts()) {
+    if (!account.enabled || !account.username) continue;
+    if (!existing.has(account.username)) addedCount += 1;
+    existing.set(account.username, {
+      username: account.username,
+      registerPassword: account.registerPassword,
+      note: account.note || existing.get(account.username)?.note || ''
+    });
+  }
+
+  renderAccountPool([...existing.values()]);
+  await saveConfig();
+  showToast(addedCount ? `已保存 ${addedCount} 个新账号到账号池` : '账号池已更新并保存');
+}
+
+function addBlankPoolAccount() {
+  $('#accountPoolList').appendChild(createAccountPoolCard({}));
+}
+
+function readAccountPool() {
+  return [...document.querySelectorAll('.account-pool-card')]
+    .map((card) => readAccountPoolCard(card))
+    .filter((account) => account.username || account.registerPassword || account.note);
+}
+
+function readAccountPoolCard(card) {
+  return {
+    username: card.querySelector('.pool-username').value.trim(),
+    registerPassword: card.querySelector('.pool-password').value,
+    note: card.querySelector('.pool-note').value.trim()
+  };
+}
+
 function createAccountCard(account = {}) {
   const fragment = $('#accountTemplate').content.cloneNode(true);
   const card = fragment.querySelector('.account-card');
   card.querySelector('.account-username').value = account.username || '';
+  card.querySelector('.account-note').value = account.note || '';
   card.querySelector('.account-auth').value = account.auth || '';
   card.querySelector('.account-chat').value = account.chatOnJoin || '';
   card.querySelector('.account-password').value = account.registerPassword || '';
@@ -408,7 +496,7 @@ function createAccountCard(account = {}) {
     card.after(createAccountCard(copy));
     updateRuntimeControlState();
   });
-  card.querySelector('.copy-account-config').addEventListener('click', () => copyAccountConfigToOthers(card));
+  card.querySelector('.move-account-to-pool').addEventListener('click', () => moveAccountToPool(card).catch((error) => showToast(error.message)));
   card.querySelector('.remove-account').addEventListener('click', () => {
     card.remove();
     updateRuntimeControlState();
@@ -416,25 +504,25 @@ function createAccountCard(account = {}) {
   return fragment;
 }
 
-function copyAccountConfigToOthers(sourceCard) {
-  const targetCards = [...document.querySelectorAll('.account-card')].filter((card) => card !== sourceCard);
-  if (targetCards.length === 0) {
-    showToast('没有其它账号可同步');
+async function moveAccountToPool(sourceCard) {
+  const source = readAccountCard(sourceCard);
+  if (!source.username) {
+    showToast('账号名不能为空');
     return;
   }
 
-  const source = readAccountCard(sourceCard);
-  for (const targetCard of targetCards) {
-    applyAccountRuntimeConfig(targetCard, source);
-  }
-
-  showToast(`已同步到 ${targetCards.length} 个账号`);
-}
-
-function applyAccountRuntimeConfig(card, source) {
-  card.querySelector('.account-auth').value = source.auth;
-  card.querySelector('.account-chat').value = source.chatOnJoin;
-  card.querySelector('.account-password').value = source.registerPassword;
+  const existingPool = readAccountPool();
+  const nextPool = existingPool.filter((account) => account.username !== source.username);
+  nextPool.push({
+    username: source.username,
+    registerPassword: source.registerPassword,
+    note: source.note
+  });
+  renderAccountPool(nextPool);
+  sourceCard.remove();
+  updateRuntimeControlState();
+  await saveConfig();
+  showToast('已移动到账号池并保存');
 }
 
 function readAccounts() {
@@ -445,6 +533,7 @@ function readAccountCard(card) {
   return {
     username: card.querySelector('.account-username').value.trim(),
     enabled: card.querySelector('.account-enabled').checked,
+    note: card.querySelector('.account-note').value.trim(),
     chatOnJoin: card.querySelector('.account-chat').value,
     auth: card.querySelector('.account-auth').value,
     registerPassword: card.querySelector('.account-password').value
@@ -544,10 +633,220 @@ function renderCommandTargets(accounts = []) {
   select.value = [...select.options].some((option) => option.value === previousValue) ? previousValue : 'all';
 }
 
+function renderProfiles() {
+  const select = $('#profileSelect');
+  if (!select) return;
+
+  select.innerHTML = '';
+  for (const profile of state.profiles) {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.textContent = profile.name;
+    select.appendChild(option);
+  }
+
+  select.value = state.profiles.some((profile) => profile.id === state.activeProfileId)
+    ? state.activeProfileId
+    : (state.profiles[0]?.id || 'default');
+  syncSelectedProfileName();
+}
+
+function syncSelectedProfileName() {
+  const select = $('#profileSelect');
+  const selected = state.profiles.find((profile) => profile.id === select.value);
+  $('#profileName').value = selected?.name || '';
+  $('#deleteProfileBtn').disabled = select.value === 'default' || state.profiles.length === 0;
+}
+
+async function loadProfiles() {
+  const data = await requestJson('/api/profiles');
+  state.profiles = data.profiles || [];
+  state.activeProfileId = data.activeProfileId || 'default';
+  renderProfiles();
+}
+
+async function saveProfile() {
+  const config = readForm();
+  const selectedId = $('#profileSelect').value || 'default';
+  const name = $('#profileName').value.trim();
+  const selected = state.profiles.find((profile) => profile.id === selectedId);
+  const profileId = selectedId === 'default' && name && name !== selected?.name ? undefined : selectedId;
+  const data = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ id: profileId, name, config })
+  });
+  state.config = normalizeConfig(data.config);
+  state.profiles = data.profiles || [];
+  state.activeProfileId = data.activeProfileId || selectedId;
+  fillForm(state.config);
+  renderProfiles();
+  await refreshStatus();
+  showToast('配置档案已保存');
+}
+
+async function loadSelectedProfile() {
+  const id = $('#profileSelect').value;
+  const data = await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  });
+  state.config = normalizeConfig(data.config);
+  state.profiles = data.profiles || [];
+  state.activeProfileId = data.activeProfileId || id;
+  fillForm(state.config);
+  renderProfiles();
+  await refreshStatus();
+  showToast(state.running ? '配置档案已载入，下次启动生效' : '配置档案已载入');
+}
+
+async function deleteSelectedProfile() {
+  const id = $('#profileSelect').value;
+  if (!id || id === 'default') return;
+  const data = await requestJson('/api/profiles/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  });
+  state.config = normalizeConfig(data.config);
+  state.profiles = data.profiles || [];
+  state.activeProfileId = data.activeProfileId || 'default';
+  fillForm(state.config);
+  renderProfiles();
+  showToast('配置档案已删除');
+}
+
+function isSelectingLogText() {
+  if (state.logSelectionActive) return true;
+  const logs = $('#logs');
+  const selection = window.getSelection?.();
+  if (!logs || !selection || selection.isCollapsed) return false;
+  return [...Array(selection.rangeCount)].some((_, index) => {
+    const range = selection.getRangeAt(index);
+    return logs.contains(range.commonAncestorContainer);
+  });
+}
+
+function setAutoWalkCollapsed(collapsed) {
+  const panel = $('#autoWalkPanel');
+  const toggle = $('#autoWalkToggle');
+  if (!panel || !toggle) return;
+  panel.classList.toggle('open', !collapsed);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  localStorage.setItem('autoWalkCollapsed', collapsed ? 'true' : 'false');
+}
+
+function organizeFeaturePanels() {
+  enhanceFeaturePanel('combat.autoAttack', [
+    createGrid('three', ['#attackMode', '#attackRange', '#attackIntervalMs', '#entityListMode']),
+    createToggleRow(['#attackHostile', '#attackPassive']),
+    fieldLabel('#entityList')
+  ]);
+  enhanceFeaturePanel('combat.autoFish', [
+    createGrid('three', ['#fishingStartDelayMs', '#fishingCastDelayMs', '#fishingTimeoutMs'])
+  ]);
+  enhanceFeaturePanel('combat.autoEat', [createGrid('two', ['#eatThreshold'])]);
+  enhanceFeaturePanel('combat.autoRespawn', [createPanelNote('角色死亡后自动请求重生，无额外参数。')]);
+
+  enhanceFeaturePanel('movement.antiAfk', [
+    createGrid('three', ['#antiAfkMinDelayMs', '#antiAfkMaxDelayMs', '#antiAfkCommand']),
+    createGrid('two', ['#antiAfkWalkRange']),
+    createToggleRow(['#antiAfkSneak', '#antiAfkWalk'])
+  ]);
+  enhanceFeaturePanel('movement.switchHeldItem', [createGrid('two', ['#movementHeldSlot'])]);
+
+  enhanceFeaturePanel('chat.keywordReply', [nodeFromSelector('#keywordRuleList'), nodeFromSelector('#addKeywordRuleBtn')]);
+  enhanceFeaturePanel('chat.presetMessages', [fieldLabel('#presetMessagesList')]);
+  enhanceFeaturePanel('chat.remoteCommand', [
+    fieldLabel('#chatOnJoin'),
+    createPanelNote('启用后可以在“运行控制”里远程发送聊天内容或 / 指令。')
+  ]);
+  enhanceFeaturePanel('chat.autoLogin', [createPanelNote('启用后，账号需要填写“注册密码预留”。看到 /register 提示会发送 /register 密码 密码；看到 /login 提示会发送 /login 密码。')]);
+
+  enhanceFeaturePanel('lobby.useItem', [createGrid('three', ['#lobbyDelayMs', '#lobbyHeldSlot', '#lobbyUseCount'])]);
+  enhanceFeaturePanel('scheduler.enabled', [nodeFromSelector('#schedulerTaskList'), nodeFromSelector('#addSchedulerTaskBtn')]);
+  removeEmptySubPanels();
+}
+
+function enhanceFeaturePanel(pathKey, bodyNodes = []) {
+  const input = document.querySelector(`[data-feature="${pathKey}"]`);
+  const article = input?.closest('article');
+  if (!article) return;
+
+  article.classList.add('feature-disclosure');
+  const titleBlock = article.querySelector('div');
+  let toggle = article.querySelector('.feature-disclosure-toggle');
+  let body = article.querySelector('.feature-disclosure-body');
+
+  if (!toggle && titleBlock) {
+    toggle = document.createElement('button');
+    toggle.className = 'feature-disclosure-toggle';
+    toggle.type = 'button';
+    toggle.innerHTML = '<span class="disclosure-arrow" aria-hidden="true">▾</span>'; 
+    toggle.appendChild(titleBlock);
+    article.insertBefore(toggle, article.firstChild);
+  }
+
+  if (!body) {
+    body = document.createElement('div');
+    body.className = 'feature-disclosure-body';
+    article.appendChild(body);
+  }
+
+  bodyNodes.filter(Boolean).forEach((item) => body.appendChild(item));
+  if (!body.childElementCount) body.appendChild(createPanelNote('此功能暂无额外参数。'));
+
+  const collapsedKey = `featureCollapsed:${pathKey}`;
+  const collapsed = localStorage.getItem(collapsedKey) === 'true';
+  article.classList.toggle('open', !collapsed);
+  toggle?.setAttribute('aria-expanded', String(!collapsed));
+  toggle?.addEventListener('click', () => {
+    const nextCollapsed = article.classList.contains('open');
+    article.classList.toggle('open', !nextCollapsed);
+    toggle.setAttribute('aria-expanded', String(!nextCollapsed));
+    localStorage.setItem(collapsedKey, nextCollapsed ? 'true' : 'false');
+  });
+}
+
+function createGrid(size, selectors) {
+  const grid = document.createElement('div');
+  grid.className = `grid ${size}`;
+  selectors.map(fieldLabel).filter(Boolean).forEach((item) => grid.appendChild(item));
+  return grid.childElementCount ? grid : null;
+}
+
+function createToggleRow(selectors) {
+  const row = document.createElement('div');
+  row.className = 'toggle-row';
+  selectors.map(fieldLabel).filter(Boolean).forEach((item) => row.appendChild(item));
+  return row.childElementCount ? row : null;
+}
+
+function fieldLabel(selector) {
+  return document.querySelector(selector)?.closest('label') || null;
+}
+
+function nodeFromSelector(selector) {
+  return document.querySelector(selector) || null;
+}
+
+function createPanelNote(text) {
+  const note = document.createElement('p');
+  note.className = 'field-note disclosure-note';
+  note.textContent = text;
+  return note;
+}
+
+function removeEmptySubPanels() {
+  document.querySelectorAll('.sub-panel').forEach((panel) => {
+    if (panel.classList.contains('deploy-help') || panel.classList.contains('account-pool-panel')) return;
+    if (!panel.querySelector('input, select, textarea, button, .keyword-list, .scheduler-list')) panel.remove();
+  });
+}
+
 async function loadConfig() {
   const data = await requestJson('/api/config');
   state.config = normalizeConfig(data.config);
   fillForm(state.config);
+  await loadProfiles();
   showToast('配置已读取');
 }
 
@@ -558,6 +857,7 @@ async function saveConfig() {
     body: JSON.stringify(config)
   });
   state.config = config;
+  await loadProfiles();
   await refreshStatus();
   showToast(state.running ? '配置已保存，下次启动生效' : '配置已保存');
 }
@@ -566,7 +866,41 @@ async function resetConfig() {
   const data = await requestJson('/api/reset', { method: 'POST' });
   state.config = normalizeConfig(data.config);
   fillForm(state.config);
+  await loadProfiles();
   showToast('已重置为默认配置');
+}
+
+function beginResetConfirmation() {
+  const confirmButton = $('#confirmResetBtn');
+  const confirmText = confirmButton.querySelector('.nav-text');
+  clearInterval(state.resetConfirmTimer);
+  confirmButton.classList.remove('hidden');
+  confirmButton.disabled = true;
+  let remainingSeconds = 5;
+  confirmText.textContent = `确认重置 ${remainingSeconds}s`;
+  showToast('重置会清空当前服务器配置和账号列表，请等待 5 秒后确认');
+
+  state.resetConfirmTimer = setInterval(() => {
+    remainingSeconds -= 1;
+    if (remainingSeconds > 0) {
+      confirmText.textContent = `确认重置 ${remainingSeconds}s`;
+      return;
+    }
+
+    clearInterval(state.resetConfirmTimer);
+    state.resetConfirmTimer = null;
+    confirmButton.disabled = false;
+    confirmText.textContent = '确认重置';
+  }, 1000);
+}
+
+async function confirmResetConfig() {
+  const confirmButton = $('#confirmResetBtn');
+  if (confirmButton.disabled) return;
+  await resetConfig();
+  confirmButton.classList.add('hidden');
+  confirmButton.disabled = true;
+  confirmButton.querySelector('.nav-text').textContent = '确认重置 5s';
 }
 
 async function refreshStatus() {
@@ -577,6 +911,7 @@ async function refreshStatus() {
   $('#statusDot').classList.toggle('running', data.running);
   $('#statusText').textContent = data.stopping ? '挂机停止中' : (data.running ? '挂机运行中' : '挂机未启动');
   updateRuntimeControlState();
+  if (isSelectingLogText()) return;
   if (data.logs.length) {
     $('#logs').innerHTML = renderLogLines(data.logs);
   } else {
@@ -585,7 +920,9 @@ async function refreshStatus() {
 }
 
 function bindEvents() {
+  organizeFeaturePanels();
   setSidebarCollapsed(localStorage.getItem('sidebarCollapsed') === 'true');
+  setAutoWalkCollapsed(localStorage.getItem('autoWalkCollapsed') === 'true');
 
   $('#sidebarToggle').addEventListener('click', () => {
     setSidebarCollapsed(!$('#appShell').classList.contains('sidebar-collapsed'));
@@ -593,6 +930,25 @@ function bindEvents() {
 
   document.querySelectorAll('.nav-item').forEach((button) => {
     button.addEventListener('click', () => setSection(button.dataset.section));
+  });
+
+  $('#autoWalkToggle').addEventListener('click', () => {
+    setAutoWalkCollapsed($('#autoWalkPanel').classList.contains('open'));
+  });
+
+  $('#profileSelect').addEventListener('change', () => syncSelectedProfileName());
+  $('#saveProfileBtn').addEventListener('click', () => saveProfile().catch((error) => showToast(error.message)));
+  $('#loadProfileBtn').addEventListener('click', () => loadSelectedProfile().catch((error) => showToast(error.message)));
+  $('#deleteProfileBtn').addEventListener('click', () => deleteSelectedProfile().catch((error) => showToast(error.message)));
+  $('#saveAccountsToPoolBtn').addEventListener('click', () => saveEnabledAccountsToPool().catch((error) => showToast(error.message)));
+  $('#addPoolAccountBtn').addEventListener('click', () => addBlankPoolAccount());
+  $('#logs').addEventListener('mousedown', () => {
+    state.logSelectionActive = true;
+  });
+  document.addEventListener('mouseup', () => {
+    setTimeout(() => {
+      state.logSelectionActive = false;
+    }, 300);
   });
 
   $('#addAccountBtn').addEventListener('click', () => {
@@ -637,7 +993,8 @@ function bindEvents() {
 
   $('#reloadBtn').addEventListener('click', () => loadConfig().catch((error) => showToast(error.message)));
   $('#saveBtn').addEventListener('click', () => saveConfig().catch((error) => showToast(error.message)));
-  $('#resetBtn').addEventListener('click', () => resetConfig().catch((error) => showToast(error.message)));
+  $('#resetBtn').addEventListener('click', () => beginResetConfirmation());
+  $('#confirmResetBtn').addEventListener('click', () => confirmResetConfig().catch((error) => showToast(error.message)));
   $('#startBtn').addEventListener('click', async () => {
     try {
       await saveConfig();
