@@ -202,6 +202,7 @@ function mergeFeatures(features) {
       delayMs: 3000,
       heldSlot: 0,
       useCount: 1,
+      actions: [],
       ...(features.lobby || {})
     },
     scheduler: {
@@ -419,6 +420,7 @@ function createBot(account) {
       eatTimer: null,
       schedulerTimers: [],
       lobbyTimer: null,
+      lastWindow: null,
       chatQueue: [],
       chatQueueTimer: null,
       lastChatAt: 0,
@@ -478,6 +480,15 @@ function createBot(account) {
   session.bot.on('message', (message) => {
     logGameMessage(account.username, message);
     handleServerMessage(account, message.toString());
+  });
+
+  session.bot.on('windowOpen', (window) => {
+    session.lastWindow = window;
+    log(account.username, `窗口打开：${getWindowTitle(window) || '未命名窗口'}`);
+  });
+
+  session.bot.on('windowClose', () => {
+    session.lastWindow = null;
   });
 
   session.bot.on('death', () => {
@@ -827,19 +838,132 @@ function startLobbyWorker(username) {
     const bot = session.bot;
     if (!bot?.entity) return;
 
-    switchHeldSlot(username, ACTIVE_FEATURES.lobby.heldSlot);
-
-    const useCount = Math.max(1, Number(ACTIVE_FEATURES.lobby.useCount) || 1);
-    for (let i = 0; i < useCount; i += 1) {
-      try {
-        bot.activateItem();
-        log(username, `大厅使用物品：第 ${i + 1} 次`);
-        await sleep(600);
-      } catch (error) {
-        log(username, `大厅使用物品失败：${error.message}`);
+    try {
+      const actions = Array.isArray(ACTIVE_FEATURES.lobby.actions) ? ACTIVE_FEATURES.lobby.actions.filter((action) => action.enabled !== false) : [];
+      if (actions.length > 0) {
+        await runLobbyActions(username, actions);
+        return;
       }
+
+      switchHeldSlot(username, ACTIVE_FEATURES.lobby.heldSlot);
+      await runUseItemAction(username, { count: ACTIVE_FEATURES.lobby.useCount, delayMs: 600 });
+    } catch (error) {
+      log(username, `大厅动作序列失败：${error.message}`);
     }
   }, ACTIVE_FEATURES.lobby.delayMs);
+}
+
+async function runLobbyActions(username, actions) {
+  for (const [index, action] of actions.entries()) {
+    await runLobbyAction(username, action, index + 1);
+  }
+}
+
+async function runLobbyAction(username, action, index) {
+  const type = action.type || 'wait';
+  if (type === 'wait') {
+    const delayMs = Math.max(0, Number(action.delayMs) || 0);
+    log(username, `大厅动作 ${index}：等待 ${delayMs}ms`);
+    await sleep(delayMs);
+    return;
+  }
+
+  if (type === 'switchSlot') {
+    const slot = Math.max(1, Math.min(9, Number(action.hotbarSlot) || 1));
+    switchHeldSlot(username, slot - 1);
+    return;
+  }
+
+  if (type === 'useItem') {
+    await runUseItemAction(username, action, index);
+    return;
+  }
+
+  if (type === 'waitWindow') {
+    await waitForWindow(username, action.title, Number(action.timeoutMs) || 5000);
+    return;
+  }
+
+  if (type === 'clickSlot') {
+    await runClickSlotAction(username, action, index);
+  }
+}
+
+async function runUseItemAction(username, action, index = 0) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity) return;
+
+  const count = Math.max(1, Number(action.count) || 1);
+  const delayMs = Math.max(0, Number(action.delayMs) || 600);
+  for (let i = 0; i < count; i += 1) {
+    bot.activateItem();
+    log(username, index ? `大厅动作 ${index}：右键使用物品 ${i + 1}/${count}` : `大厅使用物品：第 ${i + 1} 次`);
+    await sleep(delayMs);
+  }
+}
+
+async function runClickSlotAction(username, action, index) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity) return;
+
+  const window = await waitForWindow(username, action.title, Number(action.timeoutMs) || 5000);
+  const slot = resolveWindowSlot(action);
+  const count = Math.max(1, Number(action.count) || 1);
+  const delayMs = Math.max(0, Number(action.delayMs) || 500);
+
+  for (let i = 0; i < count; i += 1) {
+    await bot.clickWindow(slot, 0, 0);
+    log(username, `大厅动作 ${index}：点击窗口 ${getWindowTitle(window) || '未命名窗口'} 槽位 ${slot} (${i + 1}/${count})`);
+    await sleep(delayMs);
+  }
+}
+
+function resolveWindowSlot(action) {
+  if (action.slot !== undefined && action.slot !== '') {
+    const slot = Number(action.slot);
+    if (Number.isInteger(slot) && slot >= 0) return slot;
+  }
+
+  const row = Number(action.row);
+  const column = Number(action.column);
+  if (!Number.isInteger(row) || !Number.isInteger(column) || row < 1 || column < 1) {
+    throw new Error('点击菜单槽位需要填写槽位，或填写行和列。');
+  }
+
+  return (row - 1) * 9 + (column - 1);
+}
+
+async function waitForWindow(username, titleText = '', timeoutMs = 5000) {
+  const session = sessions.get(username);
+  const title = String(titleText || '').trim();
+  const deadline = Date.now() + Math.max(100, timeoutMs);
+
+  while (Date.now() <= deadline) {
+    const window = session?.bot?.currentWindow || session?.lastWindow;
+    if (window && (!title || getWindowTitle(window).includes(title))) {
+      log(username, `大厅动作：已匹配窗口 ${getWindowTitle(window) || '未命名窗口'}`);
+      return window;
+    }
+    await sleep(100);
+  }
+
+  throw new Error(title ? `等待窗口超时：${title}` : '等待窗口超时');
+}
+
+function getWindowTitle(window) {
+  if (!window) return '';
+  const title = window.title ?? window.customTitle ?? window.type ?? '';
+  if (typeof title === 'string') return title;
+  try {
+    if (typeof title.toString === 'function') return title.toString();
+  } catch {}
+  try {
+    return JSON.stringify(title);
+  } catch {
+    return '';
+  }
 }
 
 function stopLobbyWorker(username) {

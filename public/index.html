@@ -255,6 +255,17 @@
             <label>快捷栏槽位 1-9<input id="lobbyHeldSlot" type="number" min="1" max="9"><span class="field-note">选择要切到哪个快捷栏槽位后再使用物品。</span></label>
             <label>使用次数<input id="lobbyUseCount" type="number" min="1"><span class="field-note">连续右键使用物品的次数，适合菜单服或大厅道具。</span></label>
           </div>
+          <div class="action-sequence-head">
+            <div>
+              <strong>动作序列</strong>
+              <span class="field-note">用于菜单服大厅：按顺序切槽位、右键、等待窗口、点击指定槽位。点击第 3 行第 3 列会自动换算为槽位 20。</span>
+            </div>
+            <div class="action-sequence-buttons">
+              <button class="ghost small" id="addLobbyExampleActionBtn" type="button">添加选择服务器示例</button>
+              <button class="ghost small" id="addLobbyActionBtn" type="button">添加动作</button>
+            </div>
+          </div>
+          <div class="lobby-action-list" id="lobbyActionList"></div>
         </div>
       </section>
 
@@ -463,6 +474,29 @@
     </article>
   </template>
 
+  <template id="lobbyActionTemplate">
+    <article class="lobby-action-card">
+      <label>动作类型
+        <select class="lobby-action-type">
+          <option value="wait">等待</option>
+          <option value="switchSlot">切换快捷栏</option>
+          <option value="useItem">右键使用物品</option>
+          <option value="waitWindow">等待菜单窗口</option>
+          <option value="clickSlot">点击菜单槽位</option>
+        </select>
+        <span class="field-note">按从上到下的顺序执行。</span>
+      </label>
+      <label>延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口用作最长等待。</span></label>
+      <label>快捷栏 1-9<input class="lobby-action-hotbar" type="number" min="1" max="9" placeholder="例如：1"><span class="field-note">切换快捷栏动作使用。</span></label>
+      <label>窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
+      <label>行<input class="lobby-action-row" type="number" min="1" max="6" placeholder="3"><span class="field-note">箱子菜单行号，从 1 开始。</span></label>
+      <label>列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
+      <label>槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">可不填；填写后优先用槽位。</span></label>
+      <label>次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
+      <label class="switch"><input class="lobby-action-enabled" type="checkbox">启用</label>
+      <button class="danger small remove-lobby-action" type="button">删除</button>
+    </article>
+  </template>
   <template id="schedulerTaskTemplate">
     <article class="scheduler-task">
       <label>任务名<input class="scheduler-name" placeholder="登录后 /spawn"><span class="field-note">只用于识别日志，留空也能运行。</span></label>

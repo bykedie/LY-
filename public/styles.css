@@ -762,13 +762,15 @@ select:disabled {
 }
 
 .keyword-list,
-.scheduler-list {
+.scheduler-list,
+.lobby-action-list {
   display: grid;
   gap: 12px;
 }
 
 .keyword-rule,
-.scheduler-task {
+.scheduler-task,
+.lobby-action-card {
   display: grid;
   gap: 12px;
   align-items: end;
@@ -789,6 +791,37 @@ select:disabled {
 
 .scheduler-task {
   grid-template-columns: 170px 150px 130px 1fr 72px 80px;
+}
+
+.action-sequence-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+
+.action-sequence-head > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.action-sequence-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.lobby-action-card {
+  grid-template-columns: 150px 130px 120px minmax(150px, 1fr) 72px 72px 84px 72px 72px 80px;
+}
+
+.lobby-action-card label,
+.lobby-action-card input,
+.lobby-action-card select {
+  min-width: 0;
 }
 
 .message-list-label {

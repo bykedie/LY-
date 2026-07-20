@@ -69,7 +69,7 @@ const defaultFeatures = {
     heldSlot: 0
   },
   chat: { keywordReply: false, presetMessages: false, remoteCommand: false, autoLogin: false, keywordRules: [], presetMessagesList: [] },
-  lobby: { useItem: false, delayMs: 3000, heldSlot: 0, useCount: 1 },
+  lobby: { useItem: false, delayMs: 3000, heldSlot: 0, useCount: 1, actions: [] },
   scheduler: { enabled: false, tasks: [] }
 };
 
@@ -242,6 +242,7 @@ function fillFeatureParams(features) {
   $('#lobbyDelayMs').value = features.lobby.delayMs;
   $('#lobbyHeldSlot').value = Number(features.lobby.heldSlot) + 1;
   $('#lobbyUseCount').value = features.lobby.useCount;
+  renderLobbyActions(features.lobby.actions);
 }
 
 function readFeatures() {
@@ -284,6 +285,7 @@ function readFeatures() {
   features.lobby.delayMs = Number($('#lobbyDelayMs').value);
   features.lobby.heldSlot = uiSlotToIndex($('#lobbyHeldSlot').value);
   features.lobby.useCount = Number($('#lobbyUseCount').value);
+  features.lobby.actions = readLobbyActions();
   features.scheduler.tasks = readSchedulerTasks();
   return features;
 }
@@ -581,6 +583,67 @@ function readKeywordRules() {
     .filter((rule) => rule.keyword && rule.reply);
 }
 
+function defaultLobbyAction() {
+  return { type: 'wait', delayMs: 500, enabled: true };
+}
+
+function lobbyServerSelectorExampleActions() {
+  return [
+    { type: 'switchSlot', hotbarSlot: 1, enabled: true },
+    { type: 'useItem', count: 1, delayMs: 600, enabled: true },
+    { type: 'waitWindow', title: '选择服务器', timeoutMs: 5000, enabled: true },
+    { type: 'clickSlot', title: '选择服务器', row: 3, column: 3, delayMs: 500, count: 1, enabled: true }
+  ];
+}
+
+function renderLobbyActions(actions = []) {
+  const list = $('#lobbyActionList');
+  if (!list) return;
+  list.innerHTML = '';
+  actions.forEach((action) => list.appendChild(createLobbyAction(action)));
+}
+
+function createLobbyAction(action = {}) {
+  const fragment = $('#lobbyActionTemplate').content.cloneNode(true);
+  const card = fragment.querySelector('.lobby-action-card');
+  card.querySelector('.lobby-action-type').value = action.type || 'wait';
+  card.querySelector('.lobby-action-delay').value = action.delayMs ?? action.timeoutMs ?? '';
+  card.querySelector('.lobby-action-hotbar').value = action.hotbarSlot || '';
+  card.querySelector('.lobby-action-title').value = action.title || '';
+  card.querySelector('.lobby-action-row').value = action.row || '';
+  card.querySelector('.lobby-action-column').value = action.column || '';
+  card.querySelector('.lobby-action-slot').value = action.slot ?? '';
+  card.querySelector('.lobby-action-count').value = action.count || '';
+  card.querySelector('.lobby-action-enabled').checked = action.enabled !== false;
+  card.querySelector('.remove-lobby-action').addEventListener('click', () => card.remove());
+  return fragment;
+}
+
+function readLobbyActions() {
+  return [...document.querySelectorAll('.lobby-action-card')]
+    .map((card) => {
+      const type = card.querySelector('.lobby-action-type').value;
+      const delayValue = Number(card.querySelector('.lobby-action-delay').value);
+      const hotbarSlot = Number(card.querySelector('.lobby-action-hotbar').value);
+      const row = Number(card.querySelector('.lobby-action-row').value);
+      const column = Number(card.querySelector('.lobby-action-column').value);
+      const slotInput = card.querySelector('.lobby-action-slot').value;
+      const count = Number(card.querySelector('.lobby-action-count').value);
+      const action = {
+        type,
+        title: card.querySelector('.lobby-action-title').value.trim(),
+        enabled: card.querySelector('.lobby-action-enabled').checked
+      };
+      if (Number.isFinite(delayValue) && delayValue > 0) action[type === 'waitWindow' ? 'timeoutMs' : 'delayMs'] = delayValue;
+      if (Number.isFinite(hotbarSlot) && hotbarSlot > 0) action.hotbarSlot = hotbarSlot;
+      if (Number.isFinite(row) && row > 0) action.row = row;
+      if (Number.isFinite(column) && column > 0) action.column = column;
+      if (slotInput !== '') action.slot = Number(slotInput);
+      if (Number.isFinite(count) && count > 0) action.count = count;
+      return action;
+    })
+    .filter((action) => action.type);
+}
 function renderSchedulerTasks(tasks = []) {
   const list = $('#schedulerTaskList');
   list.innerHTML = '';
@@ -806,7 +869,11 @@ function organizeFeaturePanels() {
   ]);
   enhanceFeaturePanel('chat.autoLogin', [createPanelNote('启用后，账号需要填写“注册密码预留”。看到 /register 提示会发送 /register 密码 密码；看到 /login 提示会发送 /login 密码。')]);
 
-  enhanceFeaturePanel('lobby.useItem', [createGrid('three', ['#lobbyDelayMs', '#lobbyHeldSlot', '#lobbyUseCount'])]);
+  enhanceFeaturePanel('lobby.useItem', [
+    createGrid('three', ['#lobbyDelayMs', '#lobbyHeldSlot', '#lobbyUseCount']),
+    nodeFromSelector('.action-sequence-head'),
+    nodeFromSelector('#lobbyActionList')
+  ]);
   enhanceFeaturePanel('scheduler.enabled', [nodeFromSelector('#schedulerTaskList'), nodeFromSelector('#addSchedulerTaskBtn')]);
   removeEmptySubPanels();
 }
@@ -882,7 +949,7 @@ function createPanelNote(text) {
 
 function removeEmptySubPanels() {
   document.querySelectorAll('.sub-panel').forEach((panel) => {
-    if (panel.classList.contains('deploy-help') || panel.classList.contains('account-pool-panel')) return;
+    if (panel.classList.contains('deploy-help') || panel.classList.contains('account-pool-panel') || panel.closest('#lobby')) return;
     if (!panel.querySelector('input, select, textarea, button, .keyword-list, .scheduler-list')) panel.remove();
   });
 }
@@ -1019,6 +1086,14 @@ function bindEvents() {
 
   $('#addSchedulerTaskBtn').addEventListener('click', () => {
     $('#schedulerTaskList').appendChild(createSchedulerTask({ trigger: 'login', intervalMs: 60000, enabled: true }));
+  });
+
+  $('#addLobbyActionBtn')?.addEventListener('click', () => {
+    $('#lobbyActionList').appendChild(createLobbyAction(defaultLobbyAction()));
+  });
+
+  $('#addLobbyExampleActionBtn')?.addEventListener('click', () => {
+    renderLobbyActions(lobbyServerSelectorExampleActions());
   });
 
   $('#saveUiSettingsBtn').addEventListener('click', () => {

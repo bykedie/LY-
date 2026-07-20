@@ -72,7 +72,8 @@
       "useItem": false,
       "delayMs": 3000,
       "heldSlot": 0,
-      "useCount": 1
+      "useCount": 1,
+      "actions": []
     },
     "scheduler": {
       "enabled": false,

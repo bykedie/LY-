@@ -272,6 +272,7 @@ function validateConfig(config) {
   requireNumber(config.features.lobby.delayMs, '大厅执行延迟', { min: 0 });
   requireNumber(config.features.lobby.heldSlot, '大厅快捷栏槽位', { min: 0, max: 8, integer: true });
   requireNumber(config.features.lobby.useCount, '大厅使用次数', { min: 1, integer: true });
+  validateLobbyActions(config.features.lobby.actions || []);
 
   requireBoolean(config.features.scheduler.enabled, '定时任务开关');
   validateSchedulerTasks(config.features.scheduler.tasks);
@@ -347,6 +348,23 @@ function validateRuleList(value, label) {
   }
 }
 
+function validateLobbyActions(actions) {
+  if (!Array.isArray(actions)) throw new Error('大厅动作序列必须是数组。');
+  for (const [index, action] of actions.entries()) {
+    requirePlainObject(action, `第 ${index + 1} 个大厅动作`);
+    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot']);
+    if (action.enabled !== undefined) requireBoolean(action.enabled, `第 ${index + 1} 个大厅动作启用开关`);
+    if (action.delayMs !== undefined) requireNumber(action.delayMs, `第 ${index + 1} 个大厅动作延迟`, { min: 0 });
+    if (action.timeoutMs !== undefined) requireNumber(action.timeoutMs, `第 ${index + 1} 个大厅动作超时`, { min: 100 });
+    if (action.hotbarSlot !== undefined) requireNumber(action.hotbarSlot, `第 ${index + 1} 个大厅动作快捷栏`, { min: 1, max: 9, integer: true });
+    if (action.count !== undefined) requireNumber(action.count, `第 ${index + 1} 个大厅动作次数`, { min: 1, integer: true });
+    if (action.row !== undefined) requireNumber(action.row, `第 ${index + 1} 个大厅动作行`, { min: 1, max: 6, integer: true });
+    if (action.column !== undefined) requireNumber(action.column, `第 ${index + 1} 个大厅动作列`, { min: 1, max: 9, integer: true });
+    if (action.slot !== undefined) requireNumber(action.slot, `第 ${index + 1} 个大厅动作槽位`, { min: 0, integer: true });
+    if (action.title !== undefined && typeof action.title !== 'string') throw new Error(`第 ${index + 1} 个大厅动作窗口标题必须是文本。`);
+    if (typeof action.title === 'string') action.title = action.title.trim();
+  }
+}
 function validateSchedulerTasks(tasks) {
   if (!Array.isArray(tasks)) throw new Error('定时任务必须是数组。');
   for (const [index, task] of tasks.entries()) {
