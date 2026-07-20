@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.9"
+  echo "LY 挂机控制台一键管理脚本  v1.0.10"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -526,6 +526,7 @@ restart_dashboard() {
   print_header
   echo "重启控制台"
   echo "--------------------------------"
+  npm install --omit=dev
   if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
     pm2 restart "$SERVICE_NAME" --update-env
   else

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +26,11 @@ let stopping = false;
 let logs = [];
 const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
+const requiredDependencyFiles = [
+  'node_modules/dotenv/package.json',
+  'node_modules/mineflayer/package.json',
+  'node_modules/mineflayer-pathfinder/package.json'
+];
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -370,8 +375,34 @@ function addLog(line) {
   if (logs.length > 500) logs = logs.slice(-500);
 }
 
+function dependenciesReady() {
+  return requiredDependencyFiles.every((filePath) => fs.existsSync(path.join(projectRoot, filePath)));
+}
+
+function ensureProjectDependencies() {
+  if (dependenciesReady()) return;
+
+  addLog('检测到项目依赖缺失，正在自动安装 npm 依赖...');
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const result = spawnSync(npmCommand, ['install', '--omit=dev'], {
+    cwd: projectRoot,
+    env: process.env,
+    encoding: 'utf8'
+  });
+
+  if (result.stdout) addLog(result.stdout.trimEnd());
+  if (result.stderr) addLog(result.stderr.trimEnd());
+  if (result.error) throw new Error(`自动安装 npm 依赖失败：${result.error.message}`);
+  if (result.status !== 0) throw new Error(`自动安装 npm 依赖失败，退出码：${result.status}`);
+  if (!dependenciesReady()) throw new Error('npm 依赖安装完成后仍缺少必要依赖，请在服务器执行 npm install 后重试。');
+
+  addLog('项目依赖安装完成，继续启动挂机进程。');
+}
+
 function startBot() {
   if (botProcess) return;
+
+  ensureProjectDependencies();
 
   const config = readConfig();
   validateConfig(config);
