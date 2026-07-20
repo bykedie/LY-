@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.10"
+  echo "LY 挂机控制台一键管理脚本  v1.0.11"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -779,8 +779,9 @@ update_project() {
   fi
   pm2 save
   info "控制台服务已重启。"
-  info "更新流程已结束，可以刷新网页控制台或重新输入 j 查看菜单。"
-  pause
+  info "更新流程已结束，正在重新载入最新管理脚本。"
+  cd "$PROJECT_DIR"
+  exec bash ./deploy/ly-afk-manager.sh
 }
 
 show_access_hint() {
