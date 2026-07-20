@@ -910,13 +910,13 @@ function handleServerMessage(account, text) {
   if (!session) return;
 
   const lowerText = text.toLowerCase();
-  if (text.includes('已成功登录')) {
+  if (isLoggedInMessage(text)) {
     session.loginSuccessDetected = true;
     return;
   }
 
   const shouldRegister = lowerText.includes('/register') || lowerText.includes('register') || text.includes('注册');
-  const shouldLogin = lowerText.includes('/login') || lowerText.includes('login') || text.includes('登录');
+  const shouldLogin = isLoginPrompt(text);
 
   if (!shouldRegister && !shouldLogin) return;
 
@@ -948,6 +948,24 @@ function handleServerMessage(account, text) {
 
 function isRegisterConfirmPrompt(text) {
   return String(text || '').includes('请输入“/register <密码> <再输入一次以确定密码>”以注册');
+}
+
+function isLoginPrompt(text) {
+  const value = String(text || '');
+  const lowerValue = value.toLowerCase();
+  return lowerValue.includes('/login')
+    || lowerValue.includes('login password')
+    || (value.includes('请输入') && value.includes('登录'));
+}
+
+function isLoggedInMessage(text) {
+  const value = String(text || '');
+  return value.includes('已成功登录')
+    || value.includes('已帮你自动登录')
+    || value.includes('已经登陆过了')
+    || value.includes('已经登录过了')
+    || value.includes('已登录')
+    || value.includes('已登陆');
 }
 
 function logGameMessage(username, message) {

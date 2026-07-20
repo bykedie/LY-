@@ -52,6 +52,13 @@ await runAutoLoginScenario({
 });
 
 await runAutoLoginScenario({
+  name: 'auto-login-success-before-prompt',
+  prompts: ['[玩家系统] 欢迎回来，已帮你自动登录到此服务器', 'Please use /login password'],
+  password: 'secret-auto-success',
+  expected: []
+});
+
+await runAutoLoginScenario({
   name: 'missing-password',
   prompt: 'Please use /login password',
   password: '',
