@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.7"
-EXPECTED_MANAGER_VERSION="v1.0.7"
+BOOTSTRAP_VERSION="v1.0.8"
+EXPECTED_MANAGER_VERSION="v1.0.8"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -24,6 +24,8 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/ly-console}"
 # BRANCH=master bash deploy/bootstrap.sh
 BRANCH="${BRANCH:-main}"
 ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/bykedie/LY-/archive/refs/heads/${BRANCH}.tar.gz}"
+CDN_PACKAGE_URL="${CDN_PACKAGE_URL:-https://data.jsdelivr.com/v1/package/gh/bykedie/LY-@${BRANCH}/flat}"
+CDN_FILE_BASE_URL="${CDN_FILE_BASE_URL:-https://cdn.jsdelivr.net/gh/bykedie/LY-@${BRANCH}}"
 LOG_FILE="${LOG_FILE:-/tmp/ly-console-bootstrap.log}"
 GIT_CHECK_TIMEOUT="${GIT_CHECK_TIMEOUT:-20}"
 GIT_CLONE_TIMEOUT="${GIT_CLONE_TIMEOUT:-300}"
@@ -52,7 +54,7 @@ on_error() {
   echo "$LOG_FILE"
   echo
   echo "常见原因："
-  echo "1. 服务器无法访问 GitHub raw.githubusercontent.com"
+  echo "1. 服务器无法访问 GitHub 或 jsDelivr 下载源"
   echo "2. apt 正在被其他进程占用"
   echo "3. GitHub 仓库不是公开仓库，或仓库地址写错"
   echo "4. /opt 目录已有同名文件夹但不是本项目仓库"
@@ -137,6 +139,59 @@ download_file() {
     printf "\r%s [##########] 失败\n" "$label"
     return "$exit_code"
   fi
+}
+
+download_project_from_cdn() {
+  local target_dir="$1"
+  local timeout_seconds="${2:-300}"
+  LAST_COMMAND="python3 jsDelivr sync ${CDN_PACKAGE_URL}"
+  echo "+ ${LAST_COMMAND}"
+  python3 - "$CDN_PACKAGE_URL" "$CDN_FILE_BASE_URL" "$target_dir" "$timeout_seconds" <<'PY'
+import json
+import os
+import sys
+import time
+import urllib.request
+
+package_url, file_base_url, target_dir, timeout_text = sys.argv[1:5]
+timeout = int(timeout_text)
+started = time.time()
+
+def fetch(url):
+    with urllib.request.urlopen(url, timeout=20) as response:
+        return response.read()
+
+def check_timeout():
+    if time.time() - started > timeout:
+        raise TimeoutError('下载项目文件超时')
+
+print('正在读取 jsDelivr 项目文件列表...')
+data = json.loads(fetch(package_url).decode('utf-8'))
+files = [item['name'] for item in data.get('files', []) if item.get('type') == 'file']
+if not files:
+    raise RuntimeError('jsDelivr 没有返回项目文件列表')
+
+total = len(files)
+for index, name in enumerate(files, 1):
+    check_timeout()
+    relative = name.lstrip('/')
+    url = file_base_url.rstrip('/') + '/' + relative
+    output = os.path.join(target_dir, relative)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+    for attempt in range(1, 4):
+        try:
+            content = fetch(url)
+            with open(output, 'wb') as handle:
+                handle.write(content)
+            break
+        except Exception:
+            if attempt == 3:
+                raise
+            time.sleep(2)
+    percent = index * 100 // total
+    print(f'下载项目文件 [{index}/{total}] {percent}% {relative}')
+print('jsDelivr 项目文件同步完成。')
+PY
 }
 
 run_interactive() {
@@ -260,6 +315,7 @@ install_base_tools() {
   command_missing git && missing_packages+=(git)
   command_missing curl && missing_packages+=(curl)
   command_missing tar && missing_packages+=(tar)
+  command_missing python3 && missing_packages+=(python3)
   package_missing ca-certificates && missing_packages+=(ca-certificates)
 
   if [[ "${#missing_packages[@]}" -eq 0 ]]; then
@@ -340,6 +396,7 @@ download_archive_project() {
   SUDO="$(need_sudo)"
   step "3/5" "Git 访问失败，改用压缩包下载项目代码"
   echo "压缩包地址：${ARCHIVE_URL}"
+  echo "备用下载：${CDN_FILE_BASE_URL}"
   echo "最长等待：${ARCHIVE_DOWNLOAD_TIMEOUT} 秒"
 
   if [[ -e "$INSTALL_DIR" ]]; then
@@ -352,12 +409,18 @@ download_archive_project() {
 
   tmp_dir="$(mktemp -d)"
   archive_file="${tmp_dir}/ly-console.tar.gz"
-  download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" "$ARCHIVE_DOWNLOAD_TIMEOUT"
-  run tar -xzf "$archive_file" -C "$tmp_dir"
-  extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  if [[ -z "$extracted_dir" ]]; then
-    fail "压缩包已下载，但没有找到解压后的项目目录。"
-    exit 1
+  if download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" "$ARCHIVE_DOWNLOAD_TIMEOUT"; then
+    run tar -xzf "$archive_file" -C "$tmp_dir"
+    extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    if [[ -z "$extracted_dir" ]]; then
+      fail "压缩包已下载，但没有找到解压后的项目目录。"
+      exit 1
+    fi
+  else
+    warn "GitHub 压缩包下载失败，正在改用 jsDelivr 逐文件同步项目代码。"
+    extracted_dir="${tmp_dir}/project"
+    run mkdir -p "$extracted_dir"
+    download_project_from_cdn "$extracted_dir" "$ARCHIVE_DOWNLOAD_TIMEOUT"
   fi
   run $SUDO mkdir -p "$(dirname "$INSTALL_DIR")"
   run $SUDO mv "$extracted_dir" "$INSTALL_DIR"
@@ -370,16 +433,23 @@ update_existing_project_from_archive() {
   SUDO="$(need_sudo)"
   step "3/5" "已有项目不是 Git 仓库，正在用压缩包更新到最新版本"
   echo "压缩包地址：${ARCHIVE_URL}"
+  echo "备用下载：${CDN_FILE_BASE_URL}"
 
   tmp_dir="$(mktemp -d)"
   archive_file="${tmp_dir}/ly-console.tar.gz"
-  download_file "$ARCHIVE_URL" "$archive_file" "下载最新项目压缩包" "$ARCHIVE_DOWNLOAD_TIMEOUT"
-  run tar -xzf "$archive_file" -C "$tmp_dir"
-  extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  if [[ -z "$extracted_dir" ]]; then
-    fail "压缩包已下载，但没有找到解压后的项目目录。"
-    run rm -rf "$tmp_dir"
-    exit 1
+  if download_file "$ARCHIVE_URL" "$archive_file" "下载最新项目压缩包" "$ARCHIVE_DOWNLOAD_TIMEOUT"; then
+    run tar -xzf "$archive_file" -C "$tmp_dir"
+    extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    if [[ -z "$extracted_dir" ]]; then
+      fail "压缩包已下载，但没有找到解压后的项目目录。"
+      run rm -rf "$tmp_dir"
+      exit 1
+    fi
+  else
+    warn "GitHub 压缩包下载失败，正在改用 jsDelivr 逐文件同步最新项目代码。"
+    extracted_dir="${tmp_dir}/project"
+    run mkdir -p "$extracted_dir"
+    download_project_from_cdn "$extracted_dir" "$ARCHIVE_DOWNLOAD_TIMEOUT"
   fi
 
   backup_dir="${INSTALL_DIR}.backup.$(date +%Y%m%d%H%M%S)"

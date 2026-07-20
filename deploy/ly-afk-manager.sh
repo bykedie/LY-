@@ -7,6 +7,8 @@ SERVICE_NAME="ly-afk-dashboard"
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
 BRANCH="${BRANCH:-main}"
 ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/bykedie/LY-/archive/refs/heads/${BRANCH}.tar.gz}"
+CDN_PACKAGE_URL="${CDN_PACKAGE_URL:-https://data.jsdelivr.com/v1/package/gh/bykedie/LY-@${BRANCH}/flat}"
+CDN_FILE_BASE_URL="${CDN_FILE_BASE_URL:-https://cdn.jsdelivr.net/gh/bykedie/LY-@${BRANCH}}"
 PUBLIC_IP_CACHE=""
 PRIVATE_IP_CACHE=""
 PAUSE_AFTER_STEP=1
@@ -120,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.7"
+  echo "LY 挂机控制台一键管理脚本  v1.0.8"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -226,6 +228,58 @@ download_file() {
   fi
 }
 
+download_project_from_cdn() {
+  local target_dir="$1"
+  local timeout_seconds="${2:-300}"
+  echo "+ python3 jsDelivr sync ${CDN_PACKAGE_URL}"
+  python3 - "$CDN_PACKAGE_URL" "$CDN_FILE_BASE_URL" "$target_dir" "$timeout_seconds" <<'PY'
+import json
+import os
+import sys
+import time
+import urllib.request
+
+package_url, file_base_url, target_dir, timeout_text = sys.argv[1:5]
+timeout = int(timeout_text)
+started = time.time()
+
+def fetch(url):
+    with urllib.request.urlopen(url, timeout=20) as response:
+        return response.read()
+
+def check_timeout():
+    if time.time() - started > timeout:
+        raise TimeoutError('下载项目文件超时')
+
+print('正在读取 jsDelivr 项目文件列表...')
+data = json.loads(fetch(package_url).decode('utf-8'))
+files = [item['name'] for item in data.get('files', []) if item.get('type') == 'file']
+if not files:
+    raise RuntimeError('jsDelivr 没有返回项目文件列表')
+
+total = len(files)
+for index, name in enumerate(files, 1):
+    check_timeout()
+    relative = name.lstrip('/')
+    url = file_base_url.rstrip('/') + '/' + relative
+    output = os.path.join(target_dir, relative)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+    for attempt in range(1, 4):
+        try:
+            content = fetch(url)
+            with open(output, 'wb') as handle:
+                handle.write(content)
+            break
+        except Exception:
+            if attempt == 3:
+                raise
+            time.sleep(2)
+    percent = index * 100 // total
+    print(f'下载项目文件 [{index}/{total}] {percent}% {relative}')
+print('jsDelivr 项目文件同步完成。')
+PY
+}
+
 need_sudo() {
   if [[ "${EUID}" -eq 0 ]]; then
     echo ""
@@ -325,7 +379,7 @@ install_runtime() {
   local SUDO
   SUDO="$(need_sudo)"
   $SUDO apt update
-  $SUDO apt install -y curl ca-certificates git build-essential nginx ufw
+  $SUDO apt install -y curl ca-certificates git python3 build-essential nginx ufw
   if ! command -v node >/dev/null 2>&1; then
     $SUDO apt install -y nodejs npm
   fi
@@ -662,15 +716,21 @@ update_project() {
     progress "1/5" "当前不是 Git 仓库，正在使用压缩包方式下载最新代码..."
     tmp_dir="$(mktemp -d)"
     archive_file="${tmp_dir}/ly-console.tar.gz"
-    download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" 300
-    info "压缩包下载完成，当前正在解压。"
-    tar -xzf "$archive_file" -C "$tmp_dir"
-    extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-    if [[ -z "$extracted_dir" ]]; then
-      fail "压缩包已下载，但没有找到解压后的项目目录。"
-      rm -rf "$tmp_dir"
-      pause
-      return
+    if download_file "$ARCHIVE_URL" "$archive_file" "下载项目压缩包" 300; then
+      info "压缩包下载完成，当前正在解压。"
+      tar -xzf "$archive_file" -C "$tmp_dir"
+      extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+      if [[ -z "$extracted_dir" ]]; then
+        fail "压缩包已下载，但没有找到解压后的项目目录。"
+        rm -rf "$tmp_dir"
+        pause
+        return
+      fi
+    else
+      warn "GitHub 压缩包下载失败，正在改用 jsDelivr 逐文件同步最新项目代码。"
+      extracted_dir="${tmp_dir}/project"
+      mkdir -p "$extracted_dir"
+      download_project_from_cdn "$extracted_dir" 300
     fi
     progress "2/5" "当前正在备份旧项目并替换为新代码..."
     parent_dir="$(dirname "$PROJECT_DIR")"
