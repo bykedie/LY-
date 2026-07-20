@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.8"
+  echo "LY 挂机控制台一键管理脚本  v1.0.9"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -253,7 +253,19 @@ def check_timeout():
 
 print('正在读取 jsDelivr 项目文件列表...')
 data = json.loads(fetch(package_url).decode('utf-8'))
-files = [item['name'] for item in data.get('files', []) if item.get('type') == 'file']
+files = []
+
+def collect(entries, prefix=''):
+    for item in entries or []:
+        name = item.get('name', '')
+        item_type = item.get('type')
+        if item_type == 'directory':
+            collect(item.get('files', []), prefix + name.rstrip('/') + '/')
+        elif item_type == 'file' or 'files' not in item:
+            files.append(prefix + name.lstrip('/'))
+
+collect(data.get('files', []))
+files = [name for name in files if name]
 if not files:
     raise RuntimeError('jsDelivr 没有返回项目文件列表')
 
