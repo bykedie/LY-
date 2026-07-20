@@ -367,6 +367,17 @@
           </article>
         </div>
         <label>全局进服发言<input id="chatOnJoin" placeholder="留空则不发言"><span class="field-note">所有账号进入服务器后发送的统一消息；留空最安静。</span></label>
+        <div class="start-account-panel">
+          <div class="compact-head">
+            <strong>本次启动账号</strong>
+            <span class="field-note">只启动这里勾选的账号，不会修改账号列表保存状态。</span>
+          </div>
+          <div class="start-account-actions">
+            <button class="ghost" id="selectAllStartAccounts" type="button">全选</button>
+            <button class="ghost" id="clearStartAccounts" type="button">清空</button>
+          </div>
+          <div class="start-account-list" id="startAccountList"></div>
+        </div>
         <div class="runbar">
           <button class="primary" id="startBtn">启动挂机</button>
           <button class="danger" id="stopBtn">停止挂机</button>

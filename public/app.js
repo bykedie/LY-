@@ -309,6 +309,7 @@ function updateRuntimeControlState() {
     ? runningControl.presetMessagesList || []
     : readLines('#presetMessagesList');
 
+  renderStartAccounts(runningControl?.accounts || readAccounts());
   renderCommandTargets(runningControl?.accounts || readAccounts());
   $('#commandTarget').disabled = !commandEnabled;
   $('#commandMessage').disabled = !commandEnabled;
@@ -395,6 +396,7 @@ function renderAccounts(accounts) {
   list.innerHTML = '';
   accounts.forEach((account) => list.appendChild(createAccountCard(account)));
   renderCommandTargets(accounts);
+  renderStartAccounts(accounts);
 }
 
 function renderAccountPool(accountPool = []) {
@@ -629,6 +631,51 @@ function renderCommandTargets(accounts = []) {
   }
 
   select.value = [...select.options].some((option) => option.value === previousValue) ? previousValue : 'all';
+}
+
+function renderStartAccounts(accounts = []) {
+  const list = $('#startAccountList');
+  if (!list) return;
+
+  const previousSelection = new Set(readSelectedStartAccounts({ allowEmpty: true }));
+  const hasPreviousSelection = previousSelection.size > 0;
+  const enabledAccounts = accounts.filter((account) => account.enabled !== false && account.username);
+  list.innerHTML = '';
+
+  if (enabledAccounts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'start-account-empty';
+    empty.textContent = '没有可启动的启用账号';
+    list.appendChild(empty);
+    return;
+  }
+
+  for (const account of enabledAccounts) {
+    const label = document.createElement('label');
+    label.className = 'start-account-option';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = account.username;
+    input.checked = hasPreviousSelection ? previousSelection.has(account.username) : true;
+    input.disabled = Boolean(state.running || state.stopping);
+
+    const name = document.createElement('span');
+    name.textContent = account.note ? `${account.username} - ${account.note}` : account.username;
+
+    label.append(input, name);
+    list.appendChild(label);
+  }
+}
+
+function readSelectedStartAccounts(options = {}) {
+  const selected = [...document.querySelectorAll('#startAccountList input[type="checkbox"]:checked')]
+    .map((input) => input.value)
+    .filter(Boolean);
+  if (!options.allowEmpty && selected.length === 0) {
+    throw new Error('请至少选择一个本次启动账号');
+  }
+  return selected;
 }
 
 function renderProfiles() {
@@ -993,10 +1040,21 @@ function bindEvents() {
   $('#saveBtn').addEventListener('click', () => saveConfig().catch((error) => showToast(error.message)));
   $('#resetBtn').addEventListener('click', () => beginResetConfirmation());
   $('#confirmResetBtn').addEventListener('click', () => confirmResetConfig().catch((error) => showToast(error.message)));
+  $('#selectAllStartAccounts').addEventListener('click', () => {
+    document.querySelectorAll('#startAccountList input[type="checkbox"]').forEach((input) => {
+      input.checked = true;
+    });
+  });
+  $('#clearStartAccounts').addEventListener('click', () => {
+    document.querySelectorAll('#startAccountList input[type="checkbox"]').forEach((input) => {
+      input.checked = false;
+    });
+  });
   $('#startBtn').addEventListener('click', async () => {
     try {
+      const accounts = readSelectedStartAccounts();
       await saveConfig();
-      await requestJson('/api/start', { method: 'POST' });
+      await requestJson('/api/start', { method: 'POST', body: JSON.stringify({ accounts }) });
       await refreshStatus();
       showToast('挂机已启动');
     } catch (error) {

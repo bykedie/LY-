@@ -321,6 +321,7 @@ function loadAccountsFromFile() {
 
 function loadAccounts() {
   const sourceAccounts = USER_CONFIG.useAccountsFile && !FILE_CONFIG ? loadAccountsFromFile() : ACTIVE_ACCOUNTS;
+  const startAccountNames = getStartAccountNames();
 
   if (!Array.isArray(sourceAccounts) || sourceAccounts.length === 0) {
     throw new Error('账号列表必须是非空数组。');
@@ -364,7 +365,21 @@ function loadAccounts() {
       registerPassword: account.registerPassword || '',
       enabled: account.enabled !== false
     };
-  });
+  }).filter((account) => !startAccountNames || startAccountNames.has(account.username));
+}
+
+function getStartAccountNames() {
+  const raw = process.env.START_ACCOUNT_NAMES;
+  if (!raw) return null;
+
+  try {
+    const names = JSON.parse(raw);
+    if (Array.isArray(names) && names.length > 0) {
+      return new Set(names.map((name) => String(name).trim()).filter(Boolean));
+    }
+  } catch {}
+
+  return null;
 }
 
 function getEnabledFeatures() {
@@ -409,6 +424,7 @@ function createBot(account) {
       lastChatAt: 0,
       fishing: false,
       loginCommandSent: false,
+      loginSuccessDetected: false,
       registerSingleCommandSent: false,
       registerConfirmCommandSent: false,
       reconnectTimer: null,
@@ -440,6 +456,7 @@ function createBot(account) {
   session.bot.once('spawn', () => {
     log(account.username, '已进入服务器。');
     session.loginCommandSent = false;
+    session.loginSuccessDetected = false;
     session.registerSingleCommandSent = false;
     session.registerConfirmCommandSent = false;
 
@@ -893,13 +910,18 @@ function handleServerMessage(account, text) {
   if (!session) return;
 
   const lowerText = text.toLowerCase();
+  if (text.includes('已成功登录')) {
+    session.loginSuccessDetected = true;
+    return;
+  }
+
   const shouldRegister = lowerText.includes('/register') || lowerText.includes('register') || text.includes('注册');
   const shouldLogin = lowerText.includes('/login') || lowerText.includes('login') || text.includes('登录');
 
   if (!shouldRegister && !shouldLogin) return;
 
   if (shouldLogin) {
-    if (session.loginCommandSent) return;
+    if (session.loginCommandSent || session.loginSuccessDetected) return;
 
     session.loginCommandSent = true;
     enqueueChat(account.username, `/login ${account.registerPassword}`, `自动登录发送：/login ${account.registerPassword}`);

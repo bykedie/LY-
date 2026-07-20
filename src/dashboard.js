@@ -399,19 +399,24 @@ function ensureProjectDependencies() {
   addLog('项目依赖安装完成，继续启动挂机进程。');
 }
 
-function startBot() {
+function startBot(startAccountNames = []) {
   if (botProcess) return;
 
   ensureProjectDependencies();
 
   const config = readConfig();
   validateConfig(config);
+  const selectedAccountNames = normalizeStartAccountNames(startAccountNames, config.accounts);
   runningConfig = structuredClone(config);
+  if (selectedAccountNames.length > 0) {
+    const selected = new Set(selectedAccountNames);
+    runningConfig.accounts = runningConfig.accounts.filter((account) => selected.has(account.username));
+  }
   stopping = false;
   logs = [];
   botProcess = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
-    env: { ...process.env, BOT_CONFIG_PATH: configPath },
+    env: { ...process.env, BOT_CONFIG_PATH: configPath, START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames) },
     stdio: ['pipe', 'pipe', 'pipe']
   });
 
@@ -424,6 +429,21 @@ function startBot() {
     runningConfig = null;
     stopping = false;
   });
+}
+
+function normalizeStartAccountNames(startAccountNames, accounts) {
+  if (!Array.isArray(startAccountNames) || startAccountNames.length === 0) return [];
+
+  const enabledAccounts = new Set(
+    accounts
+      .filter((account) => account.enabled !== false)
+      .map((account) => account.username)
+  );
+  const selected = [...new Set(startAccountNames.map((name) => String(name || '').trim()).filter(Boolean))];
+  const invalid = selected.filter((name) => !enabledAccounts.has(name));
+  if (invalid.length > 0) throw new Error(`启动账号不存在或未启用：${invalid.join(', ')}`);
+  if (selected.length === 0) throw new Error('至少需要选择一个启动账号。');
+  return selected;
 }
 
 function stopBot() {
@@ -629,7 +649,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/start') {
-      startBot();
+      const body = JSON.parse(await readBody(req) || '{}');
+      startBot(body.accounts || []);
       sendJson(res, 200, { ok: true, running: Boolean(botProcess), stopping });
       return;
     }

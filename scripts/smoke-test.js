@@ -270,6 +270,13 @@ try {
     '非法定时任务触发方式没有被拒绝'
   );
 
+  const invalidStartAccount = await requestJson('/api/start', {
+    method: 'POST',
+    body: JSON.stringify({ accounts: ['MissingBot'] }),
+    expectOk: false
+  });
+  assert(invalidStartAccount.ok === false && invalidStartAccount.message.includes('不存在或未启用'), '不存在的启动账号没有被拒绝');
+
   fs.writeFileSync(
     configPath,
     JSON.stringify({ ...testConfig, server: { ...testConfig.server, port: 70000 } }, null, 2),
