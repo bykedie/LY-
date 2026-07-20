@@ -29,17 +29,22 @@ https://bot.你的域名.com
 如果是全新服务器，最省事的方式是直接执行：
 
 ```bash
-tmp=/tmp/ly-console-bootstrap.sh; err=/tmp/ly-console-bootstrap-download.err; urls=("https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh?cache=$(date +%s)" "https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh?cache=$(date +%s)"); echo "[0/5] 下载启动脚本"; ok=0; for url in "${urls[@]}"; do echo "下载源：$url"; rm -f "$tmp" "$err"; curl -fL --connect-timeout 10 --max-time 90 --retry 1 --retry-delay 2 "$url" -o "$tmp" >"$err" 2>&1 & pid=$!; i=0; while kill -0 "$pid" 2>/dev/null; do p=$((i * 6 + 5)); [ "$p" -gt 95 ] && p=95; f=$((p / 10)); e=$((10 - f)); bar="$(printf "%${f}s" | tr " " "#")$(printf "%${e}s" | tr " " "-")"; printf "\r下载启动脚本 [%s] %s%%，仍在下载..." "$bar" "$p"; sleep 1; i=$((i + 1)); done; if wait "$pid"; then printf "\r下载启动脚本 [##########] 100%%，下载完成。        \n"; ok=1; break; else code=$?; printf "\n当前下载源失败，退出码：%s\n" "$code"; sed -n "1,5p" "$err" 2>/dev/null || true; echo "尝试备用源。"; fi; done; if [ "$ok" = "1" ]; then sudo bash "$tmp"; else echo "[错误] 启动脚本下载失败，请检查服务器网络或稍后重试。"; exit 1; fi
+curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh | sudo bash
 ```
 
-执行后会先显示 `下载启动脚本 [#####-----] xx%`，下载成功后才进入 `[1/5]`、`[2/5]` 这样的部署进度。完整日志在：
+如果 jsDelivr 访问失败，可以改用 GitHub raw 源：
+
+```bash
+curl -fL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh | sudo bash
+```
+
+执行后会进入 `[1/5]`、`[2/5]` 这样的部署进度。完整日志在：
 
 ```text
 /tmp/ly-console-bootstrap.log
 ```
 
 安装完成后，脚本会创建快捷命令：
-
 ```bash
 j
 ```

@@ -93,9 +93,8 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.5"
+  echo "LY 挂机控制台一键管理脚本  v1.0.6"
   echo "快捷打开面板：j"
-  echo "快捷入口：下次在命令行直接输入 j 可打开本界面"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
   echo "当前公网 IP：${current_public_ip}"
@@ -218,6 +217,49 @@ detect_os() {
   fi
 }
 
+get_env_value() {
+  local key="$1"
+  grep -E "^${key}=" .env 2>/dev/null | cut -d= -f2- || true
+}
+
+show_current_access_config() {
+  local port host domain user password public_ip
+  echo "当前访问配置"
+  echo "--------------------------------"
+  if [[ ! -f .env ]]; then
+    echo ".env 不存在，请先执行 2 或 3 生成面板配置。"
+    return 0
+  fi
+  port="$(get_env_value DASHBOARD_PORT)"
+  host="$(get_env_value DASHBOARD_HOST)"
+  domain="$(get_env_value DASHBOARD_DOMAIN)"
+  user="$(get_env_value DASHBOARD_USER)"
+  password="$(get_env_value DASHBOARD_PASSWORD)"
+  port="${port:-30123}"
+  host="${host:-127.0.0.1}"
+  user="${user:-admin}"
+  public_ip="$(detect_public_ip)"
+
+  if [[ -n "$domain" ]]; then
+    echo "域名访问：http://${domain}"
+    echo "HTTPS 访问：https://${domain}"
+  fi
+  if [[ "$host" == "0.0.0.0" ]]; then
+    echo "公网直连：http://${public_ip}:${port}"
+  else
+    echo "本机监听：http://127.0.0.1:${port}"
+    if [[ -z "$domain" ]]; then
+      echo "公网访问：未配置域名反代；如需公网端口直连，请把 DASHBOARD_HOST 设置为 0.0.0.0 并放行端口。"
+    fi
+  fi
+  echo "登录用户名：${user}"
+  if [[ -n "$password" ]]; then
+    echo "登录密码：${password}"
+  else
+    echo "登录密码：未设置"
+  fi
+}
+
 show_system_info() {
   print_header
   echo "系统信息"
@@ -229,6 +271,8 @@ show_system_info() {
   echo "Node：$(node -v 2>/dev/null || echo '未安装')"
   echo "npm：$(npm -v 2>/dev/null || echo '未安装')"
   echo "pm2：$(pm2 -v 2>/dev/null || echo '未安装')"
+  echo
+  show_current_access_config
   echo
   echo "面板环境变量"
   echo "--------------------------------"
