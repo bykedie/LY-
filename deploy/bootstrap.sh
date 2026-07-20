@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.12"
-EXPECTED_MANAGER_VERSION="v1.0.12"
+BOOTSTRAP_VERSION="v1.0.13"
+EXPECTED_MANAGER_VERSION="v1.0.13"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。

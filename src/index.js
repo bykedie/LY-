@@ -411,6 +411,7 @@ function createBot(account) {
       loginCommandSent: false,
       registerSingleCommandSent: false,
       registerConfirmCommandSent: false,
+      registerConfirmTimer: null,
       reconnectTimer: null,
       reconnecting: false,
       stopped: false
@@ -442,6 +443,8 @@ function createBot(account) {
     session.loginCommandSent = false;
     session.registerSingleCommandSent = false;
     session.registerConfirmCommandSent = false;
+    clearTimeout(session.registerConfirmTimer);
+    session.registerConfirmTimer = null;
 
     if (ACTIVE_CONFIG.idleActions || ACTIVE_FEATURES.movement.antiAfk) {
       startIdleActions(account.username);
@@ -481,6 +484,8 @@ function createBot(account) {
 
   session.bot.on('end', () => {
     log(account.username, '连接已断开。');
+    clearTimeout(session.registerConfirmTimer);
+    session.registerConfirmTimer = null;
     stopFeatureWorkers(account.username);
     scheduleReconnect(account);
   });
@@ -906,30 +911,27 @@ function handleServerMessage(account, text) {
     return;
   }
 
-  const shouldConfirmRegister = isRegisterConfirmPrompt(text);
   if (!session.registerSingleCommandSent) {
     session.registerSingleCommandSent = true;
     enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
-    return;
-  }
-
-  if (shouldConfirmRegister) {
-    if (session.registerConfirmCommandSent) return;
-
-    session.registerConfirmCommandSent = true;
-    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, '自动登录：已发送 /register 二次确认指令。');
+    scheduleRegisterConfirm(account);
     return;
   }
 
   return;
 }
 
-function isRegisterConfirmPrompt(text) {
-  const lowerText = String(text || '').toLowerCase();
-  return lowerText.includes('再输入一次')
-    || lowerText.includes('确认密码')
-    || lowerText.includes('确定密码')
-    || /\/register\s+(?:<[^>]+>|\S+)\s+(?:<[^>]+>|\S+)/i.test(lowerText);
+function scheduleRegisterConfirm(account) {
+  const session = sessions.get(account.username);
+  if (!session || session.registerConfirmCommandSent || session.registerConfirmTimer) return;
+
+  session.registerConfirmTimer = setTimeout(() => {
+    session.registerConfirmTimer = null;
+    if (session.stopped || session.registerConfirmCommandSent || !isBotInPlay(session.bot)) return;
+
+    session.registerConfirmCommandSent = true;
+    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, '自动登录：等待 5 秒后已发送 /register 二次确认指令。');
+  }, 5000);
 }
 
 function logGameMessage(username, message) {
@@ -1104,6 +1106,8 @@ function stopAllAccounts() {
   for (const [username, session] of sessions) {
     session.stopped = true;
     clearTimeout(session.reconnectTimer);
+    clearTimeout(session.registerConfirmTimer);
+    session.registerConfirmTimer = null;
     stopFeatureWorkers(username);
     session.bot?.quit();
   }
