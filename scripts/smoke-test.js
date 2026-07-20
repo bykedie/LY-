@@ -293,12 +293,11 @@ try {
   });
   assert(emptySend.ok === false && emptySend.message.includes('不能为空'), '空发送内容没有被拒绝');
 
-  const disabledRemoteSend = await requestJson('/api/send', {
+  const manualSend = await requestJson('/api/send', {
     method: 'POST',
-    body: JSON.stringify({ target: 'all', message: '/spawn' }),
-    expectOk: false
+    body: JSON.stringify({ target: 'all', message: '/spawn' })
   });
-  assert(disabledRemoteSend.ok === false && disabledRemoteSend.message.includes('未启用'), '远程发送关闭时没有被拒绝');
+  assert(manualSend.ok === true, '运行控制手动发送在挂机运行时应该可用');
 
   await requestJson('/api/config', {
     method: 'POST',

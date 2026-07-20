@@ -58,7 +58,6 @@ async function runAutoLoginScenario({ name, prompt, prompts, password, expected 
   const serverPort = 43000 + Math.floor(Math.random() * 4000);
   const receivedMessages = [];
   const botOutput = [];
-  const testExitAfterMs = expected.length > 1 ? 7000 : 1800;
   let botProcess = null;
   let server = null;
 
@@ -68,7 +67,7 @@ async function runAutoLoginScenario({ name, prompt, prompts, password, expected 
 
     fs.writeFileSync(
       path.join(tempDir, 'bot.config.json'),
-      JSON.stringify(createTestConfig({ port: serverPort, username: `AutoLogin${name}`, password, testExitAfterMs }), null, 2),
+      JSON.stringify(createTestConfig({ port: serverPort, username: `AutoLogin${name}`, password }), null, 2),
       'utf8'
     );
 
@@ -98,7 +97,7 @@ async function runAutoLoginScenario({ name, prompt, prompts, password, expected 
   }
 }
 
-function createTestConfig({ port, username, password, testExitAfterMs }) {
+function createTestConfig({ port, username, password }) {
   return {
     server: {
       host: '127.0.0.1',
@@ -114,7 +113,7 @@ function createTestConfig({ port, username, password, testExitAfterMs }) {
       idleIntervalMs: 45000,
       messageCooldownMs: 100,
       chatOnJoin: '',
-      testExitAfterMs
+      testExitAfterMs: 1800
     },
     features: {
       combat: {

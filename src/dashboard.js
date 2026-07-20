@@ -451,10 +451,6 @@ function sendBotCommand(command) {
     throw new Error('找不到当前运行配置，请重启挂机进程。');
   }
 
-  if (!config.features.chat.remoteCommand) {
-    throw new Error('发送游戏信息 / 指令功能未启用。');
-  }
-
   if (command.target !== 'all') {
     const enabledAccountNames = new Set(
       config.accounts

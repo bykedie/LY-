@@ -289,6 +289,7 @@ function createMinecraftServer(port) {
     });
 
     setTimeout(() => sendSystemChat(client, 'Please use /register password password'), 250);
+    setTimeout(() => sendSystemChat(client, 'Please use /register password password'), 650);
     setTimeout(() => sendPlayerChat(client, 'Tester', 'ping'), 500);
     setTimeout(() => sendColoredSystemChat(client), 700);
   });

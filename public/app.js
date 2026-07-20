@@ -301,9 +301,7 @@ function isFeatureEnabled(pathKey) {
 
 function updateRuntimeControlState() {
   const runningControl = state.running ? state.control : null;
-  const remoteCommandEnabled = !state.stopping && (
-    runningControl ? Boolean(runningControl.remoteCommand) : isFeatureEnabled('chat.remoteCommand')
-  );
+  const commandEnabled = Boolean(state.running && !state.stopping);
   const presetMessagesEnabled = runningControl
     ? Boolean(runningControl.presetMessages)
     : isFeatureEnabled('chat.presetMessages');
@@ -312,11 +310,11 @@ function updateRuntimeControlState() {
     : readLines('#presetMessagesList');
 
   renderCommandTargets(runningControl?.accounts || readAccounts());
-  $('#commandTarget').disabled = !remoteCommandEnabled;
-  $('#commandMessage').disabled = !remoteCommandEnabled;
-  $('#sendCommandBtn').disabled = !remoteCommandEnabled;
-  $('#presetSendList').classList.toggle('is-disabled', !remoteCommandEnabled);
-  renderPresetSendList(presetMessages, { presetMessagesEnabled, remoteCommandEnabled });
+  $('#commandTarget').disabled = !commandEnabled;
+  $('#commandMessage').disabled = !commandEnabled;
+  $('#sendCommandBtn').disabled = !commandEnabled;
+  $('#presetSendList').classList.toggle('is-disabled', !commandEnabled);
+  renderPresetSendList(presetMessages, { presetMessagesEnabled, commandEnabled });
 }
 
 function renderPresetSendList(messages = [], options = {}) {
@@ -324,7 +322,7 @@ function renderPresetSendList(messages = [], options = {}) {
   list.innerHTML = '';
 
   const presetMessagesEnabled = options.presetMessagesEnabled ?? isFeatureEnabled('chat.presetMessages');
-  const remoteCommandEnabled = options.remoteCommandEnabled ?? isFeatureEnabled('chat.remoteCommand');
+  const commandEnabled = options.commandEnabled ?? Boolean(state.running && !state.stopping);
   if (!presetMessagesEnabled) return;
 
   for (const message of messages.filter(Boolean)) {
@@ -332,8 +330,8 @@ function renderPresetSendList(messages = [], options = {}) {
     button.className = 'preset-send';
     button.type = 'button';
     button.textContent = message;
-    button.title = remoteCommandEnabled ? message : '请先启用发送游戏信息 / 指令';
-    button.disabled = !remoteCommandEnabled;
+    button.title = commandEnabled ? message : '请先启动挂机进程';
+    button.disabled = !commandEnabled;
     button.addEventListener('click', () => sendGameMessage(message));
     list.appendChild(button);
   }
