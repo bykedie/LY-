@@ -907,6 +907,12 @@ function handleServerMessage(account, text) {
   }
 
   const shouldConfirmRegister = isRegisterConfirmPrompt(text);
+  if (!session.registerSingleCommandSent) {
+    session.registerSingleCommandSent = true;
+    enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
+    return;
+  }
+
   if (shouldConfirmRegister) {
     if (session.registerConfirmCommandSent) return;
 
@@ -915,9 +921,7 @@ function handleServerMessage(account, text) {
     return;
   }
 
-  if (session.registerSingleCommandSent) return;
-  session.registerSingleCommandSent = true;
-  enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
+  return;
 }
 
 function isRegisterConfirmPrompt(text) {

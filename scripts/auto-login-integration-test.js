@@ -17,14 +17,14 @@ await runAutoLoginScenario({
   name: 'register',
   prompt: 'Please use /register password password',
   password: 'secret-a',
-  expected: ['/register secret-a secret-a']
+  expected: ['/register secret-a', '/register secret-a secret-a']
 });
 
 await runAutoLoginScenario({
   name: 'zh-register-confirm',
   prompt: '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册',
   password: 'secret-zh',
-  expected: ['/register secret-zh secret-zh']
+  expected: ['/register secret-zh', '/register secret-zh secret-zh']
 });
 
 await runAutoLoginScenario({
