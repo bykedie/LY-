@@ -907,17 +907,17 @@ function handleServerMessage(account, text) {
   }
 
   const shouldConfirmRegister = isRegisterConfirmPrompt(text);
-  if (!session.registerSingleCommandSent) {
-    session.registerSingleCommandSent = true;
-    enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
-    return;
-  }
-
   if (shouldConfirmRegister) {
     if (session.registerConfirmCommandSent) return;
 
     session.registerConfirmCommandSent = true;
-    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, '自动登录：已发送 /register 二次确认指令。');
+    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, '自动登录：已发送 /register 注册确认指令。');
+    return;
+  }
+
+  if (!session.registerSingleCommandSent) {
+    session.registerSingleCommandSent = true;
+    enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
     return;
   }
 
