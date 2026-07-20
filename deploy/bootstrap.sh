@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.15"
-EXPECTED_MANAGER_VERSION="v1.0.15"
+BOOTSTRAP_VERSION="v1.0.16"
+EXPECTED_MANAGER_VERSION="v1.0.16"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -210,7 +210,13 @@ run_interactive() {
   LAST_COMMAND="$* < /dev/tty"
   echo "+ $* < /dev/tty"
   if [[ -r /dev/tty ]]; then
-    "$@" < /dev/tty
+    if "$@" < /dev/tty; then
+      return 0
+    fi
+    local exit_code="$?"
+    warn "LY 管理菜单已退出，退出码：${exit_code}。项目本体已经安装/更新完成。"
+    echo "如果需要继续操作，可以重新输入：j"
+    return 0
   else
     warn "当前会话没有可用的交互终端，无法自动打开菜单。"
     echo "项目已经下载完成，请手动执行："
