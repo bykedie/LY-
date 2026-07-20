@@ -902,7 +902,7 @@ function handleServerMessage(account, text) {
     if (session.loginCommandSent) return;
 
     session.loginCommandSent = true;
-    enqueueChat(account.username, `/login ${account.registerPassword}`, '自动登录：已发送 /login 指令。');
+    enqueueChat(account.username, `/login ${account.registerPassword}`, `自动登录发送：/login ${account.registerPassword}`);
     return;
   }
 
@@ -911,13 +911,13 @@ function handleServerMessage(account, text) {
     if (session.registerConfirmCommandSent) return;
 
     session.registerConfirmCommandSent = true;
-    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, '自动登录：已发送 /register 注册确认指令。');
+    enqueueChat(account.username, `/register ${account.registerPassword} ${account.registerPassword}`, `自动登录发送：/register ${account.registerPassword} ${account.registerPassword}`);
     return;
   }
 
   if (!session.registerSingleCommandSent) {
     session.registerSingleCommandSent = true;
-    enqueueChat(account.username, `/register ${account.registerPassword}`, '自动登录：已发送 /register 首次注册指令。');
+    enqueueChat(account.username, `/register ${account.registerPassword}`, `自动登录发送：/register ${account.registerPassword}`);
     return;
   }
 
@@ -925,11 +925,7 @@ function handleServerMessage(account, text) {
 }
 
 function isRegisterConfirmPrompt(text) {
-  const lowerText = String(text || '').toLowerCase();
-  return lowerText.includes('再输入一次')
-    || lowerText.includes('确认密码')
-    || lowerText.includes('确定密码')
-    || /\/register\s+(?:<[^>]+>|\S+)\s+(?:<[^>]+>|\S+)/i.test(lowerText);
+  return String(text || '').includes('请输入“/register <密码> <再输入一次以确定密码>”以注册');
 }
 
 function logGameMessage(username, message) {

@@ -17,7 +17,7 @@ await runAutoLoginScenario({
   name: 'register',
   prompt: 'Please use /register password password',
   password: 'secret-a',
-  expected: ['/register secret-a secret-a']
+  expected: ['/register secret-a']
 });
 
 await runAutoLoginScenario({

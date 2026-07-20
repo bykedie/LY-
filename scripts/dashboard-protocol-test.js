@@ -288,8 +288,8 @@ function createMinecraftServer(port) {
       receivedMessages.push({ username, message: packet.message });
     });
 
-    setTimeout(() => sendSystemChat(client, 'Please use /register password password'), 250);
-    setTimeout(() => sendSystemChat(client, 'Please use /register password password'), 650);
+    setTimeout(() => sendSystemChat(client, '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'), 250);
+    setTimeout(() => sendSystemChat(client, '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'), 650);
     setTimeout(() => sendPlayerChat(client, 'Tester', 'ping'), 500);
     setTimeout(() => sendColoredSystemChat(client), 700);
   });
