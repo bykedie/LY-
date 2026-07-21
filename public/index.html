@@ -301,10 +301,9 @@
             </div>
             <div class="window-snapshot-content" id="windowSnapshotContent">
               <div class="entity-snapshot-title" id="entitySnapshotTitle">附近实体：未读取</div>
-              <div class="chat-message-snapshot" id="chatMessageSnapshot">最近对话：未读取</div>
-              <div class="chat-button-title" id="chatButtonTitle">对话按钮：未读取</div>
-              <div class="chat-button-list" id="chatButtonList"></div>
-              <div class="window-snapshot-title" id="windowSnapshotTitle">当前背包窗口：未读取</div>
+              <div class="entity-snapshot-list" id="entitySnapshotList"></div>
+              <div class="window-snapshot-title" id="windowSnapshotTitle">当前交互窗口：未读取</div>
+              <div class="window-content-list" id="windowContentList"></div>
               <div class="window-grid" id="windowGrid"></div>
             </div>
           </div>
@@ -522,7 +521,7 @@
       <div class="lobby-action-card-head">
         <strong class="lobby-action-step">步骤 1</strong>
         <div class="lobby-action-card-tools">
-          <label class="switch lobby-action-run"><input class="lobby-action-enabled" type="checkbox" checked>执行</label>
+          <button class="primary small execute-lobby-action" type="button" title="立即向上方所选账号下发这个步骤">执行</button>
           <button class="ghost small move-lobby-action-up" type="button" title="上移一步">↑</button>
           <button class="ghost small move-lobby-action-down" type="button" title="下移一步">↓</button>
           <button class="danger small remove-lobby-action" type="button" title="删除动作">删除</button>
@@ -573,7 +572,10 @@
         <span class="field-note">按方向前进动作使用。</span>
       </label>
       <label data-action-types="relativeWalk,findEntity">距离/范围<input class="lobby-action-distance" type="number" min="0" step="0.5" placeholder="10"><span class="field-note">前进距离或寻找实体后的靠近范围。</span></label>
-      <label data-action-types="findEntity">实体/NPC 名<input class="lobby-action-entity" placeholder="例如：商店"><span class="field-note">按客户端收到的实体名称模糊匹配。</span></label>
+      <label data-action-types="findEntity">实体/NPC
+        <select class="lobby-action-entity"><option value="">请先刷新附近实体</option></select>
+        <span class="field-note">刷新坐标/窗口后，可直接选择客户端协议当前可见的实体。</span>
+      </label>
       <label data-action-types="findEntity">交互方式
         <select class="lobby-action-interact">
           <option value="approach">只靠近</option>
@@ -584,7 +586,10 @@
       </label>
       <label data-action-types="moveSlot">目标槽位<input class="lobby-action-to-slot" type="number" min="0" placeholder="21"><span class="field-note">移动背包槽位时的放置位置。</span></label>
       <label data-action-types="chat">聊天/指令<input class="lobby-action-message" placeholder="/spawn 或 普通聊天"><span class="field-note">动作序列执行到这里时发送。</span></label>
-      <label data-action-types="clickItem">菜单物品名<input class="lobby-action-item" placeholder="例如：抽奖、升级、确认购买"><span class="field-note">按物品显示名或英文物品名模糊匹配当前菜单槽位。</span></label>
+      <label data-action-types="clickItem">弹窗按钮/物品
+        <select class="lobby-action-item"><option value="">请先与 NPC 交互并刷新窗口</option></select>
+        <span class="field-note">从当前协议窗口读取按钮名称和描述，执行时按名称匹配并点击。</span>
+      </label>
       <label data-action-types="waitChat">等待聊天文本<input class="lobby-action-chat-text" placeholder="例如：请选择要购买的物品"><span class="field-note">检测到包含这段文字的聊天后继续下一步。</span></label>
       <label data-action-types="clickChat">聊天按钮文字<input class="lobby-action-chat-button" placeholder="例如：[确认]、购买、下一页"><span class="field-note">从协议收到的 clickEvent 按钮中模糊匹配并执行。</span></label>
     </article>

@@ -72,6 +72,23 @@ try {
   await waitForMessageFrom('DashboardBotA', '/home-a');
   assert(!hasMessageFrom('DashboardBotB', '/home-a'), '定向发送不应该发到 DashboardBotB');
 
+  await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      action: { type: 'chat', message: '/manual-lobby-action', enabled: true }
+    })
+  });
+  await waitForMessageFrom('DashboardBotA', '/manual-lobby-action');
+  assert(!hasMessageFrom('DashboardBotB', '/manual-lobby-action'), '大厅即时动作不应该发给未选择账号');
+
+  const allLobbyTarget = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'all', action: { type: 'wait', delayMs: 100, enabled: true } }),
+    expectOk: false
+  });
+  assert(allLobbyTarget.message.includes('具体账号'), '大厅即时动作不应该接受全部账号目标');
+
   const disabledTarget = await requestJson('/api/send', {
     method: 'POST',
     body: JSON.stringify({ target: 'DisabledBot', message: '/disabled' }),

@@ -11,6 +11,8 @@ const state = {
   automations: [],
   activeAutomationId: '',
   activeProfileId: 'default',
+  nearbyEntities: [],
+  windowItems: [],
   logSelectionActive: false,
   resetConfirmTimer: null
 };
@@ -640,15 +642,15 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-button').value = action.button === 'left' ? 'left' : 'right';
   card.querySelector('.lobby-action-direction').value = action.direction || 'forward';
   card.querySelector('.lobby-action-distance').value = action.distance ?? action.range ?? '';
-  card.querySelector('.lobby-action-entity').value = action.entity || '';
+  populateEntitySelect(card.querySelector('.lobby-action-entity'), action.entity || '');
   card.querySelector('.lobby-action-interact').value = action.interact || 'approach';
   card.querySelector('.lobby-action-to-slot').value = action.toSlot ?? '';
   card.querySelector('.lobby-action-message').value = action.message || '';
-  card.querySelector('.lobby-action-item').value = action.item || '';
+  populateWindowItemSelect(card.querySelector('.lobby-action-item'), action.item || '');
   card.querySelector('.lobby-action-chat-text').value = action.chatText || '';
   card.querySelector('.lobby-action-chat-button').value = action.chatButton || '';
-  card.querySelector('.lobby-action-enabled').checked = action.enabled !== false;
   card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
+  card.querySelector('.execute-lobby-action').addEventListener('click', () => executeLobbyAction(card));
   card.querySelector('.remove-lobby-action').addEventListener('click', () => {
     card.remove();
     refreshLobbyActionOrder();
@@ -686,57 +688,64 @@ function updateLobbyActionFields(card) {
 
 function readLobbyActions() {
   return [...document.querySelectorAll('.lobby-action-card')]
-    .map((card) => {
-      const type = card.querySelector('.lobby-action-type').value;
-      const action = {
-        type,
-        enabled: card.querySelector('.lobby-action-enabled').checked
-      };
-
-      const delayValue = Number(card.querySelector('.lobby-action-delay').value);
-      if (Number.isFinite(delayValue) && delayValue > 0) {
-        action[['waitWindow', 'clickItem', 'waitChat', 'clickChat'].includes(type) ? 'timeoutMs' : 'delayMs'] = delayValue;
-      }
-      if (type === 'switchSlot') {
-        const hotbarSlot = card.querySelector('.lobby-action-hotbar').value;
-        if (hotbarSlot !== '') action.hotbarSlot = Number(hotbarSlot);
-      }
-      if (['waitWindow', 'clickSlot', 'clickItem'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
-      if (type === 'clickSlot') {
-        const row = card.querySelector('.lobby-action-row').value;
-        const column = card.querySelector('.lobby-action-column').value;
-        const slot = card.querySelector('.lobby-action-slot').value;
-        if (row !== '') action.row = Number(row);
-        if (column !== '') action.column = Number(column);
-        if (slot !== '') action.slot = Number(slot);
-      }
-      if (['useItem', 'clickSlot', 'clickItem'].includes(type)) {
-        action.button = card.querySelector('.lobby-action-button').value;
-        action.count = Number(card.querySelector('.lobby-action-count').value) || 1;
-      }
-      if (type === 'relativeWalk') {
-        action.direction = card.querySelector('.lobby-action-direction').value;
-        const distance = card.querySelector('.lobby-action-distance').value;
-        if (distance !== '') action.distance = Number(distance);
-      }
-      if (type === 'findEntity') {
-        action.entity = card.querySelector('.lobby-action-entity').value.trim();
-        action.interact = card.querySelector('.lobby-action-interact').value;
-        action.range = Number(card.querySelector('.lobby-action-distance').value) || 2;
-      }
-      if (type === 'moveSlot') {
-        const slot = card.querySelector('.lobby-action-slot').value;
-        const toSlot = card.querySelector('.lobby-action-to-slot').value;
-        if (slot !== '') action.slot = Number(slot);
-        if (toSlot !== '') action.toSlot = Number(toSlot);
-      }
-      if (type === 'chat') action.message = card.querySelector('.lobby-action-message').value.trim();
-      if (type === 'clickItem') action.item = card.querySelector('.lobby-action-item').value.trim();
-      if (type === 'waitChat') action.chatText = card.querySelector('.lobby-action-chat-text').value.trim();
-      if (type === 'clickChat') action.chatButton = card.querySelector('.lobby-action-chat-button').value.trim();
-      return action;
-    })
+    .map((card) => readLobbyActionCard(card))
     .filter((action) => action.type);
+}
+
+function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
+  const type = card.querySelector('.lobby-action-type').value;
+  const action = { type, enabled: true };
+
+  const delayValue = Number(card.querySelector('.lobby-action-delay').value);
+  if (Number.isFinite(delayValue) && delayValue > 0) {
+    action[['waitWindow', 'clickItem', 'waitChat', 'clickChat'].includes(type) ? 'timeoutMs' : 'delayMs'] = delayValue;
+  }
+  if (type === 'switchSlot') {
+    const hotbarSlot = card.querySelector('.lobby-action-hotbar').value;
+    if (hotbarSlot !== '') action.hotbarSlot = Number(hotbarSlot);
+  }
+  if (['waitWindow', 'clickSlot', 'clickItem'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
+  if (type === 'clickSlot') {
+    const row = card.querySelector('.lobby-action-row').value;
+    const column = card.querySelector('.lobby-action-column').value;
+    const slot = card.querySelector('.lobby-action-slot').value;
+    if (row !== '') action.row = Number(row);
+    if (column !== '') action.column = Number(column);
+    if (slot !== '') action.slot = Number(slot);
+  }
+  if (['useItem', 'clickSlot', 'clickItem'].includes(type)) {
+    action.button = card.querySelector('.lobby-action-button').value;
+    action.count = Number(card.querySelector('.lobby-action-count').value) || 1;
+  }
+  if (type === 'relativeWalk') {
+    action.direction = card.querySelector('.lobby-action-direction').value;
+    const distance = card.querySelector('.lobby-action-distance').value;
+    if (distance !== '') action.distance = Number(distance);
+  }
+  if (type === 'findEntity') {
+    const select = card.querySelector('.lobby-action-entity');
+    action.entity = select.value.trim();
+    action.interact = card.querySelector('.lobby-action-interact').value;
+    action.range = Number(card.querySelector('.lobby-action-distance').value) || 2;
+    const entityId = Number(select.selectedOptions[0]?.dataset.entityId);
+    if (includeRuntimeReference && Number.isInteger(entityId)) action.entityId = entityId;
+  }
+  if (type === 'moveSlot') {
+    const slot = card.querySelector('.lobby-action-slot').value;
+    const toSlot = card.querySelector('.lobby-action-to-slot').value;
+    if (slot !== '') action.slot = Number(slot);
+    if (toSlot !== '') action.toSlot = Number(toSlot);
+  }
+  if (type === 'chat') action.message = card.querySelector('.lobby-action-message').value.trim();
+  if (type === 'clickItem') {
+    const select = card.querySelector('.lobby-action-item');
+    action.item = select.value.trim();
+    const slot = Number(select.selectedOptions[0]?.dataset.slot);
+    if (includeRuntimeReference && Number.isInteger(slot)) action.slot = slot;
+  }
+  if (type === 'waitChat') action.chatText = card.querySelector('.lobby-action-chat-text').value.trim();
+  if (type === 'clickChat') action.chatButton = card.querySelector('.lobby-action-chat-button').value.trim();
+  return action;
 }
 function renderSchedulerTasks(tasks = []) {
   const list = $('#schedulerTaskList');
@@ -817,7 +826,6 @@ async function refreshWindowSnapshot() {
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
   renderWindowSnapshot(data.window);
   renderPositionSnapshot(data.position, data.entities || []);
-  renderProtocolSnapshot(data.messages || [], data.chatButtons || []);
   setWindowSnapshotCollapsed(false);
 }
 
@@ -830,43 +838,55 @@ function setWindowSnapshotCollapsed(collapsed) {
   localStorage.setItem('windowSnapshotCollapsed', collapsed ? 'true' : 'false');
 }
 
-function renderProtocolSnapshot(messages = [], chatButtons = []) {
-  const messageTitle = $('#chatMessageSnapshot');
-  const buttonTitle = $('#chatButtonTitle');
-  const buttonList = $('#chatButtonList');
-  if (messageTitle) {
-    const recent = messages.slice(-5).map((item) => item.text).filter(Boolean);
-    messageTitle.textContent = recent.length ? `最近对话：${recent.join(' ｜ ')}` : '最近对话：未读取到消息';
-  }
-  if (!buttonTitle || !buttonList) return;
-  buttonList.innerHTML = '';
-  buttonTitle.textContent = chatButtons.length ? `对话按钮：检测到 ${chatButtons.length} 个` : '对话按钮：未读取到 clickEvent';
-  for (const button of chatButtons) {
-    const item = document.createElement('button');
-    item.className = 'protocol-chat-button';
-    item.type = 'button';
-    item.textContent = button.label || button.value;
-    item.title = `${button.action}: ${button.value}`;
-    item.addEventListener('click', () => fillSelectedChatButton(button.label || button.value));
-    buttonList.appendChild(item);
-  }
-}
-
 function renderPositionSnapshot(position, entities = []) {
   const positionTitle = $('#positionSnapshotTitle');
   const entityTitle = $('#entitySnapshotTitle');
+  const entityList = $('#entitySnapshotList');
   if (positionTitle) {
     positionTitle.textContent = position
       ? `当前坐标：X ${formatNumber(position.x)} / Y ${formatNumber(position.y)} / Z ${formatNumber(position.z)}`
       : '当前坐标：未读取';
   }
-  if (entityTitle) {
-    const names = entities.slice(0, 8).map((entity) => {
+  state.nearbyEntities = entities;
+  if (entityTitle) entityTitle.textContent = entities.length ? `附近实体：检测到 ${entities.length} 个` : '附近实体：未读取到可见实体';
+  if (entityList) {
+    entityList.innerHTML = '';
+    entities.forEach((entity, index) => {
       const name = entity.name || entity.username || entity.type || `ID ${entity.id}`;
-      return `${name} [${formatNumber(entity.x)}, ${formatNumber(entity.y)}, ${formatNumber(entity.z)}] 距离 ${formatNumber(entity.distance)}`;
+      const button = document.createElement('button');
+      button.className = 'entity-snapshot-item';
+      button.type = 'button';
+      button.innerHTML = `<span class="snapshot-number">${index + 1}</span><span class="snapshot-copy"><strong>${escapeHtml(name)}</strong><small>距离 ${formatNumber(entity.distance)} 格 · X ${formatNumber(entity.x)} / Y ${formatNumber(entity.y)} / Z ${formatNumber(entity.z)}</small></span>`;
+      button.addEventListener('click', () => fillSelectedEntity(name));
+      entityList.appendChild(button);
     });
-    entityTitle.textContent = names.length ? `附近实体：${names.join('、')}` : '附近实体：未读取到可见实体';
   }
+  document.querySelectorAll('.lobby-action-entity').forEach((select) => populateEntitySelect(select, select.value));
+}
+
+function populateEntitySelect(select, selectedValue = '') {
+  if (!select) return;
+  const current = selectedValue || select.value || '';
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = state.nearbyEntities.length ? '请选择附近实体/NPC' : '请先刷新附近实体';
+  select.appendChild(placeholder);
+  state.nearbyEntities.forEach((entity, index) => {
+    const name = entity.name || entity.username || entity.type || `ID ${entity.id}`;
+    const option = document.createElement('option');
+    option.value = name;
+    option.dataset.entityId = String(entity.id);
+    option.textContent = `${index + 1}. ${name}（${formatNumber(entity.distance)} 格）`;
+    select.appendChild(option);
+  });
+  if (current && ![...select.options].some((option) => option.value === current)) {
+    const saved = document.createElement('option');
+    saved.value = current;
+    saved.textContent = `已保存：${current}`;
+    select.appendChild(saved);
+  }
+  select.value = current;
 }
 
 function formatNumber(value) {
@@ -875,16 +895,34 @@ function formatNumber(value) {
 
 function renderWindowSnapshot(windowSnapshot) {
   const title = $('#windowSnapshotTitle');
+  const contentList = $('#windowContentList');
   const grid = $('#windowGrid');
-  if (!title || !grid) return;
+  if (!title || !contentList || !grid) return;
 
+  state.windowItems = [];
+  contentList.innerHTML = '';
   grid.innerHTML = '';
   if (!windowSnapshot) {
-    title.textContent = '当前背包窗口：没有检测到已打开的窗口';
+    title.textContent = '当前交互窗口：没有检测到已打开的窗口';
+    document.querySelectorAll('.lobby-action-item').forEach((select) => populateWindowItemSelect(select, select.value));
     return;
   }
 
-  title.textContent = `当前背包窗口：${windowSnapshot.title || '未命名窗口'}，共 ${windowSnapshot.slots.length} 个槽位`;
+  const inventoryStart = windowSnapshot.inventoryStart;
+  state.windowItems = windowSnapshot.slots.filter((slot) => (
+    slot.item && (!Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
+  ));
+  title.textContent = `当前交互窗口：${windowSnapshot.title || '未命名窗口'}，检测到 ${state.windowItems.length} 个可操作内容`;
+  state.windowItems.forEach((slot, index) => {
+    const name = slot.displayName || slot.name || `槽位 ${slot.slot}`;
+    const item = document.createElement('button');
+    item.className = 'window-content-item';
+    item.type = 'button';
+    const lore = (slot.lore || []).map((line) => `<small>${escapeHtml(line)}</small>`).join('');
+    item.innerHTML = `<span class="snapshot-number">${index + 1}</span><span class="snapshot-copy"><strong>${escapeHtml(name)}</strong><small>槽位 ${slot.slot} · 数量 ${slot.count}</small>${lore}</span>`;
+    item.addEventListener('click', () => fillSelectedWindowItem(slot));
+    contentList.appendChild(item);
+  });
   for (const slot of windowSnapshot.slots) {
     const button = document.createElement('button');
     button.className = 'window-slot';
@@ -893,6 +931,86 @@ function renderWindowSnapshot(windowSnapshot) {
     button.innerHTML = `<strong>${slot.slot}</strong><span>${slot.item ? escapeHtml(slot.displayName || slot.name) : '空'}</span>`;
     button.addEventListener('click', () => fillSelectedLobbySlot(slot.slot));
     grid.appendChild(button);
+  }
+  document.querySelectorAll('.lobby-action-item').forEach((select) => populateWindowItemSelect(select, select.value));
+}
+
+function populateWindowItemSelect(select, selectedValue = '') {
+  if (!select) return;
+  const current = selectedValue || select.value || '';
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = state.windowItems.length ? '请选择弹窗按钮/物品' : '请先与 NPC 交互并刷新窗口';
+  select.appendChild(placeholder);
+  state.windowItems.forEach((slot, index) => {
+    const name = slot.displayName || slot.name || `槽位 ${slot.slot}`;
+    const option = document.createElement('option');
+    option.value = name;
+    option.dataset.slot = String(slot.slot);
+    option.textContent = `${index + 1}. ${name}（槽位 ${slot.slot}）`;
+    select.appendChild(option);
+  });
+  if (current && ![...select.options].some((option) => option.value === current)) {
+    const saved = document.createElement('option');
+    saved.value = current;
+    saved.textContent = `已保存：${current}`;
+    select.appendChild(saved);
+  }
+  select.value = current;
+}
+
+function fillSelectedEntity(name) {
+  const cards = [...document.querySelectorAll('.lobby-action-card')];
+  let targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'findEntity');
+  if (!targetCard) {
+    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'findEntity', entity: name, range: 2, interact: 'right', enabled: true }));
+    refreshLobbyActionOrder();
+    showToast(`已新增寻找实体动作：${name}`);
+    return;
+  }
+  populateEntitySelect(targetCard.querySelector('.lobby-action-entity'), name);
+  updateLobbyActionFields(targetCard);
+  showToast(`已选择实体/NPC：${name}`);
+}
+
+function fillSelectedWindowItem(slot) {
+  const name = slot.displayName || slot.name;
+  const cards = [...document.querySelectorAll('.lobby-action-card')];
+  let targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'clickItem');
+  if (!targetCard) {
+    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'clickItem', item: name, button: 'left', count: 1, timeoutMs: 5000, enabled: true }));
+    refreshLobbyActionOrder();
+    showToast(`已新增弹窗按钮动作：${name}`);
+    return;
+  }
+  populateWindowItemSelect(targetCard.querySelector('.lobby-action-item'), name);
+  updateLobbyActionFields(targetCard);
+  showToast(`已选择弹窗按钮：${name}`);
+}
+
+async function executeLobbyAction(card) {
+  const target = $('#windowSnapshotTarget')?.value || '';
+  if (!target) {
+    showToast('请先在动作序列上方选择一个正在运行的账号');
+    return;
+  }
+  const button = card.querySelector('.execute-lobby-action');
+  button.disabled = true;
+  button.textContent = '执行中';
+  try {
+    await requestJson('/api/lobby/action', {
+      method: 'POST',
+      body: JSON.stringify({ target, action: readLobbyActionCard(card, { includeRuntimeReference: true }) })
+    });
+    showToast(`步骤已下发到 ${target}，无需保存配置`);
+    setTimeout(() => refreshWindowSnapshot().catch(() => {}), 800);
+    setTimeout(() => refreshWindowSnapshot().catch(() => {}), 2200);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = '执行';
   }
 }
 

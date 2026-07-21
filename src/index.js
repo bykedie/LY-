@@ -1042,14 +1042,14 @@ async function runFindEntityAction(username, action, index) {
   const bot = session?.bot;
   if (!bot?.entity || !bot.pathfinder) return;
 
-  const entity = findEntityByName(bot, action.entity);
+  const entity = findEntityByName(bot, action.entity, action.entityId);
   if (!entity) throw new Error(`找不到实体/NPC：${action.entity || '未填写'}`);
 
   const range = Math.max(1, Number(action.range) || 2);
   bot.pathfinder.setMovements(new Movements(bot));
   log(username, `大厅动作 ${index}：寻找 ${getEntityLabel(entity)}，距离 ${bot.entity.position.distanceTo(entity.position).toFixed(1)}`);
   await bot.pathfinder.goto(new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, range));
-  const interactionEntity = findEntityByName(bot, action.entity);
+  const interactionEntity = findEntityByName(bot, action.entity, action.entityId);
   if (!interactionEntity) throw new Error(`到达后实体/NPC 已不可见：${action.entity}`);
   log(username, `大厅动作 ${index}：已靠近 ${getEntityLabel(interactionEntity)}，当前坐标 ${formatPosition(bot.entity.position)}`);
   await sleep(Math.max(0, Number(action.delayMs) || 0));
@@ -1076,8 +1076,13 @@ async function runMoveSlotAction(username, action, index) {
   log(username, `大厅动作 ${index}：移动槽位 ${fromSlot} -> ${toSlot}`);
 }
 
-function findEntityByName(bot, keyword) {
+function findEntityByName(bot, keyword, entityId) {
   const normalized = String(keyword || '').trim().toLowerCase();
+  if (Number.isInteger(Number(entityId))) {
+    const exactEntity = bot.entities?.[Number(entityId)];
+    const exactName = exactEntity ? getEntityLabel(exactEntity).toLowerCase() : '';
+    if (exactEntity && exactEntity !== bot.entity && exactEntity.position && (!normalized || exactName.includes(normalized))) return exactEntity;
+  }
   if (!normalized) return null;
 
   return Object.values(bot.entities || {})
@@ -1151,7 +1156,11 @@ async function runClickItemAction(username, action, index) {
 
   const window = await waitForWindow(username, action.title, Number(action.timeoutMs) || 5000);
   const keyword = normalizeSearchText(action.item);
-  const slot = (window.slots || []).findIndex((item) => item && getItemSearchText(item).includes(keyword));
+  const preferredSlot = Number(action.slot);
+  const preferredItem = Number.isInteger(preferredSlot) ? window.slots?.[preferredSlot] : null;
+  const slot = preferredItem && getItemSearchText(preferredItem).includes(keyword)
+    ? preferredSlot
+    : (window.slots || []).findIndex((item) => item && getItemSearchText(item).includes(keyword));
   if (slot < 0) throw new Error(`窗口里找不到物品：${action.item}`);
 
   const count = Math.max(1, Number(action.count) || 1);
@@ -1165,7 +1174,12 @@ async function runClickItemAction(username, action, index) {
 }
 
 function getItemSearchText(item) {
-  return normalizeSearchText([item.displayName, item.customName, item.name].filter(Boolean).join(' '));
+  return normalizeSearchText([
+    getReadableComponentText(item.customName),
+    item.displayName,
+    item.name,
+    ...getItemLore(item)
+  ].filter(Boolean).join(' '));
 }
 
 function normalizeSearchText(value) {
@@ -1295,27 +1309,56 @@ function getWindowSnapshot(session) {
   return {
     title: getWindowTitle(window),
     type: window.type || '',
+    inventoryStart: Number.isInteger(window.inventoryStart) ? window.inventoryStart : null,
     slots: (window.slots || []).map((item, slot) => serializeWindowSlot(slot, item))
   };
 }
 
 function serializeWindowSlot(slot, item) {
-  if (!item) return { slot, item: false, name: '', displayName: '', count: 0 };
+  if (!item) return { slot, item: false, name: '', displayName: '', count: 0, lore: [] };
   return {
     slot,
     item: true,
     name: item.name || '',
-    displayName: item.displayName || item.customName || item.name || '',
-    count: item.count || 1
+    displayName: getReadableComponentText(item.customName) || item.displayName || item.name || '',
+    count: item.count || 1,
+    lore: getItemLore(item)
   };
+}
+
+function getItemLore(item) {
+  const lore = Array.isArray(item?.customLore)
+    ? item.customLore
+    : (item?.customLore ? [item.customLore] : []);
+  return lore
+    .map((line) => getReadableComponentText(line))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function getReadableComponentText(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'object') return normalizeSearchDisplayText(getChatComponentText(value));
+  const text = String(value);
+  if (/^\s*[\[{]/.test(text)) {
+    try {
+      return normalizeSearchDisplayText(getChatComponentText(JSON.parse(text)));
+    } catch {}
+  }
+  return normalizeSearchDisplayText(text);
+}
+
+function normalizeSearchDisplayText(value) {
+  return String(value || '').replace(/§[0-9a-fk-or]/gi, '').trim();
 }
 
 function getWindowTitle(window) {
   if (!window) return '';
   const title = window.title ?? window.customTitle ?? window.type ?? '';
-  if (typeof title === 'string') return title;
+  const readableTitle = getReadableComponentText(title);
+  if (readableTitle) return readableTitle;
   try {
-    if (typeof title.toString === 'function') return title.toString();
+    if (typeof title.toString === 'function') return normalizeSearchDisplayText(title.toString());
   } catch {}
   try {
     return JSON.stringify(title);
@@ -1724,6 +1767,13 @@ function listenDashboardCommands() {
         return;
       }
 
+      if (command.type === 'lobbyAction') {
+        void runManualLobbyAction(command.target || '', command.action || {}).catch((error) => {
+          log(command.target || null, `网页即时动作失败：${error.message}`);
+        });
+        return;
+      }
+
       if (command.type === 'config') {
         applyRuntimeConfig(command.config);
       }
@@ -1731,6 +1781,23 @@ function listenDashboardCommands() {
       log(null, `控制台指令解析失败：${error.message}`);
     }
   });
+}
+
+async function runManualLobbyAction(username, action) {
+  const session = sessions.get(username);
+  if (!session?.bot?.entity) throw new Error(`账号未在线：${username}`);
+  if (session.manualLobbyActionRunning) throw new Error('上一个网页即时动作仍在执行。');
+
+  session.manualLobbyActionRunning = true;
+  try {
+    log(username, `网页即时执行大厅动作：${action.type || '未知动作'}`);
+    await runLobbyAction(username, { ...action, enabled: true }, '即时');
+    await sleep(300);
+    emitWindowSnapshot(username);
+    log(username, '网页即时动作执行完成。');
+  } finally {
+    session.manualLobbyActionRunning = false;
+  }
 }
 
 process.on('SIGINT', () => {

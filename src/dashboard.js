@@ -409,6 +409,7 @@ function validateLobbyActions(actions) {
     if (action.column !== undefined) requireNumber(action.column, `第 ${index + 1} 个大厅动作列`, { min: 1, max: 9, integer: true });
     if (action.slot !== undefined) requireNumber(action.slot, `第 ${index + 1} 个大厅动作槽位`, { min: 0, integer: true });
     if (action.toSlot !== undefined) requireNumber(action.toSlot, `第 ${index + 1} 个大厅动作目标槽位`, { min: 0, integer: true });
+    if (action.entityId !== undefined) requireNumber(action.entityId, `第 ${index + 1} 个大厅动作实体 ID`, { min: 0, integer: true });
     if (action.title !== undefined && typeof action.title !== 'string') throw new Error(`第 ${index + 1} 个大厅动作窗口标题必须是文本。`);
     if (typeof action.title === 'string') action.title = action.title.trim();
     if (action.entity !== undefined && typeof action.entity !== 'string') throw new Error(`第 ${index + 1} 个大厅动作实体/NPC 名必须是文本。`);
@@ -836,6 +837,23 @@ const server = http.createServer(async (req, res) => {
       if (!target) throw new Error('请选择要读取窗口的账号。');
       const snapshot = await requestWindowSnapshot(target);
       sendJson(res, 200, { ok: true, ...snapshot });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/lobby/action') {
+      const body = JSON.parse(await readBody(req) || '{}');
+      const target = String(body.target || '').trim();
+      if (!target || target === 'all') throw new Error('立即执行动作需要选择一个具体账号。');
+      const action = structuredClone(body.action || {});
+      action.enabled = true;
+      validateLobbyActions([action]);
+      sendBotCommand({
+        type: 'lobbyAction',
+        target,
+        action,
+        message: '__lobby_action__'
+      });
+      sendJson(res, 200, { ok: true, target });
       return;
     }
 
