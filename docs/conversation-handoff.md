@@ -58,7 +58,7 @@
 
 11. 用户要求“一键配置命令行太长，做成缩短版本”，因此脚本页面顶部只应保留一个最常用快捷启动提示，不要堆多个长命令。
 
-12. 用户要求“重新读取和保存配置不要重置账号和服务器配置”，这说明更新脚本必须把运行数据当作用户资产保护，不能覆盖 `.env`、`bot.config.json`、`accounts.json` 和 `bot.config.profiles/`。
+12. 用户要求“重新读取和保存配置不要重置账号、服务器配置和自动化方案”，这说明更新脚本必须把运行数据当作用户资产保护，不能覆盖 `.env`、`bot.config.json`、`accounts.json`、`bot.config.profiles/` 和 `bot.config.automations.json`。
 
 13. 用户要求“重置默认”有确认流程，而且确认按钮必须等待 5 秒才能点击，避免误操作导致配置丢失。
 
@@ -124,7 +124,7 @@
 
 3. 涉及账号、密码、服务器地址时，文档和示例可以写格式，但真实密码不要提交到 GitHub 仓库。
 
-4. 任何更新脚本都必须默认保护用户数据文件，不允许覆盖 `.env`、`bot.config.json`、`accounts.json`、`bot.config.profiles/`。
+4. 任何更新脚本都必须默认保护用户数据文件，不允许覆盖 `.env`、`bot.config.json`、`accounts.json`、`bot.config.profiles/`、`bot.config.automations.json`。
 
 5. 修改自动登录或自动注册时，必须配套更新 `scripts/auto-login-integration-test.js` 和相关 Dashboard 协议测试。
 
@@ -250,19 +250,21 @@
 
 4. `bot.config.profiles/`：配置档案目录，用于保存多个服务器配置或用户自定义配置集。
 
-5. `node_modules/`：依赖目录，不提交到 GitHub，服务器端通过 `npm install --omit=dev` 安装。
+5. `bot.config.automations.json`：大厅动作序列自动化方案库，保存抽奖、购买、出售、装备升级等可复用流程。
 
-6. 上述运行时数据在更新项目时必须保护，不能被下载的新代码覆盖。
+6. `node_modules/`：依赖目录，不提交到 GitHub，服务器端通过 `npm install --omit=dev` 安装。
 
-7. 一键更新和重新部署脚本如果需要替换代码，应先备份用户数据，再恢复到新版本目录。
+7. 上述运行时数据在更新项目时必须保护，不能被下载的新代码覆盖。
 
-8. GitHub 仓库只保存代码、示例配置、文档和脚本，不保存用户真实账号密码。
+8. 一键更新和重新部署脚本如果需要替换代码，应先备份用户数据，再恢复到新版本目录。
+
+9. GitHub 仓库只保存代码、示例配置、文档和脚本，不保存用户真实账号密码。
 
 ### 6. 当前版本和推送状态
 
 1. 当前脚本版本在 `deploy/bootstrap.sh` 和 `deploy/ly-afk-manager.sh` 中维护。
 
-2. 当前最新已推送版本是 `v1.0.20`。
+2. 当前版本是 `v1.0.26`。
 
 3. 最近关键提交包括：支持启动前选择账号、避免自动登录成功提示重复触发登录。
 
@@ -568,7 +570,7 @@
 
 12. 如果安装目录存在且是本项目，应进入更新逻辑；如果存在但不是本项目，应提示用户确认后处理，不能盲目覆盖。
 
-13. 更新代码时需要保护 `.env`、`bot.config.json`、`accounts.json`、`bot.config.profiles/`。
+13. 更新代码时需要保护 `.env`、`bot.config.json`、`accounts.json`、`bot.config.profiles/`、`bot.config.automations.json`。
 
 14. 菜单脚本提供安装依赖、启动面板、停止面板、重启面板、更新项目并重启、查看日志、配置域名、开放端口等能力。
 

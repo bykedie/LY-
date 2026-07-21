@@ -70,8 +70,14 @@ try {
   assert(page.includes('value="relativeWalk"'), '动作序列缺少按方向前进动作');
   assert(page.includes('value="findEntity"'), '动作序列缺少寻找实体/NPC 动作');
   assert(page.includes('value="moveSlot"'), '动作序列缺少移动背包槽位动作');
+  assert(page.includes('value="clickItem"'), '动作序列缺少按物品名点击菜单动作');
+  assert(page.includes('value="waitChat"'), '动作序列缺少等待聊天内容动作');
+  assert(page.includes('value="clickChat"'), '动作序列缺少点击聊天按钮动作');
   assert(page.includes('positionSnapshotTitle'), '大厅功能缺少当前坐标显示');
   assert(page.includes('entitySnapshotTitle'), '大厅功能缺少附近实体显示');
+  assert(page.includes('windowSnapshotToggle'), '大厅功能缺少协议快照收放按钮');
+  assert(page.includes('saveAutomationBtn'), '大厅功能缺少自动化方案保存按钮');
+  assert(page.includes('class="lobby-action-enabled" type="checkbox" checked'), '新增大厅动作没有默认启用');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
@@ -137,6 +143,29 @@ try {
     body: JSON.stringify({ id: namedProfile.activeProfileId })
   });
   assert(loadedProfile.config.server.host === '127.0.0.1', '载入配置档案后服务器地址不正确');
+  const savedAutomation = await requestJson('/api/automations', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Smoke Automation',
+      lobby: {
+        ...testConfig.features.lobby,
+        actionSequence: true,
+        actions: [
+          { type: 'waitChat', chatText: '请选择商品', timeoutMs: 5000, enabled: true },
+          { type: 'clickChat', chatButton: '确认购买', timeoutMs: 5000, enabled: true }
+        ]
+      }
+    })
+  });
+  assert(savedAutomation.automations.some((item) => item.name === 'Smoke Automation'), '自动化方案保存后没有出现在列表中');
+  const automationList = await requestJson('/api/automations');
+  assert(automationList.automations[0].lobby.actions[1].type === 'clickChat', '自动化方案重新读取后动作内容不正确');
+  assert(fs.existsSync(path.join(tempDir, 'bot.config.automations.json')), '自动化方案没有写入独立持久化文件');
+  const deletedAutomation = await requestJson('/api/automations/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id: savedAutomation.activeAutomationId })
+  });
+  assert(deletedAutomation.automations.length === 0, '自动化方案删除后仍然存在');
   assert(saved.config.runtime.messageCooldownMs === 1000, '配置保存后 messageCooldownMs 不正确');
   assert(saved.config.features.combat.autoRespawn === true, '配置保存后 autoRespawn 不正确');
   assert(saved.config.features.movement.antiAfkWalkRange === 3, '配置保存后 antiAfkWalkRange 不正确');

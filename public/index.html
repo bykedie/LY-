@@ -283,14 +283,30 @@
               <select id="windowSnapshotTarget" title="选择要读取窗口的账号"></select>
               <button class="ghost small" id="refreshWindowSnapshotBtn" type="button">刷新坐标/窗口</button>
               <button class="ghost small" id="addLobbyExampleActionBtn" type="button">添加选择服务器示例</button>
+              <button class="ghost small" id="addNpcTradeExampleBtn" type="button">添加 NPC 交易示例</button>
               <button class="ghost small" id="addLobbyActionBtn" type="button">添加动作</button>
             </div>
           </div>
+          <div class="automation-library" id="automationLibrary">
+            <label>自动化方案<select id="automationSelect"></select></label>
+            <label>方案名称<input id="automationName" placeholder="例如：商店抽奖、装备升级"></label>
+            <button class="primary small" id="saveAutomationBtn" type="button">保存方案</button>
+            <button class="ghost small" id="loadAutomationBtn" type="button">载入方案</button>
+            <button class="danger small" id="deleteAutomationBtn" type="button">删除方案</button>
+          </div>
           <div class="window-snapshot-panel" id="windowSnapshotPanel">
-            <div class="position-snapshot-title" id="positionSnapshotTitle">当前坐标：未读取</div>
-            <div class="entity-snapshot-title" id="entitySnapshotTitle">附近实体：未读取</div>
-            <div class="window-snapshot-title" id="windowSnapshotTitle">当前背包窗口：未读取</div>
-            <div class="window-grid" id="windowGrid"></div>
+            <div class="window-snapshot-head">
+              <div class="position-snapshot-title" id="positionSnapshotTitle">当前坐标：未读取</div>
+              <button class="snapshot-toggle" id="windowSnapshotToggle" type="button" aria-expanded="true" title="收放协议快照"><span>▾</span></button>
+            </div>
+            <div class="window-snapshot-content" id="windowSnapshotContent">
+              <div class="entity-snapshot-title" id="entitySnapshotTitle">附近实体：未读取</div>
+              <div class="chat-message-snapshot" id="chatMessageSnapshot">最近对话：未读取</div>
+              <div class="chat-button-title" id="chatButtonTitle">对话按钮：未读取</div>
+              <div class="chat-button-list" id="chatButtonList"></div>
+              <div class="window-snapshot-title" id="windowSnapshotTitle">当前背包窗口：未读取</div>
+              <div class="window-grid" id="windowGrid"></div>
+            </div>
           </div>
           <div class="lobby-action-list" id="lobbyActionList"></div>
         </div>
@@ -503,6 +519,15 @@
 
   <template id="lobbyActionTemplate">
     <article class="lobby-action-card">
+      <div class="lobby-action-card-head">
+        <strong class="lobby-action-step">步骤 1</strong>
+        <div class="lobby-action-card-tools">
+          <label class="switch lobby-action-run"><input class="lobby-action-enabled" type="checkbox" checked>执行</label>
+          <button class="ghost small move-lobby-action-up" type="button" title="上移一步">↑</button>
+          <button class="ghost small move-lobby-action-down" type="button" title="下移一步">↓</button>
+          <button class="danger small remove-lobby-action" type="button" title="删除动作">删除</button>
+        </div>
+      </div>
       <label>动作类型
         <select class="lobby-action-type">
           <option value="wait">等待</option>
@@ -510,21 +535,24 @@
           <option value="useItem">使用物品</option>
           <option value="waitWindow">等待菜单窗口</option>
           <option value="clickSlot">点击菜单槽位</option>
+          <option value="clickItem">按物品名点击菜单</option>
           <option value="relativeWalk">按方向前进</option>
           <option value="findEntity">寻找实体/NPC</option>
           <option value="moveSlot">移动背包槽位</option>
           <option value="chat">发送聊天/指令</option>
+          <option value="waitChat">等待聊天内容</option>
+          <option value="clickChat">点击聊天按钮</option>
         </select>
         <span class="field-note">按从上到下的顺序执行。</span>
       </label>
-      <label data-action-types="wait,useItem,waitWindow,clickSlot,findEntity">延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口用作最长等待。</span></label>
+      <label data-action-types="wait,useItem,waitWindow,clickSlot,clickItem,findEntity,waitChat,clickChat">延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口、聊天或按钮用作最长等待。</span></label>
       <label data-action-types="switchSlot">快捷栏 1-9<input class="lobby-action-hotbar" type="number" min="1" max="9" placeholder="例如：1"><span class="field-note">切换快捷栏动作使用。</span></label>
-      <label data-action-types="waitWindow,clickSlot">窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
+      <label data-action-types="waitWindow,clickSlot,clickItem">窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
       <label data-action-types="clickSlot">行<input class="lobby-action-row" type="number" min="1" max="6" placeholder="3"><span class="field-note">箱子菜单行号，从 1 开始。</span></label>
       <label data-action-types="clickSlot">列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
       <label data-action-types="clickSlot,moveSlot">来源槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">菜单点击可填写槽位；背包移动时填写来源槽位。</span></label>
-      <label data-action-types="useItem,clickSlot">次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
-      <label data-action-types="useItem,clickSlot">鼠标键
+      <label data-action-types="useItem,clickSlot,clickItem">次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
+      <label data-action-types="useItem,clickSlot,clickItem">鼠标键
         <select class="lobby-action-button">
           <option value="right">右键</option>
           <option value="left">左键</option>
@@ -556,8 +584,9 @@
       </label>
       <label data-action-types="moveSlot">目标槽位<input class="lobby-action-to-slot" type="number" min="0" placeholder="21"><span class="field-note">移动背包槽位时的放置位置。</span></label>
       <label data-action-types="chat">聊天/指令<input class="lobby-action-message" placeholder="/spawn 或 普通聊天"><span class="field-note">动作序列执行到这里时发送。</span></label>
-      <label class="switch"><input class="lobby-action-enabled" type="checkbox">启用</label>
-      <button class="danger small remove-lobby-action" type="button">删除</button>
+      <label data-action-types="clickItem">菜单物品名<input class="lobby-action-item" placeholder="例如：抽奖、升级、确认购买"><span class="field-note">按物品显示名或英文物品名模糊匹配当前菜单槽位。</span></label>
+      <label data-action-types="waitChat">等待聊天文本<input class="lobby-action-chat-text" placeholder="例如：请选择要购买的物品"><span class="field-note">检测到包含这段文字的聊天后继续下一步。</span></label>
+      <label data-action-types="clickChat">聊天按钮文字<input class="lobby-action-chat-button" placeholder="例如：[确认]、购买、下一页"><span class="field-note">从协议收到的 clickEvent 按钮中模糊匹配并执行。</span></label>
     </article>
   </template>
   <template id="schedulerTaskTemplate">

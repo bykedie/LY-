@@ -57,7 +57,13 @@ try {
   await waitForMessageFrom('DashboardBotB', '/spawn');
   await waitForMessageFrom('DashboardBotA', 'pong Tester');
   await waitForMessageFrom('DashboardBotB', 'pong Tester');
+  await waitForMessageFrom('DashboardBotA', '/daily-reward');
+  await waitForMessageFrom('DashboardBotB', '/daily-reward');
   await waitForDashboardLog('§a§l彩色提示');
+  const protocolSnapshot = await requestJson('/api/window?target=DashboardBotA');
+  assert(protocolSnapshot.position?.x === 1 && protocolSnapshot.position?.y === 64, '协议快照没有返回当前坐标');
+  assert(protocolSnapshot.messages.some((item) => item.text.includes('领取奖励')), '协议快照没有返回最近聊天内容');
+  assert(protocolSnapshot.chatButtons.some((item) => item.value === '/daily-reward'), '协议快照没有识别聊天 clickEvent 按钮');
 
   await requestJson('/api/send', {
     method: 'POST',
@@ -209,9 +215,14 @@ function createDashboardConfig(port) {
       },
       lobby: {
         useItem: false,
-        delayMs: 3000,
+        actionSequence: true,
+        delayMs: 900,
         heldSlot: 0,
-        useCount: 1
+        useCount: 1,
+        actions: [
+          { type: 'waitChat', chatText: '领取奖励', timeoutMs: 5000, enabled: true },
+          { type: 'clickChat', chatButton: '领取奖励', timeoutMs: 5000, enabled: true }
+        ]
       },
       scheduler: {
         enabled: true,
@@ -294,6 +305,7 @@ function createMinecraftServer(port) {
     setTimeout(() => sendSystemChat(client, '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'), 650);
     setTimeout(() => sendPlayerChat(client, 'Tester', 'ping'), 500);
     setTimeout(() => sendColoredSystemChat(client), 700);
+    setTimeout(() => sendInteractiveSystemChat(client), 1200);
   });
 
   return server;
@@ -330,6 +342,17 @@ function sendColoredSystemChat(client) {
     }),
     position: 0,
     sender: '00000000-0000-0000-0000-000000000002'
+  });
+}
+
+function sendInteractiveSystemChat(client) {
+  client.write('chat', {
+    message: JSON.stringify({
+      text: '每日任务：',
+      extra: [{ text: '[领取奖励]', color: 'green', clickEvent: { action: 'run_command', value: '/daily-reward' } }]
+    }),
+    position: 0,
+    sender: '00000000-0000-0000-0000-000000000003'
   });
 }
 

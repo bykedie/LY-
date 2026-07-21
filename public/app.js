@@ -8,6 +8,8 @@ const state = {
   control: null,
   uiSettings: null,
   profiles: [],
+  automations: [],
+  activeAutomationId: '',
   activeProfileId: 'default',
   logSelectionActive: false,
   resetConfirmTimer: null
@@ -607,11 +609,21 @@ function lobbyServerSelectorExampleActions() {
   ];
 }
 
+function npcTradeExampleActions() {
+  return [
+    { type: 'findEntity', entity: '商店', range: 2, interact: 'right', enabled: true },
+    { type: 'waitWindow', title: '商店', timeoutMs: 5000, enabled: true },
+    { type: 'clickItem', title: '商店', item: '确认购买', button: 'left', count: 1, timeoutMs: 5000, enabled: true },
+    { type: 'waitChat', chatText: '成功', timeoutMs: 5000, enabled: true }
+  ];
+}
+
 function renderLobbyActions(actions = []) {
   const list = $('#lobbyActionList');
   if (!list) return;
   list.innerHTML = '';
   actions.forEach((action) => list.appendChild(createLobbyAction(action)));
+  refreshLobbyActionOrder();
 }
 
 function createLobbyAction(action = {}) {
@@ -632,11 +644,36 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-interact').value = action.interact || 'approach';
   card.querySelector('.lobby-action-to-slot').value = action.toSlot ?? '';
   card.querySelector('.lobby-action-message').value = action.message || '';
+  card.querySelector('.lobby-action-item').value = action.item || '';
+  card.querySelector('.lobby-action-chat-text').value = action.chatText || '';
+  card.querySelector('.lobby-action-chat-button').value = action.chatButton || '';
   card.querySelector('.lobby-action-enabled').checked = action.enabled !== false;
   card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
-  card.querySelector('.remove-lobby-action').addEventListener('click', () => card.remove());
+  card.querySelector('.remove-lobby-action').addEventListener('click', () => {
+    card.remove();
+    refreshLobbyActionOrder();
+  });
+  card.querySelector('.move-lobby-action-up').addEventListener('click', () => moveLobbyAction(card, -1));
+  card.querySelector('.move-lobby-action-down').addEventListener('click', () => moveLobbyAction(card, 1));
   updateLobbyActionFields(card);
   return fragment;
+}
+
+function moveLobbyAction(card, direction) {
+  const sibling = direction < 0 ? card.previousElementSibling : card.nextElementSibling;
+  if (!sibling) return;
+  if (direction < 0) card.parentElement.insertBefore(card, sibling);
+  else card.parentElement.insertBefore(sibling, card);
+  refreshLobbyActionOrder();
+}
+
+function refreshLobbyActionOrder() {
+  const cards = [...document.querySelectorAll('.lobby-action-card')];
+  cards.forEach((card, index) => {
+    card.querySelector('.lobby-action-step').textContent = `步骤 ${index + 1}`;
+    card.querySelector('.move-lobby-action-up').disabled = index === 0;
+    card.querySelector('.move-lobby-action-down').disabled = index === cards.length - 1;
+  });
 }
 
 function updateLobbyActionFields(card) {
@@ -658,13 +695,13 @@ function readLobbyActions() {
 
       const delayValue = Number(card.querySelector('.lobby-action-delay').value);
       if (Number.isFinite(delayValue) && delayValue > 0) {
-        action[type === 'waitWindow' ? 'timeoutMs' : 'delayMs'] = delayValue;
+        action[['waitWindow', 'clickItem', 'waitChat', 'clickChat'].includes(type) ? 'timeoutMs' : 'delayMs'] = delayValue;
       }
       if (type === 'switchSlot') {
         const hotbarSlot = card.querySelector('.lobby-action-hotbar').value;
         if (hotbarSlot !== '') action.hotbarSlot = Number(hotbarSlot);
       }
-      if (['waitWindow', 'clickSlot'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
+      if (['waitWindow', 'clickSlot', 'clickItem'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
       if (type === 'clickSlot') {
         const row = card.querySelector('.lobby-action-row').value;
         const column = card.querySelector('.lobby-action-column').value;
@@ -673,7 +710,7 @@ function readLobbyActions() {
         if (column !== '') action.column = Number(column);
         if (slot !== '') action.slot = Number(slot);
       }
-      if (['useItem', 'clickSlot'].includes(type)) {
+      if (['useItem', 'clickSlot', 'clickItem'].includes(type)) {
         action.button = card.querySelector('.lobby-action-button').value;
         action.count = Number(card.querySelector('.lobby-action-count').value) || 1;
       }
@@ -694,6 +731,9 @@ function readLobbyActions() {
         if (toSlot !== '') action.toSlot = Number(toSlot);
       }
       if (type === 'chat') action.message = card.querySelector('.lobby-action-message').value.trim();
+      if (type === 'clickItem') action.item = card.querySelector('.lobby-action-item').value.trim();
+      if (type === 'waitChat') action.chatText = card.querySelector('.lobby-action-chat-text').value.trim();
+      if (type === 'clickChat') action.chatButton = card.querySelector('.lobby-action-chat-button').value.trim();
       return action;
     })
     .filter((action) => action.type);
@@ -777,6 +817,39 @@ async function refreshWindowSnapshot() {
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
   renderWindowSnapshot(data.window);
   renderPositionSnapshot(data.position, data.entities || []);
+  renderProtocolSnapshot(data.messages || [], data.chatButtons || []);
+  setWindowSnapshotCollapsed(false);
+}
+
+function setWindowSnapshotCollapsed(collapsed) {
+  const panel = $('#windowSnapshotPanel');
+  const toggle = $('#windowSnapshotToggle');
+  if (!panel || !toggle) return;
+  panel.classList.toggle('snapshot-collapsed', collapsed);
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  localStorage.setItem('windowSnapshotCollapsed', collapsed ? 'true' : 'false');
+}
+
+function renderProtocolSnapshot(messages = [], chatButtons = []) {
+  const messageTitle = $('#chatMessageSnapshot');
+  const buttonTitle = $('#chatButtonTitle');
+  const buttonList = $('#chatButtonList');
+  if (messageTitle) {
+    const recent = messages.slice(-5).map((item) => item.text).filter(Boolean);
+    messageTitle.textContent = recent.length ? `最近对话：${recent.join(' ｜ ')}` : '最近对话：未读取到消息';
+  }
+  if (!buttonTitle || !buttonList) return;
+  buttonList.innerHTML = '';
+  buttonTitle.textContent = chatButtons.length ? `对话按钮：检测到 ${chatButtons.length} 个` : '对话按钮：未读取到 clickEvent';
+  for (const button of chatButtons) {
+    const item = document.createElement('button');
+    item.className = 'protocol-chat-button';
+    item.type = 'button';
+    item.textContent = button.label || button.value;
+    item.title = `${button.action}: ${button.value}`;
+    item.addEventListener('click', () => fillSelectedChatButton(button.label || button.value));
+    buttonList.appendChild(item);
+  }
 }
 
 function renderPositionSnapshot(position, entities = []) {
@@ -832,7 +905,22 @@ function fillSelectedLobbySlot(slot) {
   }
   targetCard.querySelector('.lobby-action-type').value = 'clickSlot';
   targetCard.querySelector('.lobby-action-slot').value = slot;
+  updateLobbyActionFields(targetCard);
   showToast(`已填入菜单槽位 ${slot}`);
+}
+
+function fillSelectedChatButton(label) {
+  const cards = [...document.querySelectorAll('.lobby-action-card')];
+  let targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'clickChat');
+  if (!targetCard) {
+    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'clickChat', chatButton: label, timeoutMs: 5000, enabled: true }));
+    refreshLobbyActionOrder();
+    showToast(`已新增聊天按钮动作：${label}`);
+    return;
+  }
+  targetCard.querySelector('.lobby-action-chat-button').value = label;
+  updateLobbyActionFields(targetCard);
+  showToast(`已填入聊天按钮：${label}`);
 }
 
 function escapeHtml(value) {
@@ -865,6 +953,8 @@ function renderStartAccounts(accounts = []) {
     input.value = account.username;
     input.checked = hasPreviousSelection ? previousSelection.has(account.username) : true;
     input.disabled = Boolean(state.running || state.stopping);
+    label.classList.toggle('selected', input.checked);
+    input.addEventListener('change', () => label.classList.toggle('selected', input.checked));
 
     const name = document.createElement('span');
     name.textContent = account.note ? `${account.username} - ${account.note}` : account.username;
@@ -900,6 +990,94 @@ function renderProfiles() {
     ? state.activeProfileId
     : (state.profiles[0]?.id || 'default');
   syncSelectedProfileName();
+}
+
+function renderAutomations() {
+  const select = $('#automationSelect');
+  if (!select) return;
+  select.innerHTML = '';
+  if (state.automations.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '暂无已保存方案';
+    select.appendChild(option);
+  } else {
+    for (const automation of state.automations) {
+      const option = document.createElement('option');
+      option.value = automation.id;
+      option.textContent = automation.name;
+      select.appendChild(option);
+    }
+  }
+  select.value = state.automations.some((item) => item.id === state.activeAutomationId)
+    ? state.activeAutomationId
+    : (state.automations[0]?.id || '');
+  state.activeAutomationId = select.value;
+  syncAutomationName();
+}
+
+function syncAutomationName() {
+  const selected = state.automations.find((item) => item.id === $('#automationSelect')?.value);
+  if ($('#automationName')) $('#automationName').value = selected?.name || '';
+  if ($('#deleteAutomationBtn')) $('#deleteAutomationBtn').disabled = !selected;
+  if ($('#loadAutomationBtn')) $('#loadAutomationBtn').disabled = !selected;
+}
+
+async function loadAutomations() {
+  const data = await requestJson('/api/automations');
+  state.automations = data.automations || [];
+  renderAutomations();
+}
+
+function readLobbyAutomation() {
+  return {
+    useItem: Boolean(document.querySelector('[data-feature="lobby.useItem"]')?.checked),
+    actionSequence: true,
+    delayMs: Number($('#lobbyDelayMs').value),
+    heldSlot: Math.max(0, Number($('#lobbyHeldSlot').value) - 1),
+    useCount: Number($('#lobbyUseCount').value),
+    actions: readLobbyActions()
+  };
+}
+
+async function saveAutomation() {
+  const name = $('#automationName').value.trim();
+  if (!name) throw new Error('请先填写自动化方案名称。');
+  const selected = state.automations.find((item) => item.id === $('#automationSelect').value);
+  const data = await requestJson('/api/automations', {
+    method: 'POST',
+    body: JSON.stringify({ id: selected?.name === name ? selected.id : undefined, name, lobby: readLobbyAutomation() })
+  });
+  state.automations = data.automations || [];
+  state.activeAutomationId = data.activeAutomationId || '';
+  renderAutomations();
+  showToast('自动化方案已独立保存，更新项目后仍会保留');
+}
+
+function loadSelectedAutomation() {
+  const selected = state.automations.find((item) => item.id === $('#automationSelect').value);
+  if (!selected) throw new Error('请选择要载入的自动化方案。');
+  const lobby = selected.lobby;
+  document.querySelector('[data-feature="lobby.useItem"]').checked = Boolean(lobby.useItem);
+  document.querySelector('[data-feature="lobby.actionSequence"]').checked = true;
+  $('#lobbyDelayMs').value = lobby.delayMs;
+  $('#lobbyHeldSlot').value = Number(lobby.heldSlot) + 1;
+  $('#lobbyUseCount').value = lobby.useCount;
+  renderLobbyActions(lobby.actions || []);
+  showToast(`已载入自动化方案：${selected.name}`);
+}
+
+async function deleteSelectedAutomation() {
+  const id = $('#automationSelect').value;
+  if (!id) return;
+  const data = await requestJson('/api/automations/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  });
+  state.automations = data.automations || [];
+  state.activeAutomationId = '';
+  renderAutomations();
+  showToast('自动化方案已删除');
 }
 
 function syncSelectedProfileName() {
@@ -1032,6 +1210,7 @@ function organizeFeaturePanels() {
   ]);
   enhanceFeaturePanel('lobby.actionSequence', [
     nodeFromSelector('.action-sequence-head'),
+    nodeFromSelector('#automationLibrary'),
     nodeFromSelector('#windowSnapshotPanel'),
     nodeFromSelector('#lobbyActionList')
   ]);
@@ -1119,7 +1298,7 @@ async function loadConfig() {
   const data = await requestJson('/api/config');
   state.config = normalizeConfig(data.config);
   fillForm(state.config);
-  await loadProfiles();
+  await Promise.all([loadProfiles(), loadAutomations()]);
   showToast('配置已读取');
 }
 
@@ -1198,13 +1377,17 @@ function bindEvents() {
   const compactViewport = window.matchMedia('(max-width: 980px)').matches;
   setSidebarCollapsed(compactViewport || localStorage.getItem('sidebarCollapsed') === 'true');
   setAutoWalkCollapsed(localStorage.getItem('autoWalkCollapsed') === 'true');
+  setWindowSnapshotCollapsed(localStorage.getItem('windowSnapshotCollapsed') === 'true');
 
   $('#sidebarToggle').addEventListener('click', () => {
     setSidebarCollapsed(!$('#appShell').classList.contains('sidebar-collapsed'));
   });
 
   document.querySelectorAll('.nav-item').forEach((button) => {
-    button.addEventListener('click', () => setSection(button.dataset.section));
+    button.addEventListener('click', () => {
+      setSection(button.dataset.section);
+      if (window.matchMedia('(max-width: 980px)').matches) setSidebarCollapsed(true);
+    });
   });
 
   $('#autoWalkToggle').addEventListener('click', () => {
@@ -1215,6 +1398,19 @@ function bindEvents() {
   $('#saveProfileBtn').addEventListener('click', () => saveProfile().catch((error) => showToast(error.message)));
   $('#loadProfileBtn').addEventListener('click', () => loadSelectedProfile().catch((error) => showToast(error.message)));
   $('#deleteProfileBtn').addEventListener('click', () => deleteSelectedProfile().catch((error) => showToast(error.message)));
+  $('#automationSelect')?.addEventListener('change', () => {
+    state.activeAutomationId = $('#automationSelect').value;
+    syncAutomationName();
+  });
+  $('#saveAutomationBtn')?.addEventListener('click', () => saveAutomation().catch((error) => showToast(error.message)));
+  $('#loadAutomationBtn')?.addEventListener('click', () => {
+    try {
+      loadSelectedAutomation();
+    } catch (error) {
+      showToast(error.message);
+    }
+  });
+  $('#deleteAutomationBtn')?.addEventListener('click', () => deleteSelectedAutomation().catch((error) => showToast(error.message)));
   $('#saveAccountsToPoolBtn').addEventListener('click', () => saveEnabledAccountsToPool().catch((error) => showToast(error.message)));
   $('#addPoolAccountBtn').addEventListener('click', () => addBlankPoolAccount());
   $('#logs').addEventListener('mousedown', () => {
@@ -1253,13 +1449,21 @@ function bindEvents() {
 
   $('#addLobbyActionBtn')?.addEventListener('click', () => {
     $('#lobbyActionList').appendChild(createLobbyAction(defaultLobbyAction()));
+    refreshLobbyActionOrder();
   });
 
   $('#addLobbyExampleActionBtn')?.addEventListener('click', () => {
     renderLobbyActions(lobbyServerSelectorExampleActions());
   });
 
+  $('#addNpcTradeExampleBtn')?.addEventListener('click', () => {
+    renderLobbyActions(npcTradeExampleActions());
+  });
+
   $('#refreshWindowSnapshotBtn')?.addEventListener('click', () => refreshWindowSnapshot().catch((error) => showToast(error.message)));
+  $('#windowSnapshotToggle')?.addEventListener('click', () => {
+    setWindowSnapshotCollapsed(!$('#windowSnapshotPanel').classList.contains('snapshot-collapsed'));
+  });
 
   $('#saveUiSettingsBtn').addEventListener('click', () => {
     saveUiSettings({
@@ -1283,11 +1487,13 @@ function bindEvents() {
   $('#selectAllStartAccounts').addEventListener('click', () => {
     document.querySelectorAll('#startAccountList input[type="checkbox"]').forEach((input) => {
       input.checked = true;
+      input.closest('.start-account-option')?.classList.add('selected');
     });
   });
   $('#clearStartAccounts').addEventListener('click', () => {
     document.querySelectorAll('#startAccountList input[type="checkbox"]').forEach((input) => {
       input.checked = false;
+      input.closest('.start-account-option')?.classList.remove('selected');
     });
   });
   $('#startBtn').addEventListener('click', async () => {

@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.25"
-EXPECTED_MANAGER_VERSION="v1.0.25"
+BOOTSTRAP_VERSION="v1.0.26"
+EXPECTED_MANAGER_VERSION="v1.0.26"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -281,7 +281,7 @@ backup_runtime_files() {
   source_dir="$1"
   backup_dir="$2"
   mkdir -p "$backup_dir"
-  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles bot.config.automations.json; do
     if [[ -f "${source_dir}/${runtime_file}" ]]; then
       cp "${source_dir}/${runtime_file}" "${backup_dir}/${runtime_file}"
     fi
@@ -296,7 +296,7 @@ restore_runtime_files() {
   SUDO="$(need_sudo)"
   backup_dir="$1"
   target_dir="$2"
-  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles bot.config.automations.json; do
     if [[ -f "${backup_dir}/${runtime_file}" ]]; then
       run $SUDO cp "${backup_dir}/${runtime_file}" "${target_dir}/${runtime_file}"
     fi
@@ -511,7 +511,7 @@ update_existing_project_from_archive() {
   run $SUDO mv "$INSTALL_DIR" "$backup_dir"
   run $SUDO mv "$extracted_dir" "$INSTALL_DIR"
 
-  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles bot.config.automations.json; do
     if [[ -f "${backup_dir}/${runtime_file}" ]]; then
       run $SUDO cp "${backup_dir}/${runtime_file}" "${INSTALL_DIR}/${runtime_file}"
     fi

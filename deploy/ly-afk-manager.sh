@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.25"
+  echo "LY 挂机控制台一键管理脚本  v1.0.26"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -714,7 +714,7 @@ backup_runtime_files() {
   source_dir="$1"
   backup_dir="$2"
   mkdir -p "$backup_dir"
-  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles bot.config.automations.json; do
     if [[ -f "${source_dir}/${runtime_file}" ]]; then
       cp "${source_dir}/${runtime_file}" "${backup_dir}/${runtime_file}"
     fi
@@ -729,7 +729,7 @@ restore_runtime_files() {
   SUDO="$(need_sudo)"
   backup_dir="$1"
   target_dir="$2"
-  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles bot.config.automations.json; do
     if [[ -f "${backup_dir}/${runtime_file}" ]]; then
       $SUDO cp "${backup_dir}/${runtime_file}" "${target_dir}/${runtime_file}"
     fi
@@ -787,7 +787,7 @@ update_project() {
     cd "$parent_dir"
     $SUDO mv "$PROJECT_DIR" "$backup_dir"
     $SUDO mv "$extracted_dir" "$PROJECT_DIR"
-    for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+    for runtime_file in .env bot.config.json accounts.json bot.config.profiles bot.config.automations.json; do
       if [[ -f "${backup_dir}/${runtime_file}" ]]; then
         $SUDO cp "${backup_dir}/${runtime_file}" "${PROJECT_DIR}/${runtime_file}"
       fi

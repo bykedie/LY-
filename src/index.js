@@ -426,6 +426,8 @@ function createBot(account) {
       schedulerTimers: [],
       lobbyTimer: null,
       lastWindow: null,
+      recentMessages: [],
+      chatButtons: [],
       chatQueue: [],
       chatQueueTimer: null,
       lastChatAt: 0,
@@ -443,6 +445,9 @@ function createBot(account) {
 
   clearTimeout(session.reconnectTimer);
   session.reconnecting = false;
+  session.lastWindow = null;
+  session.recentMessages = [];
+  session.chatButtons = [];
 
   const options = {
     host: ACTIVE_CONFIG.host,
@@ -483,8 +488,9 @@ function createBot(account) {
   });
 
   session.bot.on('message', (message) => {
-    logGameMessage(account.username, message);
-    handleServerMessage(account, message.toString());
+    const text = logGameMessage(account.username, message);
+    recordInteractiveMessage(session, message, text);
+    handleServerMessage(account, text);
   });
 
   session.bot.on('windowOpen', (window) => {
@@ -983,6 +989,11 @@ async function runLobbyAction(username, action, index) {
     return;
   }
 
+  if (type === 'clickItem') {
+    await runClickItemAction(username, action, index);
+    return;
+  }
+
   if (type === 'relativeWalk') {
     await runRelativeWalkAction(username, action, index);
     return;
@@ -1000,6 +1011,16 @@ async function runLobbyAction(username, action, index) {
 
   if (type === 'chat') {
     enqueueChat(username, action.message, `大厅动作 ${index}：发送 ${action.message}`);
+    return;
+  }
+
+  if (type === 'waitChat') {
+    await waitForChatText(username, action.chatText, Number(action.timeoutMs) || 5000, index);
+    return;
+  }
+
+  if (type === 'clickChat') {
+    await runClickChatAction(username, action, index);
   }
 }
 
@@ -1123,6 +1144,67 @@ async function runClickSlotAction(username, action, index) {
   }
 }
 
+async function runClickItemAction(username, action, index) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity) return;
+
+  const window = await waitForWindow(username, action.title, Number(action.timeoutMs) || 5000);
+  const keyword = normalizeSearchText(action.item);
+  const slot = (window.slots || []).findIndex((item) => item && getItemSearchText(item).includes(keyword));
+  if (slot < 0) throw new Error(`窗口里找不到物品：${action.item}`);
+
+  const count = Math.max(1, Number(action.count) || 1);
+  const delayMs = Math.max(0, Number(action.delayMs) || 500);
+  const mouseButton = action.button === 'right' ? 1 : 0;
+  for (let i = 0; i < count; i += 1) {
+    await bot.clickWindow(slot, mouseButton, 0);
+    log(username, `大厅动作 ${index}：按物品名点击 ${action.item}，槽位 ${slot} (${i + 1}/${count})`);
+    await sleep(delayMs);
+  }
+}
+
+function getItemSearchText(item) {
+  return normalizeSearchText([item.displayName, item.customName, item.name].filter(Boolean).join(' '));
+}
+
+function normalizeSearchText(value) {
+  return String(value || '').replace(/§[0-9a-fk-or]/gi, '').trim().toLowerCase();
+}
+
+async function waitForChatText(username, text, timeoutMs, index = 0) {
+  const session = sessions.get(username);
+  const keyword = String(text || '').trim();
+  const deadline = Date.now() + Math.max(100, timeoutMs);
+  const earliest = Date.now() - 1000;
+  while (Date.now() <= deadline) {
+    const match = session?.recentMessages?.findLast((item) => item.at >= earliest && item.text.includes(keyword));
+    if (match) {
+      log(username, `大厅动作 ${index}：已匹配聊天内容 ${keyword}`);
+      return match;
+    }
+    await sleep(100);
+  }
+  throw new Error(`等待聊天内容超时：${keyword}`);
+}
+
+async function runClickChatAction(username, action, index) {
+  const session = sessions.get(username);
+  const keyword = normalizeSearchText(action.chatButton);
+  const deadline = Date.now() + Math.max(100, Number(action.timeoutMs) || 5000);
+  let button = null;
+  while (Date.now() <= deadline) {
+    button = session?.chatButtons?.findLast((item) => normalizeSearchText(item.label).includes(keyword));
+    if (button) break;
+    await sleep(100);
+  }
+  if (!button) throw new Error(`找不到聊天按钮：${action.chatButton}`);
+  if (!['run_command', 'suggest_command'].includes(button.action)) {
+    throw new Error(`聊天按钮动作不支持自动执行：${button.action}`);
+  }
+  enqueueChat(username, button.value, `大厅动作 ${index}：点击聊天按钮 ${button.label} -> ${button.value}`);
+}
+
 function resolveWindowSlot(action) {
   if (action.slot !== undefined && action.slot !== '') {
     const slot = Number(action.slot);
@@ -1166,8 +1248,18 @@ function emitWindowSnapshot(username) {
     username,
     window: getWindowSnapshot(session),
     position: getPositionSnapshot(session),
-    entities: getEntitySnapshot(session)
+    entities: getEntitySnapshot(session),
+    messages: getMessageSnapshot(session),
+    chatButtons: getChatButtonSnapshot(session)
   });
+}
+
+function getMessageSnapshot(session) {
+  return (session?.recentMessages || []).slice(-8).map((item) => ({ text: item.text, at: item.at }));
+}
+
+function getChatButtonSnapshot(session) {
+  return (session?.chatButtons || []).slice(-20).map((item) => ({ ...item }));
 }
 
 function getPositionSnapshot(session) {
@@ -1336,6 +1428,64 @@ function handleServerMessage(account, text) {
   return;
 }
 
+function recordInteractiveMessage(session, message, text) {
+  if (!session || !text) return;
+  const now = Date.now();
+  session.recentMessages.push({ text, at: now });
+  session.recentMessages = session.recentMessages.slice(-50);
+
+  const component = getChatComponentJson(message);
+  const buttons = [];
+  collectChatButtons(component, buttons, text);
+  for (const button of buttons) {
+    const key = `${button.action}:${button.value}`;
+    session.chatButtons = session.chatButtons.filter((item) => `${item.action}:${item.value}` !== key);
+    session.chatButtons.push({ ...button, at: now });
+  }
+  session.chatButtons = session.chatButtons.slice(-20);
+}
+
+function getChatComponentJson(message) {
+  try {
+    if (typeof message?.toJSON === 'function') return message.toJSON();
+  } catch {}
+  return message?.json || null;
+}
+
+function collectChatButtons(component, output, fallbackLabel = '') {
+  if (!component) return;
+  if (Array.isArray(component)) {
+    component.forEach((item) => collectChatButtons(item, output, fallbackLabel));
+    return;
+  }
+  if (typeof component !== 'object') return;
+
+  const clickEvent = component.clickEvent;
+  const action = clickEvent?.action;
+  const value = clickEvent?.value ?? clickEvent?.command;
+  if (typeof action === 'string' && typeof value === 'string' && value.trim()) {
+    output.push({
+      label: getChatComponentText(component) || fallbackLabel || value,
+      action,
+      value: value.trim()
+    });
+  }
+
+  collectChatButtons(component.extra, output, fallbackLabel);
+  collectChatButtons(component.with, output, fallbackLabel);
+}
+
+function getChatComponentText(component) {
+  if (typeof component === 'string') return component;
+  if (Array.isArray(component)) return component.map(getChatComponentText).join('');
+  if (!component || typeof component !== 'object') return '';
+  const text = typeof component.text === 'string' ? component.text : '';
+  const translated = typeof component.translate === 'string' ? component.translate : '';
+  const withText = getChatComponentText(component.with);
+  const extraText = getChatComponentText(component.extra);
+  return `${text}${translated && !text ? translated : ''}${withText}${extraText}`.trim();
+}
+
 function isRegisterConfirmPrompt(text) {
   return String(text || '').includes('请输入“/register <密码> <再输入一次以确定密码>”以注册');
 }
@@ -1360,8 +1510,9 @@ function isLoggedInMessage(text) {
 
 function logGameMessage(username, message) {
   const text = formatGameMessage(message);
-  if (!text) return;
+  if (!text) return '';
   log(username, `游戏消息：${text}`);
+  return text;
 }
 
 function formatGameMessage(message) {

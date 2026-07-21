@@ -14,6 +14,7 @@ const configPath = process.env.BOT_CONFIG_PATH
 const configBaseName = path.basename(configPath, path.extname(configPath));
 const profilesDir = path.join(path.dirname(configPath), `${configBaseName}.profiles`);
 const profilesIndexPath = path.join(profilesDir, 'profiles.json');
+const automationsPath = path.join(path.dirname(configPath), `${configBaseName}.automations.json`);
 const exampleConfigPath = path.join(projectRoot, 'bot.config.example.json');
 const port = Number(process.env.DASHBOARD_PORT || 30123);
 const host = (process.env.DASHBOARD_HOST || '127.0.0.1').trim() || '127.0.0.1';
@@ -178,6 +179,39 @@ function deleteProfile(id) {
   const activeProfileId = index.activeProfileId === id ? defaultProfileId : index.activeProfileId;
   writeProfileIndex({ activeProfileId, profiles });
   return useProfile(activeProfileId);
+}
+
+function readAutomations() {
+  if (!fs.existsSync(automationsPath)) return [];
+  const data = readJson(automationsPath);
+  return Array.isArray(data.automations) ? data.automations : [];
+}
+
+function saveAutomation({ id, name, lobby }) {
+  const automationId = typeof id === 'string' && id.trim() ? id.trim() : createProfileId().replace('profile-', 'automation-');
+  const automationName = normalizeProfileName(name || '未命名自动化');
+  const normalizedLobby = structuredClone(lobby);
+  requirePlainObject(normalizedLobby, '自动化方案');
+  requireBoolean(normalizedLobby.useItem, '大厅自动使用物品开关');
+  requireBoolean(normalizedLobby.actionSequence, '大厅动作序列开关');
+  requireNumber(normalizedLobby.delayMs, '大厅执行延迟', { min: 0 });
+  requireNumber(normalizedLobby.heldSlot, '大厅快捷栏槽位', { min: 0, max: 8, integer: true });
+  requireNumber(normalizedLobby.useCount, '大厅使用次数', { min: 1, integer: true });
+  validateLobbyActions(normalizedLobby.actions);
+
+  const automations = readAutomations().filter((item) => item.id !== automationId);
+  automations.push({ id: automationId, name: automationName, lobby: normalizedLobby, updatedAt: nowIso() });
+  writeJson(automationsPath, { version: 1, automations });
+  return { automations, activeAutomationId: automationId };
+}
+
+function deleteAutomation(id) {
+  if (typeof id !== 'string' || !id.trim()) throw new Error('请选择要删除的自动化方案。');
+  const automations = readAutomations();
+  if (!automations.some((item) => item.id === id)) throw new Error('找不到这个自动化方案。');
+  const nextAutomations = automations.filter((item) => item.id !== id);
+  writeJson(automationsPath, { version: 1, automations: nextAutomations });
+  return { automations: nextAutomations };
 }
 
 function mergeDefaults(defaultValue, value) {
@@ -360,7 +394,7 @@ function validateLobbyActions(actions) {
   if (!Array.isArray(actions)) throw new Error('大厅动作序列必须是数组。');
   for (const [index, action] of actions.entries()) {
     requirePlainObject(action, `第 ${index + 1} 个大厅动作`);
-    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'relativeWalk', 'findEntity', 'moveSlot', 'chat']);
+    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'clickItem', 'relativeWalk', 'findEntity', 'moveSlot', 'chat', 'waitChat', 'clickChat']);
     if (action.button !== undefined) requireEnum(action.button, `第 ${index + 1} 个大厅动作鼠标键`, ['left', 'right']);
     if (action.direction !== undefined) requireEnum(action.direction, `第 ${index + 1} 个大厅动作方向`, ['forward', 'back', 'left', 'right', 'north', 'south', 'east', 'west']);
     if (action.interact !== undefined) requireEnum(action.interact, `第 ${index + 1} 个大厅动作交互方式`, ['approach', 'left', 'right']);
@@ -381,6 +415,12 @@ function validateLobbyActions(actions) {
     if (typeof action.entity === 'string') action.entity = action.entity.trim();
     if (action.message !== undefined && typeof action.message !== 'string') throw new Error(`第 ${index + 1} 个大厅动作聊天/指令必须是文本。`);
     if (typeof action.message === 'string') action.message = action.message.trim();
+    if (action.item !== undefined && typeof action.item !== 'string') throw new Error(`第 ${index + 1} 个大厅动作菜单物品名必须是文本。`);
+    if (typeof action.item === 'string') action.item = action.item.trim();
+    if (action.chatText !== undefined && typeof action.chatText !== 'string') throw new Error(`第 ${index + 1} 个大厅动作聊天文本必须是文本。`);
+    if (typeof action.chatText === 'string') action.chatText = action.chatText.trim();
+    if (action.chatButton !== undefined && typeof action.chatButton !== 'string') throw new Error(`第 ${index + 1} 个大厅动作聊天按钮必须是文本。`);
+    if (typeof action.chatButton === 'string') action.chatButton = action.chatButton.trim();
 
     const actionLabel = `第 ${index + 1} 个大厅动作`;
     if (action.type === 'switchSlot' && action.hotbarSlot === undefined) throw new Error(`${actionLabel}需要填写快捷栏 1-9。`);
@@ -391,6 +431,9 @@ function validateLobbyActions(actions) {
       if (action.slot === action.toSlot) throw new Error(`${actionLabel}的来源槽位和目标槽位不能相同。`);
     }
     if (action.type === 'chat' && !action.message) throw new Error(`${actionLabel}需要填写聊天内容或指令。`);
+    if (action.type === 'clickItem' && !action.item) throw new Error(`${actionLabel}需要填写菜单物品名。`);
+    if (action.type === 'waitChat' && !action.chatText) throw new Error(`${actionLabel}需要填写等待的聊天文本。`);
+    if (action.type === 'clickChat' && !action.chatButton) throw new Error(`${actionLabel}需要填写聊天按钮文字。`);
     if (action.type === 'clickSlot' && action.slot === undefined && (action.row === undefined || action.column === undefined)) {
       throw new Error(`${actionLabel}需要填写槽位，或者同时填写行和列。`);
     }
@@ -503,7 +546,9 @@ function handleBotEventLine(line) {
       runtimeSnapshots.set(event.username, {
         window: event.window || null,
         position: event.position || null,
-        entities: Array.isArray(event.entities) ? event.entities : []
+        entities: Array.isArray(event.entities) ? event.entities : [],
+        messages: Array.isArray(event.messages) ? event.messages : [],
+        chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : []
       });
     }
   } catch (error) {
@@ -571,10 +616,10 @@ async function requestWindowSnapshot(target) {
   sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
   const deadline = Date.now() + 800;
   while (Date.now() < deadline) {
-    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [] };
+    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [] };
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  return { window: null, position: null, entities: [] };
+  return { window: null, position: null, entities: [], messages: [], chatButtons: [] };
 }
 
 function sendRuntimeConfigUpdate(config) {
@@ -728,6 +773,23 @@ const server = http.createServer(async (req, res) => {
       const body = JSON.parse(await readBody(req));
       const result = deleteProfile(body.id);
       sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/automations') {
+      sendJson(res, 200, { ok: true, automations: readAutomations() });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/automations') {
+      const body = JSON.parse(await readBody(req));
+      sendJson(res, 200, { ok: true, ...saveAutomation(body) });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/automations/delete') {
+      const body = JSON.parse(await readBody(req));
+      sendJson(res, 200, { ok: true, ...deleteAutomation(body.id) });
       return;
     }
 
