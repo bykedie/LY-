@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.26"
+  echo "LY 挂机控制台一键管理脚本  v1.0.27"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -315,6 +315,63 @@ get_env_value() {
   grep -E "^${key}=" .env 2>/dev/null | cut -d= -f2- || true
 }
 
+start_or_restart_dashboard_service() {
+  local port host user password
+  if [[ ! -f .env ]]; then
+    fail ".env 不存在，无法启动控制台。"
+    return 1
+  fi
+
+  port="$(get_env_value DASHBOARD_PORT)"
+  host="$(get_env_value DASHBOARD_HOST)"
+  user="$(get_env_value DASHBOARD_USER)"
+  password="$(get_env_value DASHBOARD_PASSWORD)"
+  port="${port:-30123}"
+  host="${host:-127.0.0.1}"
+  user="${user:-admin}"
+
+  if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+    DASHBOARD_PORT="$port" \
+    DASHBOARD_HOST="$host" \
+    DASHBOARD_USER="$user" \
+    DASHBOARD_PASSWORD="$password" \
+      pm2 restart "$SERVICE_NAME" --update-env
+  else
+    DASHBOARD_PORT="$port" \
+    DASHBOARD_HOST="$host" \
+    DASHBOARD_USER="$user" \
+    DASHBOARD_PASSWORD="$password" \
+      pm2 start "$PROJECT_DIR/src/dashboard.js" --name "$SERVICE_NAME" --cwd "$PROJECT_DIR"
+  fi
+  info "PM2 已按 .env 重新载入监听配置：${host}:${port}"
+}
+
+show_dashboard_listener() {
+  local port host listener
+  port="$(get_env_value DASHBOARD_PORT)"
+  host="$(get_env_value DASHBOARD_HOST)"
+  port="${port:-30123}"
+  host="${host:-127.0.0.1}"
+  echo "配置监听：${host}:${port}"
+
+  if ! command -v ss >/dev/null 2>&1; then
+    warn "系统没有 ss 命令，无法显示实际监听端口。"
+    return 0
+  fi
+
+  listener="$(ss -ltnp 2>/dev/null | grep -E ":${port}[[:space:]]" || true)"
+  if [[ -z "$listener" ]]; then
+    warn "没有检测到 ${port}/TCP 正在监听，请查看菜单 12 的 PM2 日志。"
+    return 0
+  fi
+
+  echo "实际监听："
+  echo "$listener"
+  if [[ "$host" == "0.0.0.0" ]] && ! echo "$listener" | grep -Eq "(0\.0\.0\.0|\*|\[::\]):${port}"; then
+    warn ".env 要求公网监听，但进程没有监听 0.0.0.0；请执行菜单 15 自动修复。"
+  fi
+}
+
 show_current_access_config() {
   local port host domain user password public_ip
   echo "当前访问配置"
@@ -498,13 +555,10 @@ start_dashboard() {
     configure_env
   fi
   npm install
-  if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
-    pm2 restart "$SERVICE_NAME" --update-env
-  else
-    pm2 start src/dashboard.js --name "$SERVICE_NAME"
-  fi
+  start_or_restart_dashboard_service
   pm2 save
   info "控制台已启动。"
+  show_dashboard_listener
   show_access_hint
   pause
 }
@@ -527,13 +581,10 @@ restart_dashboard() {
   echo "重启控制台"
   echo "--------------------------------"
   npm install --omit=dev
-  if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
-    pm2 restart "$SERVICE_NAME" --update-env
-  else
-    pm2 start src/dashboard.js --name "$SERVICE_NAME"
-  fi
+  start_or_restart_dashboard_service
   pm2 save
   info "控制台已重启。"
+  show_dashboard_listener
   show_access_hint
   pause
 }
@@ -566,9 +617,9 @@ configure_firewall() {
     if [[ "$current_host" != "0.0.0.0" ]]; then
       warn "公网端口直连需要 DASHBOARD_HOST=0.0.0.0，脚本将自动修改并重启控制台。"
       set_env_value "DASHBOARD_HOST" "0.0.0.0"
-      if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
-        pm2 restart "$SERVICE_NAME" --update-env
-      fi
+    fi
+    if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+      start_or_restart_dashboard_service
     fi
     $SUDO ufw allow "${port}/tcp"
   fi
@@ -666,9 +717,6 @@ configure_access_methods() {
     if [[ "$current_host" != "0.0.0.0" ]]; then
       warn "公网端口直连需要 DASHBOARD_HOST=0.0.0.0，脚本将自动修改并重启控制台。"
       set_env_value "DASHBOARD_HOST" "0.0.0.0"
-      if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
-        pm2 restart "$SERVICE_NAME" --update-env
-      fi
     fi
     configure_firewall
   else
@@ -691,6 +739,8 @@ health_check() {
   echo "--------------------------------"
   pm2 status "$SERVICE_NAME" 2>/dev/null || true
   echo
+  show_dashboard_listener
+  echo
   local port host user password curl_auth
   port="$(grep -E '^DASHBOARD_PORT=' .env 2>/dev/null | cut -d= -f2 || echo 30123)"
   user="$(grep -E '^DASHBOARD_USER=' .env 2>/dev/null | cut -d= -f2 || echo admin)"
@@ -706,6 +756,64 @@ health_check() {
   else
     warn "curl 未安装，无法发起 HTTP 检测。"
   fi
+  pause
+}
+
+repair_public_port_access() {
+  print_header
+  echo "修复公网 IP + 端口访问"
+  echo "--------------------------------"
+  if [[ ! -f .env ]]; then
+    fail ".env 不存在，请先执行菜单 3 配置控制台。"
+    pause
+    return
+  fi
+
+  local SUDO port user password curl_auth
+  SUDO="$(need_sudo)"
+  port="$(get_env_value DASHBOARD_PORT)"
+  user="$(get_env_value DASHBOARD_USER)"
+  password="$(get_env_value DASHBOARD_PASSWORD)"
+  port="${port:-30123}"
+  user="${user:-admin}"
+
+  echo "将执行："
+  echo "1. 设置 DASHBOARD_HOST=0.0.0.0"
+  echo "2. 放行 Ubuntu 防火墙 ${port}/TCP"
+  echo "3. 按 .env 重新载入 PM2 并检查实际监听"
+  echo
+  set_env_value "DASHBOARD_HOST" "0.0.0.0"
+
+  if command -v ufw >/dev/null 2>&1; then
+    $SUDO ufw allow OpenSSH
+    $SUDO ufw allow "${port}/tcp"
+    $SUDO ufw --force enable
+  else
+    warn "系统没有安装 ufw，已跳过 Ubuntu 防火墙设置。"
+  fi
+
+  start_or_restart_dashboard_service
+  pm2 save
+  sleep 1
+  echo
+  show_dashboard_listener
+  echo
+
+  if command -v curl >/dev/null 2>&1; then
+    curl_auth=()
+    if [[ -n "$password" ]]; then
+      curl_auth=(-u "${user}:${password}")
+    fi
+    echo "本机接口检测：http://127.0.0.1:${port}/api/status"
+    curl -fsS --max-time 5 "${curl_auth[@]}" "http://127.0.0.1:${port}/api/status" >/dev/null \
+      && info "控制台本机接口响应正常。" \
+      || warn "本机接口仍未响应，请查看菜单 12 的 PM2 日志。"
+  fi
+
+  echo
+  echo "公网访问地址：http://$(detect_public_ip):${port}"
+  echo "还需要在轻量云服务器控制台的防火墙/安全组中放行 TCP ${port}。"
+  echo "云厂商安全组无法由本脚本自动修改。"
   pause
 }
 
@@ -807,13 +915,10 @@ update_project() {
   install_j_shortcut
   info "快捷命令 j 已处理完成。"
   progress "5/5" "当前正在重启 LY 控制台服务..."
-  if pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
-    pm2 restart "$SERVICE_NAME" --update-env
-  else
-    pm2 start src/dashboard.js --name "$SERVICE_NAME"
-  fi
+  start_or_restart_dashboard_service
   pm2 save
   info "控制台服务已重启。"
+  show_dashboard_listener
   info "更新流程已结束，正在重新载入最新管理脚本。"
   cd "$PROJECT_DIR"
   exec bash ./deploy/ly-afk-manager.sh
@@ -830,11 +935,14 @@ show_access_hint() {
   if [[ -n "$domain" ]]; then
     echo "推荐访问：http://${domain}"
     echo "配置 HTTPS 后访问：https://${domain}"
-  elif [[ "$host" == "0.0.0.0" ]]; then
+  fi
+  if [[ "$host" == "0.0.0.0" ]]; then
     echo "直连访问：http://$(detect_public_ip):${port}"
-  else
+  elif [[ -z "$domain" ]]; then
     echo "当前仅监听本机：http://127.0.0.1:${port}"
     echo "如需域名访问，请执行菜单 8 配置 Nginx。"
+  else
+    echo "面板仅监听本机：http://127.0.0.1:${port}（供 Nginx 域名反代使用）"
   fi
 }
 
@@ -869,6 +977,7 @@ main_menu() {
     echo "12. 查看实时日志"
     echo "13. 更新项目并重启"
     echo "14. 安装/修复快捷命令 j"
+    echo "15. 修复公网 IP + 端口访问"
     echo
     echo "0.  退出脚本"
     echo "--------------------------------"
@@ -888,6 +997,7 @@ main_menu() {
       12) show_logs ;;
       13) update_project ;;
       14) install_j_shortcut; pause ;;
+      15) repair_public_port_access ;;
       0) exit 0 ;;
       *) warn "无效选择，请重新输入。"; sleep 1 ;;
     esac

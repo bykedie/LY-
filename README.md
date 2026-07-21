@@ -34,6 +34,8 @@ curl -fL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh 
 
 如果 `/opt/ly-console` 已经存在，一键命令会先更新到最新版本，再进入菜单，不会再直接打开旧版本。
 
+更新后如果域名可以访问、但 `http://公网IP:端口` 无法打开，在服务器终端输入 `j`，选择 `15. 修复公网 IP + 端口访问`。该功能会恢复 `0.0.0.0` 监听、放行 Ubuntu 端口并让 PM2 按 `.env` 重新载入；轻量云控制台的防火墙/安全组仍需手动放行同一个 TCP 端口。
+
 第一次进入菜单建议选择：
 
 ```text
