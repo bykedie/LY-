@@ -888,10 +888,13 @@ function startAutoWalk(username) {
 function resolveWalkTarget(bot) {
   const relativeWalk = ACTIVE_FEATURES.movement.relativeWalk || {};
   if (!relativeWalk.enabled) return ACTIVE_FEATURES.movement.walkTarget || { x: 0, y: 64, z: 0 };
+  return resolveRelativeWalkTarget(bot, relativeWalk.direction, relativeWalk.distance);
+}
 
+function resolveRelativeWalkTarget(bot, direction, distanceValue) {
   const position = bot.entity.position;
-  const distance = Math.max(0, Number(relativeWalk.distance) || 0);
-  const vector = getDirectionVector(bot, relativeWalk.direction);
+  const distance = Math.max(0, Number(distanceValue) || 0);
+  const vector = getDirectionVector(bot, direction);
   return {
     x: position.x + vector.x * distance,
     y: position.y,
@@ -977,7 +980,110 @@ async function runLobbyAction(username, action, index) {
 
   if (type === 'clickSlot') {
     await runClickSlotAction(username, action, index);
+    return;
   }
+
+  if (type === 'relativeWalk') {
+    await runRelativeWalkAction(username, action, index);
+    return;
+  }
+
+  if (type === 'findEntity') {
+    await runFindEntityAction(username, action, index);
+    return;
+  }
+
+  if (type === 'moveSlot') {
+    await runMoveSlotAction(username, action, index);
+    return;
+  }
+
+  if (type === 'chat') {
+    enqueueChat(username, action.message, `大厅动作 ${index}：发送 ${action.message}`);
+  }
+}
+
+async function runRelativeWalkAction(username, action, index) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity || !bot.pathfinder) return;
+
+  const target = resolveRelativeWalkTarget(bot, action.direction, action.distance);
+  const range = Math.max(0, Number(action.range ?? ACTIVE_FEATURES.movement.walkRange) || 1);
+  bot.pathfinder.setMovements(new Movements(bot));
+  log(username, `大厅动作 ${index}：开始前进到 ${target.x.toFixed(1)}, ${target.y.toFixed(1)}, ${target.z.toFixed(1)}`);
+  await bot.pathfinder.goto(new goals.GoalNear(target.x, target.y, target.z, range));
+  log(username, `大厅动作 ${index}：已到达目标范围，当前坐标 ${formatPosition(bot.entity.position)}`);
+}
+
+async function runFindEntityAction(username, action, index) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity || !bot.pathfinder) return;
+
+  const entity = findEntityByName(bot, action.entity);
+  if (!entity) throw new Error(`找不到实体/NPC：${action.entity || '未填写'}`);
+
+  const range = Math.max(1, Number(action.range) || 2);
+  bot.pathfinder.setMovements(new Movements(bot));
+  log(username, `大厅动作 ${index}：寻找 ${getEntityLabel(entity)}，距离 ${bot.entity.position.distanceTo(entity.position).toFixed(1)}`);
+  await bot.pathfinder.goto(new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, range));
+  const interactionEntity = findEntityByName(bot, action.entity);
+  if (!interactionEntity) throw new Error(`到达后实体/NPC 已不可见：${action.entity}`);
+  log(username, `大厅动作 ${index}：已靠近 ${getEntityLabel(interactionEntity)}，当前坐标 ${formatPosition(bot.entity.position)}`);
+  await sleep(Math.max(0, Number(action.delayMs) || 0));
+
+  if (action.interact === 'right') {
+    bot.activateEntity(interactionEntity);
+    log(username, `大厅动作 ${index}：右键交互 ${getEntityLabel(interactionEntity)}`);
+  } else if (action.interact === 'left') {
+    bot.attack(interactionEntity);
+    log(username, `大厅动作 ${index}：左键交互 ${getEntityLabel(interactionEntity)}`);
+  }
+}
+
+async function runMoveSlotAction(username, action, index) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity) return;
+
+  const fromSlot = resolveWindowSlot(action);
+  const toSlot = Number(action.toSlot);
+  if (!Number.isInteger(toSlot) || toSlot < 0) throw new Error('移动背包槽位需要填写目标槽位。');
+
+  await bot.moveSlotItem(fromSlot, toSlot);
+  log(username, `大厅动作 ${index}：移动槽位 ${fromSlot} -> ${toSlot}`);
+}
+
+function findEntityByName(bot, keyword) {
+  const normalized = String(keyword || '').trim().toLowerCase();
+  if (!normalized) return null;
+
+  return Object.values(bot.entities || {})
+    .filter((entity) => entity && entity !== bot.entity && entity.position)
+    .filter((entity) => getEntityLabel(entity).toLowerCase().includes(normalized))
+    .sort((left, right) => bot.entity.position.distanceTo(left.position) - bot.entity.position.distanceTo(right.position))[0] || null;
+}
+
+function getEntityLabel(entity) {
+  const candidates = [entity.username, entity.customName, entity.displayName, entity.name, entity.type];
+  for (const candidate of candidates) {
+    const text = getEntityText(candidate);
+    if (text) return text;
+  }
+  return String(entity.id);
+}
+
+function getEntityText(value) {
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object') return '';
+  const directText = typeof value.text === 'string' ? value.text : '';
+  const extraText = Array.isArray(value.extra) ? value.extra.map(getEntityText).join('') : '';
+  return `${directText}${extraText}`.trim();
+}
+
+function formatPosition(position) {
+  return `X ${position.x.toFixed(1)} / Y ${position.y.toFixed(1)} / Z ${position.z.toFixed(1)}`;
 }
 
 async function runUseItemAction(username, action, index = 0) {
@@ -1055,7 +1161,39 @@ function emitRuntimeEvent(event) {
 
 function emitWindowSnapshot(username) {
   const session = sessions.get(username);
-  emitRuntimeEvent({ type: 'windowSnapshot', username, window: getWindowSnapshot(session) });
+  emitRuntimeEvent({
+    type: 'windowSnapshot',
+    username,
+    window: getWindowSnapshot(session),
+    position: getPositionSnapshot(session),
+    entities: getEntitySnapshot(session)
+  });
+}
+
+function getPositionSnapshot(session) {
+  const position = session?.bot?.entity?.position;
+  if (!position) return null;
+  return { x: position.x, y: position.y, z: position.z };
+}
+
+function getEntitySnapshot(session) {
+  const bot = session?.bot;
+  if (!bot?.entity) return [];
+
+  return Object.values(bot.entities || {})
+    .filter((entity) => entity && entity !== bot.entity && entity.position)
+    .map((entity) => ({
+      id: entity.id,
+      type: entity.type || '',
+      name: getEntityLabel(entity),
+      username: entity.username || '',
+      x: entity.position.x,
+      y: entity.position.y,
+      z: entity.position.z,
+      distance: bot.entity.position.distanceTo(entity.position)
+    }))
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, 30);
 }
 
 function getWindowSnapshot(session) {

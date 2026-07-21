@@ -79,7 +79,32 @@
       "delayMs": 3000,
       "heldSlot": 0,
       "useCount": 1,
-      "actions": []
+      "actions": [
+        {
+          "type": "relativeWalk",
+          "direction": "forward",
+          "distance": 5,
+          "enabled": false
+        },
+        {
+          "type": "findEntity",
+          "entity": "商店",
+          "range": 2,
+          "interact": "right",
+          "enabled": false
+        },
+        {
+          "type": "moveSlot",
+          "slot": 20,
+          "toSlot": 21,
+          "enabled": false
+        },
+        {
+          "type": "chat",
+          "message": "/spawn",
+          "enabled": false
+        }
+      ]
     },
     "scheduler": {
       "enabled": false,

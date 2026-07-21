@@ -39,7 +39,7 @@ try {
   botProcess.stdout.on('data', (data) => botOutput.push(data.toString()));
   botProcess.stderr.on('data', (data) => botOutput.push(data.toString()));
 
-  await waitForMessage('/register pass123 pass123');
+  await waitForMessage('/register pass123');
   await waitForMessage('pong Tester');
   await waitForMessage('/spawn');
   await waitForMessage('/ping');
@@ -57,7 +57,7 @@ try {
   const output = botOutput.join('');
   assert(output.includes('已进入服务器'), '机器人没有进入服务器');
   assert(output.includes('游戏消息：<Tester> ping'), '游戏聊天日志缺失');
-  assert(output.includes('自动登录：已发送 /register 指令'), '自动注册日志缺失');
+  assert(output.includes('自动登录发送：/register pass123'), '自动注册日志缺失');
   assert(output.includes('关键词回复：ping -> pong Tester'), '关键词回复日志缺失');
   assert(output.includes('定时任务 smoke-login：/spawn'), '定时任务日志缺失');
   assert(output.includes('切换手持：快捷栏 3'), '切换手持日志缺失');

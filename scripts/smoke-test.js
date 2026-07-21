@@ -36,6 +36,9 @@ try {
   assert(page.includes('LY挂机控制台'), '页面默认标题没有改成 LY挂机控制台');
   assert(page.includes('sidebarToggle'), '页面缺少侧边栏收放按钮');
   assert(page.includes('data-section="settings"'), '侧边栏缺少设置入口');
+  assert(page.includes('data-section="combat"') && page.includes('功能综合区'), '侧边栏缺少功能综合区');
+  assert(!page.includes('data-section="movement"'), '移动辅助不应继续作为独立侧边栏入口');
+  assert(!page.includes('data-section="chat"'), '智能交互不应继续作为独立侧边栏入口');
   assert(!page.includes('data-section="manage"'), '便捷管理不应再作为独立侧边栏入口');
   assert(!page.includes('data-section="architecture"'), '架构优势不应再作为独立侧边栏入口');
   assert(!page.includes('data-section="security"'), '安全可靠不应再作为独立侧边栏入口');
@@ -64,6 +67,11 @@ try {
   assert(page.includes('type="module" src="/app.js"'), '页面没有以模块方式加载前端脚本');
   assert(page.includes('resetBtn'), '页面缺少重置按钮');
   assert(page.includes('confirmResetBtn'), '页面缺少确认重置按钮');
+  assert(page.includes('value="relativeWalk"'), '动作序列缺少按方向前进动作');
+  assert(page.includes('value="findEntity"'), '动作序列缺少寻找实体/NPC 动作');
+  assert(page.includes('value="moveSlot"'), '动作序列缺少移动背包槽位动作');
+  assert(page.includes('positionSnapshotTitle'), '大厅功能缺少当前坐标显示');
+  assert(page.includes('entitySnapshotTitle'), '大厅功能缺少附近实体显示');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
@@ -134,6 +142,7 @@ try {
   assert(saved.config.features.movement.antiAfkWalkRange === 3, '配置保存后 antiAfkWalkRange 不正确');
   assert(saved.config.features.combat.attackRange === 4, '配置保存后 attackRange 不正确');
   assert(saved.config.features.chat.presetMessagesList.includes('/spawn'), '配置保存后缺少预设消息');
+  assert(saved.config.features.lobby.actions.some((action) => action.type === 'findEntity'), '配置保存后缺少寻找实体动作');
   assert(saved.config.accounts.length === 1, '配置保存后账号数量不正确');
   await requestJson('/api/config', {
     method: 'POST',
@@ -190,6 +199,17 @@ try {
     { ...testConfig, runtime: { ...testConfig.runtime, messageCooldownMs: -1 } },
     '消息冷却',
     '消息冷却为负数时没有被拒绝'
+  );
+  await expectInvalidConfig(
+    {
+      ...testConfig,
+      features: {
+        ...testConfig.features,
+        lobby: { ...testConfig.features.lobby, actions: [{ type: 'findEntity', entity: '', interact: 'right', enabled: true }] }
+      }
+    },
+    '实体/NPC 名',
+    '寻找实体动作缺少名称时没有被拒绝'
   );
   await expectInvalidConfig(
     { ...testConfig, accounts: { username: 'NotArray' } },

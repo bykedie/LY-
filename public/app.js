@@ -25,9 +25,7 @@ const defaultUiSettings = {
 
 const sectionTitles = {
   overview: ['平台概览', '云端自动挂机平台的信息、功能和配置集中在这里。'],
-  combat: ['战斗挂机', '自动攻击、自动钓鱼、自动进食和自动重生。'],
-  movement: ['移动辅助', '自动走路、防挂机走动和快捷栏切换。'],
-  chat: ['智能交互', '关键词回复、预设消息、远程指令和自动登录。'],
+  combat: ['功能综合区', '战斗、移动、智能交互集中配置。'],
   lobby: ['大厅功能', '进入大厅后自动执行复杂操作。'],
   scheduler: ['定时任务', '登录后执行或按间隔执行聊天/指令。'],
   config: ['服务器配置', '先填服务器，再填账号，最后保存并启动。'],
@@ -628,33 +626,74 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-slot').value = action.slot ?? '';
   card.querySelector('.lobby-action-count').value = action.count || '';
   card.querySelector('.lobby-action-button').value = action.button === 'left' ? 'left' : 'right';
+  card.querySelector('.lobby-action-direction').value = action.direction || 'forward';
+  card.querySelector('.lobby-action-distance').value = action.distance ?? action.range ?? '';
+  card.querySelector('.lobby-action-entity').value = action.entity || '';
+  card.querySelector('.lobby-action-interact').value = action.interact || 'approach';
+  card.querySelector('.lobby-action-to-slot').value = action.toSlot ?? '';
+  card.querySelector('.lobby-action-message').value = action.message || '';
   card.querySelector('.lobby-action-enabled').checked = action.enabled !== false;
+  card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
   card.querySelector('.remove-lobby-action').addEventListener('click', () => card.remove());
+  updateLobbyActionFields(card);
   return fragment;
+}
+
+function updateLobbyActionFields(card) {
+  const type = card.querySelector('.lobby-action-type').value;
+  card.querySelectorAll('[data-action-types]').forEach((field) => {
+    const types = field.dataset.actionTypes.split(',');
+    field.classList.toggle('action-field-hidden', !types.includes(type));
+  });
 }
 
 function readLobbyActions() {
   return [...document.querySelectorAll('.lobby-action-card')]
     .map((card) => {
       const type = card.querySelector('.lobby-action-type').value;
-      const delayValue = Number(card.querySelector('.lobby-action-delay').value);
-      const hotbarSlot = Number(card.querySelector('.lobby-action-hotbar').value);
-      const row = Number(card.querySelector('.lobby-action-row').value);
-      const column = Number(card.querySelector('.lobby-action-column').value);
-      const slotInput = card.querySelector('.lobby-action-slot').value;
-      const count = Number(card.querySelector('.lobby-action-count').value);
       const action = {
         type,
-        title: card.querySelector('.lobby-action-title').value.trim(),
-        button: card.querySelector('.lobby-action-button').value,
         enabled: card.querySelector('.lobby-action-enabled').checked
       };
-      if (Number.isFinite(delayValue) && delayValue > 0) action[type === 'waitWindow' ? 'timeoutMs' : 'delayMs'] = delayValue;
-      if (Number.isFinite(hotbarSlot) && hotbarSlot > 0) action.hotbarSlot = hotbarSlot;
-      if (Number.isFinite(row) && row > 0) action.row = row;
-      if (Number.isFinite(column) && column > 0) action.column = column;
-      if (slotInput !== '') action.slot = Number(slotInput);
-      if (Number.isFinite(count) && count > 0) action.count = count;
+
+      const delayValue = Number(card.querySelector('.lobby-action-delay').value);
+      if (Number.isFinite(delayValue) && delayValue > 0) {
+        action[type === 'waitWindow' ? 'timeoutMs' : 'delayMs'] = delayValue;
+      }
+      if (type === 'switchSlot') {
+        const hotbarSlot = card.querySelector('.lobby-action-hotbar').value;
+        if (hotbarSlot !== '') action.hotbarSlot = Number(hotbarSlot);
+      }
+      if (['waitWindow', 'clickSlot'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
+      if (type === 'clickSlot') {
+        const row = card.querySelector('.lobby-action-row').value;
+        const column = card.querySelector('.lobby-action-column').value;
+        const slot = card.querySelector('.lobby-action-slot').value;
+        if (row !== '') action.row = Number(row);
+        if (column !== '') action.column = Number(column);
+        if (slot !== '') action.slot = Number(slot);
+      }
+      if (['useItem', 'clickSlot'].includes(type)) {
+        action.button = card.querySelector('.lobby-action-button').value;
+        action.count = Number(card.querySelector('.lobby-action-count').value) || 1;
+      }
+      if (type === 'relativeWalk') {
+        action.direction = card.querySelector('.lobby-action-direction').value;
+        const distance = card.querySelector('.lobby-action-distance').value;
+        if (distance !== '') action.distance = Number(distance);
+      }
+      if (type === 'findEntity') {
+        action.entity = card.querySelector('.lobby-action-entity').value.trim();
+        action.interact = card.querySelector('.lobby-action-interact').value;
+        action.range = Number(card.querySelector('.lobby-action-distance').value) || 2;
+      }
+      if (type === 'moveSlot') {
+        const slot = card.querySelector('.lobby-action-slot').value;
+        const toSlot = card.querySelector('.lobby-action-to-slot').value;
+        if (slot !== '') action.slot = Number(slot);
+        if (toSlot !== '') action.toSlot = Number(toSlot);
+      }
+      if (type === 'chat') action.message = card.querySelector('.lobby-action-message').value.trim();
       return action;
     })
     .filter((action) => action.type);
@@ -737,6 +776,28 @@ async function refreshWindowSnapshot() {
 
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
   renderWindowSnapshot(data.window);
+  renderPositionSnapshot(data.position, data.entities || []);
+}
+
+function renderPositionSnapshot(position, entities = []) {
+  const positionTitle = $('#positionSnapshotTitle');
+  const entityTitle = $('#entitySnapshotTitle');
+  if (positionTitle) {
+    positionTitle.textContent = position
+      ? `当前坐标：X ${formatNumber(position.x)} / Y ${formatNumber(position.y)} / Z ${formatNumber(position.z)}`
+      : '当前坐标：未读取';
+  }
+  if (entityTitle) {
+    const names = entities.slice(0, 8).map((entity) => {
+      const name = entity.name || entity.username || entity.type || `ID ${entity.id}`;
+      return `${name} [${formatNumber(entity.x)}, ${formatNumber(entity.y)}, ${formatNumber(entity.z)}] 距离 ${formatNumber(entity.distance)}`;
+    });
+    entityTitle.textContent = names.length ? `附近实体：${names.join('、')}` : '附近实体：未读取到可见实体';
+  }
+}
+
+function formatNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '-';
 }
 
 function renderWindowSnapshot(windowSnapshot) {
@@ -922,6 +983,21 @@ function setAutoWalkCollapsed(collapsed) {
   panel.classList.toggle('open', !collapsed);
   toggle.setAttribute('aria-expanded', String(!collapsed));
   localStorage.setItem('autoWalkCollapsed', collapsed ? 'true' : 'false');
+}
+
+function mergeCombinedFeatureSections() {
+  const target = $('#combat');
+  if (!target) return;
+
+  for (const sectionId of ['movement', 'chat']) {
+    const section = document.getElementById(sectionId);
+    if (!section) continue;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'combined-feature-block';
+    while (section.firstChild) wrapper.appendChild(section.firstChild);
+    target.appendChild(wrapper);
+    section.remove();
+  }
 }
 
 function organizeFeaturePanels() {
@@ -1117,8 +1193,10 @@ async function refreshStatus() {
 }
 
 function bindEvents() {
+  mergeCombinedFeatureSections();
   organizeFeaturePanels();
-  setSidebarCollapsed(localStorage.getItem('sidebarCollapsed') === 'true');
+  const compactViewport = window.matchMedia('(max-width: 980px)').matches;
+  setSidebarCollapsed(compactViewport || localStorage.getItem('sidebarCollapsed') === 'true');
   setAutoWalkCollapsed(localStorage.getItem('autoWalkCollapsed') === 'true');
 
   $('#sidebarToggle').addEventListener('click', () => {

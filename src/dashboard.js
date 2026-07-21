@@ -25,7 +25,7 @@ let runningConfig = null;
 let stopping = false;
 let logs = [];
 let botStdoutBuffer = '';
-const windowSnapshots = new Map();
+const runtimeSnapshots = new Map();
 const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
 const requiredDependencyFiles = [
@@ -360,18 +360,40 @@ function validateLobbyActions(actions) {
   if (!Array.isArray(actions)) throw new Error('大厅动作序列必须是数组。');
   for (const [index, action] of actions.entries()) {
     requirePlainObject(action, `第 ${index + 1} 个大厅动作`);
-    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot']);
+    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'relativeWalk', 'findEntity', 'moveSlot', 'chat']);
     if (action.button !== undefined) requireEnum(action.button, `第 ${index + 1} 个大厅动作鼠标键`, ['left', 'right']);
+    if (action.direction !== undefined) requireEnum(action.direction, `第 ${index + 1} 个大厅动作方向`, ['forward', 'back', 'left', 'right', 'north', 'south', 'east', 'west']);
+    if (action.interact !== undefined) requireEnum(action.interact, `第 ${index + 1} 个大厅动作交互方式`, ['approach', 'left', 'right']);
     if (action.enabled !== undefined) requireBoolean(action.enabled, `第 ${index + 1} 个大厅动作启用开关`);
     if (action.delayMs !== undefined) requireNumber(action.delayMs, `第 ${index + 1} 个大厅动作延迟`, { min: 0 });
     if (action.timeoutMs !== undefined) requireNumber(action.timeoutMs, `第 ${index + 1} 个大厅动作超时`, { min: 100 });
     if (action.hotbarSlot !== undefined) requireNumber(action.hotbarSlot, `第 ${index + 1} 个大厅动作快捷栏`, { min: 1, max: 9, integer: true });
     if (action.count !== undefined) requireNumber(action.count, `第 ${index + 1} 个大厅动作次数`, { min: 1, integer: true });
+    if (action.distance !== undefined) requireNumber(action.distance, `第 ${index + 1} 个大厅动作距离`, { min: 0 });
+    if (action.range !== undefined) requireNumber(action.range, `第 ${index + 1} 个大厅动作范围`, { min: 0 });
     if (action.row !== undefined) requireNumber(action.row, `第 ${index + 1} 个大厅动作行`, { min: 1, max: 6, integer: true });
     if (action.column !== undefined) requireNumber(action.column, `第 ${index + 1} 个大厅动作列`, { min: 1, max: 9, integer: true });
     if (action.slot !== undefined) requireNumber(action.slot, `第 ${index + 1} 个大厅动作槽位`, { min: 0, integer: true });
+    if (action.toSlot !== undefined) requireNumber(action.toSlot, `第 ${index + 1} 个大厅动作目标槽位`, { min: 0, integer: true });
     if (action.title !== undefined && typeof action.title !== 'string') throw new Error(`第 ${index + 1} 个大厅动作窗口标题必须是文本。`);
     if (typeof action.title === 'string') action.title = action.title.trim();
+    if (action.entity !== undefined && typeof action.entity !== 'string') throw new Error(`第 ${index + 1} 个大厅动作实体/NPC 名必须是文本。`);
+    if (typeof action.entity === 'string') action.entity = action.entity.trim();
+    if (action.message !== undefined && typeof action.message !== 'string') throw new Error(`第 ${index + 1} 个大厅动作聊天/指令必须是文本。`);
+    if (typeof action.message === 'string') action.message = action.message.trim();
+
+    const actionLabel = `第 ${index + 1} 个大厅动作`;
+    if (action.type === 'switchSlot' && action.hotbarSlot === undefined) throw new Error(`${actionLabel}需要填写快捷栏 1-9。`);
+    if (action.type === 'relativeWalk' && action.distance === undefined) throw new Error(`${actionLabel}需要填写前进格数。`);
+    if (action.type === 'findEntity' && !action.entity) throw new Error(`${actionLabel}需要填写实体/NPC 名。`);
+    if (action.type === 'moveSlot') {
+      if (action.slot === undefined || action.toSlot === undefined) throw new Error(`${actionLabel}需要填写来源槽位和目标槽位。`);
+      if (action.slot === action.toSlot) throw new Error(`${actionLabel}的来源槽位和目标槽位不能相同。`);
+    }
+    if (action.type === 'chat' && !action.message) throw new Error(`${actionLabel}需要填写聊天内容或指令。`);
+    if (action.type === 'clickSlot' && action.slot === undefined && (action.row === undefined || action.column === undefined)) {
+      throw new Error(`${actionLabel}需要填写槽位，或者同时填写行和列。`);
+    }
   }
 }
 function validateSchedulerTasks(tasks) {
@@ -441,7 +463,7 @@ function startBot(startAccountNames = []) {
   }
   stopping = false;
   logs = [];
-  windowSnapshots.clear();
+  runtimeSnapshots.clear();
   botProcess = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
     env: { ...process.env, BOT_CONFIG_PATH: configPath, START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames) },
@@ -478,7 +500,11 @@ function handleBotEventLine(line) {
   try {
     const event = JSON.parse(line.slice(prefix.length));
     if (event.type === 'windowSnapshot' && event.username) {
-      windowSnapshots.set(event.username, event.window || null);
+      runtimeSnapshots.set(event.username, {
+        window: event.window || null,
+        position: event.position || null,
+        entities: Array.isArray(event.entities) ? event.entities : []
+      });
     }
   } catch (error) {
     addLog(`解析运行事件失败：${error.message}`);
@@ -541,14 +567,14 @@ function sendBotCommand(command) {
 }
 
 async function requestWindowSnapshot(target) {
-  windowSnapshots.delete(target);
+  runtimeSnapshots.delete(target);
   sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
   const deadline = Date.now() + 800;
   while (Date.now() < deadline) {
-    if (windowSnapshots.has(target)) return windowSnapshots.get(target) || null;
+    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [] };
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  return null;
+  return { window: null, position: null, entities: [] };
 }
 
 function sendRuntimeConfigUpdate(config) {
@@ -746,8 +772,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/window') {
       const target = url.searchParams.get('target') || '';
       if (!target) throw new Error('请选择要读取窗口的账号。');
-      const window = await requestWindowSnapshot(target);
-      sendJson(res, 200, { ok: true, window });
+      const snapshot = await requestWindowSnapshot(target);
+      sendJson(res, 200, { ok: true, ...snapshot });
       return;
     }
 

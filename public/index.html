@@ -25,9 +25,7 @@
 
       <nav class="nav-list" aria-label="功能目录">
         <button class="nav-item active" data-section="overview" title="平台概览"><span class="nav-icon">概</span><span class="nav-text">平台概览</span></button>
-        <button class="nav-item" data-section="combat" title="战斗挂机"><span class="nav-icon">战</span><span class="nav-text">战斗挂机</span></button>
-        <button class="nav-item" data-section="movement" title="移动辅助"><span class="nav-icon">移</span><span class="nav-text">移动辅助</span></button>
-        <button class="nav-item" data-section="chat" title="智能交互"><span class="nav-icon">聊</span><span class="nav-text">智能交互</span></button>
+        <button class="nav-item" data-section="combat" title="功能综合区"><span class="nav-icon">综</span><span class="nav-text">功能综合区</span></button>
         <button class="nav-item" data-section="lobby" title="大厅功能"><span class="nav-icon">厅</span><span class="nav-text">大厅功能</span></button>
         <button class="nav-item" data-section="scheduler" title="定时任务"><span class="nav-icon">时</span><span class="nav-text">定时任务</span></button>
         <button class="nav-item" data-section="config" title="服务器配置"><span class="nav-icon">服</span><span class="nav-text">服务器配置</span></button>
@@ -88,8 +86,8 @@
       <section class="panel page-section" id="combat">
         <div class="section-head">
           <div>
-            <h3>战斗挂机</h3>
-            <p>围绕刷怪、生存、钓鱼的长期在线功能。</p>
+            <h3>功能综合区</h3>
+            <p>战斗、移动和智能交互功能集中在这里配置。</p>
           </div>
         </div>
         <div class="feature-list">
@@ -266,7 +264,7 @@
             <label class="switch"><input data-feature="lobby.useItem" type="checkbox">启用</label>
           </article>
           <article>
-            <div><strong>动作序列</strong><span>进入大厅后按顺序执行等待、切槽、使用物品、等待窗口、点击菜单槽位等动作。</span></div>
+            <div><strong>动作序列</strong><span>进入大厅后按顺序执行移动、NPC 交互、物品操作、窗口点击和聊天指令。</span></div>
             <label class="switch"><input data-feature="lobby.actionSequence" type="checkbox">启用</label>
           </article>
         </div>
@@ -279,16 +277,18 @@
           <div class="action-sequence-head">
             <div>
               <strong>动作序列</strong>
-              <span class="field-note">用于菜单服大厅：按顺序切槽位、右键、等待窗口、点击指定槽位。点击第 3 行第 3 列会自动换算为槽位 20。</span>
+              <span class="field-note">按顺序执行等待、切槽、使用物品、窗口点击、定向移动、寻找 NPC、背包移动和聊天指令。点击第 3 行第 3 列会自动换算为槽位 20。</span>
             </div>
             <div class="action-sequence-buttons">
               <select id="windowSnapshotTarget" title="选择要读取窗口的账号"></select>
-              <button class="ghost small" id="refreshWindowSnapshotBtn" type="button">刷新背包窗口</button>
+              <button class="ghost small" id="refreshWindowSnapshotBtn" type="button">刷新坐标/窗口</button>
               <button class="ghost small" id="addLobbyExampleActionBtn" type="button">添加选择服务器示例</button>
               <button class="ghost small" id="addLobbyActionBtn" type="button">添加动作</button>
             </div>
           </div>
           <div class="window-snapshot-panel" id="windowSnapshotPanel">
+            <div class="position-snapshot-title" id="positionSnapshotTitle">当前坐标：未读取</div>
+            <div class="entity-snapshot-title" id="entitySnapshotTitle">附近实体：未读取</div>
             <div class="window-snapshot-title" id="windowSnapshotTitle">当前背包窗口：未读取</div>
             <div class="window-grid" id="windowGrid"></div>
           </div>
@@ -510,23 +510,52 @@
           <option value="useItem">使用物品</option>
           <option value="waitWindow">等待菜单窗口</option>
           <option value="clickSlot">点击菜单槽位</option>
+          <option value="relativeWalk">按方向前进</option>
+          <option value="findEntity">寻找实体/NPC</option>
+          <option value="moveSlot">移动背包槽位</option>
+          <option value="chat">发送聊天/指令</option>
         </select>
         <span class="field-note">按从上到下的顺序执行。</span>
       </label>
-      <label>延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口用作最长等待。</span></label>
-      <label>快捷栏 1-9<input class="lobby-action-hotbar" type="number" min="1" max="9" placeholder="例如：1"><span class="field-note">切换快捷栏动作使用。</span></label>
-      <label>窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
-      <label>行<input class="lobby-action-row" type="number" min="1" max="6" placeholder="3"><span class="field-note">箱子菜单行号，从 1 开始。</span></label>
-      <label>列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
-      <label>槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">可不填；填写后优先用槽位。</span></label>
-      <label>次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
-      <label>鼠标键
+      <label data-action-types="wait,useItem,waitWindow,clickSlot,findEntity">延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口用作最长等待。</span></label>
+      <label data-action-types="switchSlot">快捷栏 1-9<input class="lobby-action-hotbar" type="number" min="1" max="9" placeholder="例如：1"><span class="field-note">切换快捷栏动作使用。</span></label>
+      <label data-action-types="waitWindow,clickSlot">窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
+      <label data-action-types="clickSlot">行<input class="lobby-action-row" type="number" min="1" max="6" placeholder="3"><span class="field-note">箱子菜单行号，从 1 开始。</span></label>
+      <label data-action-types="clickSlot">列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
+      <label data-action-types="clickSlot,moveSlot">来源槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">菜单点击可填写槽位；背包移动时填写来源槽位。</span></label>
+      <label data-action-types="useItem,clickSlot">次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
+      <label data-action-types="useItem,clickSlot">鼠标键
         <select class="lobby-action-button">
           <option value="right">右键</option>
           <option value="left">左键</option>
         </select>
         <span class="field-note">点击菜单槽位时可选左键或右键；使用物品默认右键。</span>
       </label>
+      <label data-action-types="relativeWalk">方向
+        <select class="lobby-action-direction">
+          <option value="forward">当前朝向前方</option>
+          <option value="back">当前朝向后方</option>
+          <option value="left">当前朝向左侧</option>
+          <option value="right">当前朝向右侧</option>
+          <option value="north">北 / Z-</option>
+          <option value="south">南 / Z+</option>
+          <option value="east">东 / X+</option>
+          <option value="west">西 / X-</option>
+        </select>
+        <span class="field-note">按方向前进动作使用。</span>
+      </label>
+      <label data-action-types="relativeWalk,findEntity">距离/范围<input class="lobby-action-distance" type="number" min="0" step="0.5" placeholder="10"><span class="field-note">前进距离或寻找实体后的靠近范围。</span></label>
+      <label data-action-types="findEntity">实体/NPC 名<input class="lobby-action-entity" placeholder="例如：商店"><span class="field-note">按客户端收到的实体名称模糊匹配。</span></label>
+      <label data-action-types="findEntity">交互方式
+        <select class="lobby-action-interact">
+          <option value="approach">只靠近</option>
+          <option value="right">靠近后右键</option>
+          <option value="left">靠近后左键</option>
+        </select>
+        <span class="field-note">寻找实体/NPC 动作使用。</span>
+      </label>
+      <label data-action-types="moveSlot">目标槽位<input class="lobby-action-to-slot" type="number" min="0" placeholder="21"><span class="field-note">移动背包槽位时的放置位置。</span></label>
+      <label data-action-types="chat">聊天/指令<input class="lobby-action-message" placeholder="/spawn 或 普通聊天"><span class="field-note">动作序列执行到这里时发送。</span></label>
       <label class="switch"><input class="lobby-action-enabled" type="checkbox">启用</label>
       <button class="danger small remove-lobby-action" type="button">删除</button>
     </article>
