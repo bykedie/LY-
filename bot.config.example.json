@@ -91,6 +91,7 @@
           "entity": "商店",
           "range": 2,
           "interact": "right",
+          "responseTimeoutMs": 4500,
           "enabled": false
         },
         {

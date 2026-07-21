@@ -93,18 +93,20 @@ try {
   assert(page.includes('<select class="lobby-action-entity">'), '寻找实体/NPC 没有使用扫描结果下拉框');
   assert(page.includes('<select class="lobby-action-item">'), '弹窗按钮没有使用协议窗口下拉框');
   assert(page.includes('class="lobby-action-key"'), '按下按键动作缺少按键输入框');
+  assert(page.includes('class="lobby-action-response-timeout"'), '寻找 NPC 动作缺少交互响应等待参数');
 
   const appScript = await requestText('/app.js');
   assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
+  assert(appScript.includes('最近模组界面：'), '前端没有显示最近检测到的模组界面协议');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
 
   const managerScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'ly-afk-manager.sh'), 'utf8');
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
-  assert(managerScript.includes('v1.0.30'), '管理脚本版本没有更新到 v1.0.30');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.30"'), '启动脚本期望版本没有更新到 v1.0.30');
+  assert(managerScript.includes('v1.0.31'), '管理脚本版本没有更新到 v1.0.31');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.31"'), '启动脚本期望版本没有更新到 v1.0.31');
   assert(managerScript.includes('start_or_restart_dashboard_service'), '管理脚本缺少按 .env 重新载入 PM2 的入口');
   assert(managerScript.includes('15. 修复公网 IP + 端口访问'), '管理脚本缺少公网端口修复菜单');
   assert(managerScript.includes('set_env_value "DASHBOARD_HOST" "0.0.0.0"'), '公网端口修复没有设置 0.0.0.0 监听');

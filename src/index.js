@@ -426,10 +426,14 @@ function createBot(account) {
       schedulerTimers: [],
       lobbyTimer: null,
       lastWindow: null,
+      lastWindowOpenedAt: 0,
       windowLogTimer: null,
       lastWindowLogSignature: '',
       recentMessages: [],
       chatButtons: [],
+      protocolDialogs: [],
+      lastProtocolDialogSignature: '',
+      lastProtocolDialogAt: 0,
       chatQueue: [],
       chatQueueTimer: null,
       lastChatAt: 0,
@@ -449,11 +453,15 @@ function createBot(account) {
   clearTimeout(session.reconnectTimer);
   session.reconnecting = false;
   session.lastWindow = null;
+  session.lastWindowOpenedAt = 0;
   clearTimeout(session.windowLogTimer);
   session.windowLogTimer = null;
   session.lastWindowLogSignature = '';
   session.recentMessages = [];
   session.chatButtons = [];
+  session.protocolDialogs = [];
+  session.lastProtocolDialogSignature = '';
+  session.lastProtocolDialogAt = 0;
 
   const options = {
     host: ACTIVE_CONFIG.host,
@@ -499,8 +507,13 @@ function createBot(account) {
     handleServerMessage(account, text);
   });
 
+  session.bot._client.on('custom_payload', (packet) => {
+    recordProtocolPayload(account.username, session, packet);
+  });
+
   session.bot.on('windowOpen', (window) => {
     session.lastWindow = window;
+    session.lastWindowOpenedAt = Date.now();
     session.lastWindowLogSignature = '';
     logWindowContents(account.username, session, window);
     window.on('updateSlot', () => scheduleWindowContents(account.username, session, window));
@@ -1092,6 +1105,7 @@ async function runFindEntityAction(username, action, index) {
   await sleep(Math.max(0, Number(action.delayMs) || 0));
 
   if (action.interact === 'right' || action.interact === 'left') {
+    const responseMarker = createInteractionResponseMarker(session);
     const targetHeight = Math.max(0.5, Number(interactionEntity.height) || 1.8);
     await bot.lookAt(interactionEntity.position.offset(0, targetHeight * 0.65, 0), true);
     await sleep(80);
@@ -1102,8 +1116,49 @@ async function runFindEntityAction(username, action, index) {
       await bot.attack(interactionEntity);
       log(username, `大厅动作 ${index}：已朝向并左键交互 ${getEntityLabel(interactionEntity)}`);
     }
-    await sleep(250);
+    const responseTimeoutMs = action.responseTimeoutMs === 0
+      ? 0
+      : Math.max(100, Math.min(15000, Number(action.responseTimeoutMs) || 4500));
+    if (responseTimeoutMs > 0) {
+      await waitForInteractionResponse(username, session, responseMarker, responseTimeoutMs);
+    }
   }
+}
+
+function createInteractionResponseMarker(session) {
+  return {
+    window: session?.bot?.currentWindow || session?.lastWindow || null,
+    windowOpenedAt: session?.lastWindowOpenedAt || 0,
+    chatButtonAt: session?.chatButtons?.at(-1)?.at || 0,
+    protocolDialogAt: session?.protocolDialogs?.at(-1)?.at || 0
+  };
+}
+
+async function waitForInteractionResponse(username, session, marker, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    const window = session?.bot?.currentWindow || session?.lastWindow || null;
+    if (window && (window !== marker.window || (session.lastWindowOpenedAt || 0) > marker.windowOpenedAt)) {
+      log(username, `NPC 交互响应：检测到窗口 ${getWindowTitle(window) || '未命名窗口'}，正在读取菜单内容。`);
+      return { type: 'window', window };
+    }
+
+    const chatButton = session?.chatButtons?.findLast((item) => item.at > marker.chatButtonAt);
+    if (chatButton) {
+      log(username, `NPC 交互响应：检测到聊天按钮 ${chatButton.label}。`);
+      return { type: 'chatButton', chatButton };
+    }
+
+    const protocolDialog = session?.protocolDialogs?.findLast((item) => item.at > marker.protocolDialogAt);
+    if (protocolDialog) {
+      log(username, `NPC 交互响应：检测到模组界面协议 ${protocolDialog.channel}${protocolDialog.packetType ? ` / ${protocolDialog.packetType}` : ''}。`);
+      return { type: 'protocolDialog', protocolDialog };
+    }
+    await sleep(100);
+  }
+
+  log(username, `NPC 交互响应：${timeoutMs}ms 内未检测到标准菜单、聊天按钮或可见模组界面协议；实体点击指令已经发送。`);
+  return null;
 }
 
 async function runPressKeyAction(username, action, index) {
@@ -1362,7 +1417,8 @@ function emitWindowSnapshot(username) {
     position: getPositionSnapshot(session),
     entities: getEntitySnapshot(session),
     messages: getMessageSnapshot(session),
-    chatButtons: getChatButtonSnapshot(session)
+    chatButtons: getChatButtonSnapshot(session),
+    protocolDialogs: getProtocolDialogSnapshot(session)
   });
 }
 
@@ -1372,6 +1428,10 @@ function getMessageSnapshot(session) {
 
 function getChatButtonSnapshot(session) {
   return (session?.chatButtons || []).slice(-20).map((item) => ({ ...item }));
+}
+
+function getProtocolDialogSnapshot(session) {
+  return (session?.protocolDialogs || []).slice(-20).map((item) => ({ ...item }));
 }
 
 function getPositionSnapshot(session) {
@@ -1658,6 +1718,87 @@ function collectChatButtons(component, output, fallbackLabel = '') {
 
   collectChatButtons(component.extra, output, fallbackLabel);
   collectChatButtons(component.with, output, fallbackLabel);
+}
+
+const CUSTOM_NPCS_CLIENT_PACKETS = [
+  'CHAT', 'MESSAGE', 'DIALOG', 'QUEST_COMPLETION', 'EDIT_NPC', 'PLAY_SOUND', 'PLAY_MUSIC', 'UPDATE_NPC',
+  'ROLE', 'GUI', 'PARTICLE', 'DELETE_NPC', 'SCROLL_LIST', 'SCROLL_DATA', 'SCROLL_DATA_PART', 'SCROLL_SELECTED',
+  'GUI_DATA', 'GUI_ERROR', 'GUI_CLOSE', 'VILLAGER_LIST', 'CHATBUBBLE', 'CLONE', 'DIALOG_DUMMY', 'CONFIG',
+  'EYE_BLINK', 'SYNC_ADD', 'SYNC_END', 'SYNC_UPDATE', 'SYNC_REMOVE', 'MARK_DATA', 'UPDATE_ITEM', 'GUI_UPDATE',
+  'CHEST_NAME'
+];
+
+const CUSTOM_NPCS_DIALOG_PACKETS = new Set([
+  'DIALOG', 'DIALOG_DUMMY', 'GUI', 'GUI_DATA', 'SCROLL_LIST', 'SCROLL_DATA', 'SCROLL_DATA_PART',
+  'SCROLL_SELECTED', 'VILLAGER_LIST', 'GUI_UPDATE', 'CHEST_NAME'
+]);
+
+function recordProtocolPayload(username, session, packet) {
+  const channel = String(packet?.channel || packet?.channelName || '').trim();
+  if (!channel) return;
+
+  let data;
+  try {
+    data = Buffer.isBuffer(packet.data) ? packet.data : Buffer.from(packet.data || []);
+  } catch {
+    return;
+  }
+
+  const text = extractProtocolPayloadText(data);
+  const signal = parseKnownProtocolDialog(channel, data);
+  const likelyUiChannel = /(npc|dialog|gui|menu|quest|screen)/i.test(channel);
+  if (!signal && !likelyUiChannel && !/[\u3400-\u9fff]/u.test(text)) return;
+  if (signal?.packetType && !CUSTOM_NPCS_DIALOG_PACKETS.has(signal.packetType) && !text) return;
+
+  const now = Date.now();
+  const item = {
+    channel,
+    packetType: signal?.packetType || '自定义载荷',
+    entityId: signal?.entityId ?? null,
+    dialogId: signal?.dialogId ?? null,
+    text,
+    size: data.length,
+    at: now
+  };
+  const signature = JSON.stringify([item.channel, item.packetType, item.entityId, item.dialogId, item.text]);
+  const duplicate = signature === session.lastProtocolDialogSignature && now - session.lastProtocolDialogAt < 1000;
+  session.lastProtocolDialogSignature = signature;
+  session.lastProtocolDialogAt = now;
+  session.protocolDialogs = (session.protocolDialogs || []).filter((entry) => entry.signature !== signature);
+  session.protocolDialogs.push({ ...item, signature });
+  session.protocolDialogs = session.protocolDialogs.slice(-20);
+  emitWindowSnapshot(username);
+  if (duplicate) return;
+
+  if (item.packetType === 'DIALOG') {
+    log(username, `模组对话协议 [${channel}]：实体 ID ${item.entityId}，对话 ID ${item.dialogId}。这是 CustomNPCs 客户端对话，不是背包槽位窗口；协议只提供编号，按钮文字来自客户端模组同步数据。`);
+    return;
+  }
+  const content = text ? `；内容片段：${text}` : '';
+  log(username, `模组界面协议 [${channel}]：${item.packetType}，${item.size} 字节${content}`);
+}
+
+function parseKnownProtocolDialog(channel, data) {
+  if (channel.toLowerCase() !== 'customnpcs' || data.length < 4) return null;
+  const packetIndex = data.readInt32BE(0);
+  const packetType = CUSTOM_NPCS_CLIENT_PACKETS[packetIndex] || `UNKNOWN_${packetIndex}`;
+  const result = { packetType };
+  if (packetType === 'DIALOG' && data.length >= 12) {
+    result.entityId = data.readInt32BE(4);
+    result.dialogId = data.readInt32BE(8);
+  }
+  return result;
+}
+
+function extractProtocolPayloadText(data) {
+  if (!data.length) return '';
+  const text = data.toString('utf8')
+    .replace(/\uFFFD/g, ' ')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text || (!/[\u3400-\u9fff]/u.test(text) && !/[a-z]{4,}/i.test(text))) return '';
+  return text.slice(0, 300);
 }
 
 function getChatComponentText(component) {

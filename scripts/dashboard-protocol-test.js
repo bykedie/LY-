@@ -69,6 +69,8 @@ try {
   assert(protocolSnapshot.position?.x === 1 && protocolSnapshot.position?.y === 64, '协议快照没有返回当前坐标');
   assert(protocolSnapshot.messages.some((item) => item.text.includes('领取奖励')), '协议快照没有返回最近聊天内容');
   assert(protocolSnapshot.chatButtons.some((item) => item.value === '/daily-reward'), '协议快照没有识别聊天 clickEvent 按钮');
+  assert(protocolSnapshot.protocolDialogs.some((item) => item.packetType === 'DIALOG' && item.dialogId === 77), '协议快照没有识别 CustomNPCs 对话协议');
+  await waitForDashboardLog('模组对话协议 [CustomNPCs]：实体 ID 9102，对话 ID 77');
   assert(protocolSnapshot.window?.title === '选择服务器', '协议快照没有返回 NPC 交互窗口标题');
   assert(protocolSnapshot.window?.slots[11]?.displayName === '进入一号服务器', '协议快照没有解析菜单物品名称');
   assert(protocolSnapshot.window?.slots[11]?.lore.includes('点击进入'), '协议快照没有解析菜单 Lore 提示');
@@ -82,24 +84,28 @@ try {
   assert(!menuLogs.includes('玩家背包测试物品'), '运行日志不应把玩家背包物品当成 NPC 菜单项');
 
   const rightInteractionStart = receivedEntityInteractions.length;
-  await requestJson('/api/lobby/action', {
+  const delayedWindowResult = await requestJson('/api/lobby/action', {
     method: 'POST',
     body: JSON.stringify({
       target: 'DashboardBotA',
-      action: { type: 'findEntity', entity: 'zombie', entityId: 9102, range: 2, interact: 'right', enabled: true }
+      action: { type: 'findEntity', entity: 'zombie', entityId: 9102, range: 2, interact: 'right', responseTimeoutMs: 2500, enabled: true }
     })
   });
   await waitForEntityInteraction(rightInteractionStart, 9102, [0, 2]);
+  assert(delayedWindowResult.window?.title === '邀请系统', 'NPC 交互后延迟打开的标准菜单没有被动作回执捕获');
+  assert(delayedWindowResult.window?.slots[13]?.displayName === '邀请好友', '延迟打开的邀请系统菜单内容没有被解析');
+  await waitForDashboardLog('窗口按钮/菜单项 [邀请系统] 2：槽位 13；邀请好友 x1；提示：点击选择在线玩家');
 
   const leftInteractionStart = receivedEntityInteractions.length;
-  await requestJson('/api/lobby/action', {
+  const restoredWindowResult = await requestJson('/api/lobby/action', {
     method: 'POST',
     body: JSON.stringify({
       target: 'DashboardBotA',
-      action: { type: 'findEntity', entity: 'zombie', entityId: 9102, range: 2, interact: 'left', enabled: true }
+      action: { type: 'findEntity', entity: 'zombie', entityId: 9102, range: 2, interact: 'left', responseTimeoutMs: 1500, enabled: true }
     })
   });
   await waitForEntityInteraction(leftInteractionStart, 9102, [1]);
+  assert(restoredWindowResult.window?.title === '选择服务器', '左键实体交互后没有捕获重新打开的标准菜单');
 
   const windowClickStart = receivedWindowClicks.length;
   const operateWindowResult = await requestJson('/api/lobby/action', {
@@ -332,6 +338,8 @@ function createMinecraftServer(port) {
 
   server.on('playerJoin', (client) => {
     const username = getClientUsername(client);
+    let inviteMenuQueued = false;
+    let selectMenuQueued = false;
     joinedUsers.push(username);
 
     client.write('login', {
@@ -398,6 +406,15 @@ function createMinecraftServer(port) {
     });
     client.on('use_entity', (packet) => {
       receivedEntityInteractions.push({ username, packet });
+      if (username !== 'DashboardBotA' || packet.target !== 9102) return;
+      if ([0, 2].includes(packet.mouse) && !inviteMenuQueued) {
+        inviteMenuQueued = true;
+        setTimeout(() => sendInviteMenu(client), 700);
+      }
+      if (packet.mouse === 1 && !selectMenuQueued) {
+        selectMenuQueued = true;
+        setTimeout(() => sendNpcMenu(client, 3), 250);
+      }
     });
 
     setTimeout(() => sendSystemChat(client, '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'), 250);
@@ -407,6 +424,7 @@ function createMinecraftServer(port) {
     setTimeout(() => sendInteractiveSystemChat(client), 1200);
     if (username === 'DashboardBotA') {
       setTimeout(() => sendTestEntities(client), 900);
+      setTimeout(() => sendCustomNpcsDialog(client), 1400);
       setTimeout(() => sendNpcMenu(client), 1600);
     }
   });
@@ -479,16 +497,37 @@ function sendLivingEntity(client, entityId, entityName, x) {
   });
 }
 
-function sendNpcMenu(client) {
+function sendNpcMenu(client, windowId = 1) {
   const items = Array.from({ length: 63 }, () => Item.toNotch(null));
   items[11] = createNamedItem('paper', '进入一号服务器', ['点击进入', '当前 12 人']);
   items[30] = createNamedItem('stone', '玩家背包测试物品', []);
   client.write('open_window', {
-    windowId: 1,
+    windowId,
     inventoryType: 2,
     windowTitle: JSON.stringify({ text: '选择服务器' })
   });
-  client.write('window_items', { windowId: 1, items });
+  client.write('window_items', { windowId, items });
+}
+
+function sendInviteMenu(client) {
+  const items = Array.from({ length: 63 }, () => Item.toNotch(null));
+  items[10] = createNamedItem('paper', '邀请记录', ['查看最近邀请']);
+  items[13] = createNamedItem('compass', '邀请好友', ['点击选择在线玩家']);
+  items[16] = createNamedItem('gold_ingot', '邀请奖励', ['领取邀请奖励']);
+  client.write('open_window', {
+    windowId: 2,
+    inventoryType: 2,
+    windowTitle: JSON.stringify({ text: '邀请系统' })
+  });
+  client.write('window_items', { windowId: 2, items });
+}
+
+function sendCustomNpcsDialog(client) {
+  const data = Buffer.alloc(12);
+  data.writeInt32BE(2, 0);
+  data.writeInt32BE(9102, 4);
+  data.writeInt32BE(77, 8);
+  client.write('custom_payload', { channel: 'CustomNPCs', data });
 }
 
 function createNamedItem(itemName, displayName, lore) {

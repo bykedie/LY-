@@ -402,6 +402,7 @@ function validateLobbyActions(actions) {
     if (action.enabled !== undefined) requireBoolean(action.enabled, `第 ${index + 1} 个大厅动作启用开关`);
     if (action.delayMs !== undefined) requireNumber(action.delayMs, `第 ${index + 1} 个大厅动作延迟`, { min: 0 });
     if (action.timeoutMs !== undefined) requireNumber(action.timeoutMs, `第 ${index + 1} 个大厅动作超时`, { min: 100 });
+    if (action.responseTimeoutMs !== undefined) requireNumber(action.responseTimeoutMs, `第 ${index + 1} 个大厅动作交互响应等待`, { min: 0, max: 15000 });
     if (action.hotbarSlot !== undefined) requireNumber(action.hotbarSlot, `第 ${index + 1} 个大厅动作快捷栏`, { min: 1, max: 9, integer: true });
     if (action.count !== undefined) requireNumber(action.count, `第 ${index + 1} 个大厅动作次数`, { min: 1, integer: true });
     if (action.distance !== undefined) requireNumber(action.distance, `第 ${index + 1} 个大厅动作距离`, { min: 0 });
@@ -556,7 +557,8 @@ function handleBotEventLine(line) {
         position: event.position || null,
         entities: Array.isArray(event.entities) ? event.entities : [],
         messages: Array.isArray(event.messages) ? event.messages : [],
-        chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : []
+        chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : [],
+        protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : []
       });
     }
     if (event.type === 'lobbyActionResult' && event.requestId) {
@@ -633,10 +635,10 @@ async function requestWindowSnapshot(target) {
   sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
   const deadline = Date.now() + 800;
   while (Date.now() < deadline) {
-    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [] };
+    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [] };
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  return { window: null, position: null, entities: [], messages: [], chatButtons: [] };
+  return { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [] };
 }
 
 function createLobbyActionRequestId() {
@@ -650,6 +652,7 @@ function getLobbyActionTimeout(action) {
   const requestedMs = Math.max(
     Number(action?.delayMs) || 0,
     Number(action?.timeoutMs) || 0,
+    Number(action?.responseTimeoutMs) || 0,
     Number(action?.durationMs) || 0,
     movementEstimateMs
   );

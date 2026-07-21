@@ -583,6 +583,7 @@
         </select>
         <span class="field-note">到达范围后先面向目标，再通过协议发送左键或右键实体交互。</span>
       </label>
+      <label data-action-types="findEntity">交互响应等待 ms<input class="lobby-action-response-timeout" type="number" min="0" max="15000" placeholder="4500"><span class="field-note">点击 NPC 后等待菜单、聊天按钮或模组界面协议出现；填 0 表示不等待。</span></label>
       <label data-action-types="pressKey">按键<input class="lobby-action-key" placeholder="W / A / S / D / Space / Shift / Ctrl"><span class="field-note">支持移动控制键及中文名称，例如 W、空格、左移、潜行。</span></label>
       <label data-action-types="pressKey">按住时间 ms<input class="lobby-action-key-duration" type="number" min="50" max="60000" placeholder="500"><span class="field-note">按键保持时间，范围 50-60000ms。</span></label>
       <label data-action-types="moveSlot">目标槽位<input class="lobby-action-to-slot" type="number" min="0" placeholder="21"><span class="field-note">移动背包槽位时的放置位置。</span></label>

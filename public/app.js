@@ -644,6 +644,7 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-distance').value = action.distance ?? action.range ?? '';
   populateEntitySelect(card.querySelector('.lobby-action-entity'), action.entity || '');
   card.querySelector('.lobby-action-interact').value = action.interact || 'approach';
+  card.querySelector('.lobby-action-response-timeout').value = action.responseTimeoutMs ?? '';
   card.querySelector('.lobby-action-key').value = action.key || '';
   card.querySelector('.lobby-action-key-duration').value = action.durationMs ?? '';
   card.querySelector('.lobby-action-to-slot').value = action.toSlot ?? '';
@@ -729,6 +730,8 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
     action.entity = select.value.trim();
     action.interact = card.querySelector('.lobby-action-interact').value;
     action.range = Number(card.querySelector('.lobby-action-distance').value) || 2;
+    const responseTimeoutMs = card.querySelector('.lobby-action-response-timeout').value;
+    if (responseTimeoutMs !== '') action.responseTimeoutMs = Number(responseTimeoutMs);
     const entityId = Number(select.selectedOptions[0]?.dataset.entityId);
     if (includeRuntimeReference && Number.isInteger(entityId)) action.entityId = entityId;
   }
@@ -830,7 +833,7 @@ async function refreshWindowSnapshot() {
   }
 
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
-  renderWindowSnapshot(data.window);
+  renderWindowSnapshot(data.window, data.protocolDialogs || []);
   renderPositionSnapshot(data.position, data.entities || []);
   setWindowSnapshotCollapsed(false);
 }
@@ -889,7 +892,7 @@ function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '-';
 }
 
-function renderWindowSnapshot(windowSnapshot) {
+function renderWindowSnapshot(windowSnapshot, protocolDialogs = []) {
   const title = $('#windowSnapshotTitle');
   const grid = $('#windowGrid');
   if (!title || !grid) return;
@@ -897,7 +900,16 @@ function renderWindowSnapshot(windowSnapshot) {
   state.windowItems = [];
   grid.innerHTML = '';
   if (!windowSnapshot) {
-    title.textContent = '当前交互窗口：没有检测到已打开的窗口';
+    const protocolDialog = protocolDialogs.at(-1);
+    if (protocolDialog) {
+      const ids = [
+        Number.isInteger(protocolDialog.entityId) ? `实体 ID ${protocolDialog.entityId}` : '',
+        Number.isInteger(protocolDialog.dialogId) ? `对话 ID ${protocolDialog.dialogId}` : ''
+      ].filter(Boolean).join('，');
+      title.textContent = `最近模组界面：${protocolDialog.channel}${protocolDialog.packetType ? ` / ${protocolDialog.packetType}` : ''}${ids ? `（${ids}）` : ''}`;
+    } else {
+      title.textContent = '当前交互窗口：没有检测到已打开的窗口';
+    }
     document.querySelectorAll('.lobby-action-item').forEach((select) => (
       populateWindowItemSelect(select, select.value, select.selectedOptions[0]?.dataset.slot)
     ));
@@ -1009,7 +1021,7 @@ async function executeLobbyAction(card) {
       method: 'POST',
       body: JSON.stringify({ target, action: readLobbyActionCard(card, { includeRuntimeReference: true }) })
     });
-    renderWindowSnapshot(data.window);
+    renderWindowSnapshot(data.window, data.protocolDialogs || []);
     renderPositionSnapshot(data.position, data.entities || []);
     setWindowSnapshotCollapsed(false);
     showToast(`步骤已在 ${target} 执行完成，坐标和窗口已刷新`);
