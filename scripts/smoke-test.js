@@ -82,7 +82,8 @@ try {
   assert(page.includes('positionSnapshotTitle'), '大厅功能缺少当前坐标显示');
   assert(page.includes('entitySnapshotTitle'), '大厅功能缺少附近实体显示');
   assert(page.includes('entitySnapshotList'), '大厅功能缺少编号实体列表');
-  assert(page.includes('windowContentList'), '大厅功能缺少 NPC 弹窗可读内容列表');
+  assert(page.includes('windowGrid'), '大厅功能缺少 NPC 弹窗槽位列表');
+  assert(!page.includes('windowContentList'), '大厅功能不应重复显示两套 NPC 弹窗内容');
   assert(!page.includes('chatMessageSnapshot'), '大厅功能不应继续显示最近对话');
   assert(page.includes('windowSnapshotToggle'), '大厅功能缺少协议快照收放按钮');
   assert(page.includes('saveAutomationBtn'), '大厅功能缺少自动化方案保存按钮');
@@ -95,8 +96,8 @@ try {
 
   const managerScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'ly-afk-manager.sh'), 'utf8');
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
-  assert(managerScript.includes('v1.0.28'), '管理脚本版本没有更新到 v1.0.28');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.28"'), '启动脚本期望版本没有更新到 v1.0.28');
+  assert(managerScript.includes('v1.0.29'), '管理脚本版本没有更新到 v1.0.29');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.29"'), '启动脚本期望版本没有更新到 v1.0.29');
   assert(managerScript.includes('start_or_restart_dashboard_service'), '管理脚本缺少按 .env 重新载入 PM2 的入口');
   assert(managerScript.includes('15. 修复公网 IP + 端口访问'), '管理脚本缺少公网端口修复菜单');
   assert(managerScript.includes('set_env_value "DASHBOARD_HOST" "0.0.0.0"'), '公网端口修复没有设置 0.0.0.0 监听');

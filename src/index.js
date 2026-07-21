@@ -426,6 +426,8 @@ function createBot(account) {
       schedulerTimers: [],
       lobbyTimer: null,
       lastWindow: null,
+      windowLogTimer: null,
+      lastWindowLogSignature: '',
       recentMessages: [],
       chatButtons: [],
       chatQueue: [],
@@ -446,6 +448,9 @@ function createBot(account) {
   clearTimeout(session.reconnectTimer);
   session.reconnecting = false;
   session.lastWindow = null;
+  clearTimeout(session.windowLogTimer);
+  session.windowLogTimer = null;
+  session.lastWindowLogSignature = '';
   session.recentMessages = [];
   session.chatButtons = [];
 
@@ -495,12 +500,17 @@ function createBot(account) {
 
   session.bot.on('windowOpen', (window) => {
     session.lastWindow = window;
-    log(account.username, `窗口打开：${getWindowTitle(window) || '未命名窗口'}`);
+    session.lastWindowLogSignature = '';
+    logWindowContents(account.username, session, window);
+    window.on('updateSlot', () => scheduleWindowContents(account.username, session, window));
     emitWindowSnapshot(account.username);
   });
 
   session.bot.on('windowClose', () => {
+    clearTimeout(session.windowLogTimer);
+    session.windowLogTimer = null;
     session.lastWindow = null;
+    session.lastWindowLogSignature = '';
     emitWindowSnapshot(account.username);
   });
 
@@ -1288,6 +1298,7 @@ function getEntitySnapshot(session) {
 
   return Object.values(bot.entities || {})
     .filter((entity) => entity && entity !== bot.entity && entity.position)
+    .filter((entity) => !isArmorStandEntity(entity))
     .map((entity) => ({
       id: entity.id,
       type: entity.type || '',
@@ -1302,6 +1313,12 @@ function getEntitySnapshot(session) {
     .slice(0, 30);
 }
 
+function isArmorStandEntity(entity) {
+  return [entity?.name, entity?.displayName, entity?.type]
+    .map((value) => getEntityText(value).replace(/[\s_-]/g, '').toLowerCase())
+    .includes('armorstand');
+}
+
 function getWindowSnapshot(session) {
   const window = session?.bot?.currentWindow || session?.lastWindow;
   if (!window) return null;
@@ -1312,6 +1329,48 @@ function getWindowSnapshot(session) {
     inventoryStart: Number.isInteger(window.inventoryStart) ? window.inventoryStart : null,
     slots: (window.slots || []).map((item, slot) => serializeWindowSlot(slot, item))
   };
+}
+
+function getWindowMenuItems(window) {
+  if (!window) return [];
+  const slots = window.slots || [];
+  const inventoryStart = Number.isInteger(window.inventoryStart) ? window.inventoryStart : slots.length;
+  return slots
+    .map((item, slot) => serializeWindowSlot(slot, item))
+    .filter((item) => item.item && item.slot < inventoryStart);
+}
+
+function scheduleWindowContents(username, session, window) {
+  clearTimeout(session.windowLogTimer);
+  session.windowLogTimer = setTimeout(() => {
+    session.windowLogTimer = null;
+    if (session.lastWindow !== window) return;
+    logWindowContents(username, session, window);
+    emitWindowSnapshot(username);
+  }, 150);
+}
+
+function logWindowContents(username, session, window) {
+  const title = getWindowTitle(window) || '未命名窗口';
+  const items = getWindowMenuItems(window);
+  const signature = JSON.stringify({
+    title,
+    items: items.map((item) => [item.slot, item.name, item.displayName, item.count, item.lore])
+  });
+  if (signature === session.lastWindowLogSignature) return;
+  session.lastWindowLogSignature = signature;
+
+  log(username, `交互窗口：${title}，检测到 ${items.length} 个非空菜单项。`);
+  if (items.length === 0) {
+    log(username, '交互窗口内容：没有收到可显示的文字、提示或物品按钮。');
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const name = item.displayName || item.name || '未命名物品';
+    const lore = item.lore.length ? `；提示：${item.lore.join(' / ')}` : '';
+    log(username, `窗口按钮/菜单项 ${index + 1}：槽位 ${item.slot}；${name} x${item.count}${lore}`);
+  });
 }
 
 function serializeWindowSlot(slot, item) {

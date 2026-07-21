@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const mc = require('minecraft-protocol');
 const mcData = require('minecraft-data')('1.16.4');
 const Chunk = require('prismarine-chunk')('1.16.4');
+const Item = require('prismarine-item')('1.16.4');
 const Vec3 = require('vec3');
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-dashboard-'));
@@ -60,10 +61,21 @@ try {
   await waitForMessageFrom('DashboardBotA', '/daily-reward');
   await waitForMessageFrom('DashboardBotB', '/daily-reward');
   await waitForDashboardLog('§a§l彩色提示');
+  await waitForDashboardLog('交互窗口：选择服务器');
   const protocolSnapshot = await requestJson('/api/window?target=DashboardBotA');
   assert(protocolSnapshot.position?.x === 1 && protocolSnapshot.position?.y === 64, '协议快照没有返回当前坐标');
   assert(protocolSnapshot.messages.some((item) => item.text.includes('领取奖励')), '协议快照没有返回最近聊天内容');
   assert(protocolSnapshot.chatButtons.some((item) => item.value === '/daily-reward'), '协议快照没有识别聊天 clickEvent 按钮');
+  assert(protocolSnapshot.window?.title === '选择服务器', '协议快照没有返回 NPC 交互窗口标题');
+  assert(protocolSnapshot.window?.slots[11]?.displayName === '进入一号服务器', '协议快照没有解析菜单物品名称');
+  assert(protocolSnapshot.window?.slots[11]?.lore.includes('点击进入'), '协议快照没有解析菜单 Lore 提示');
+  const visibleEntityText = protocolSnapshot.entities.map((entity) => `${entity.name} ${entity.type}`).join(' | ').toLowerCase();
+  assert(visibleEntityText.includes('zombie'), `协议快照没有保留普通实体：${visibleEntityText}`);
+  assert(!visibleEntityText.replace(/[\s_-]/g, '').includes('armorstand'), '协议快照没有过滤 Armor Stand');
+  const menuLogStatus = await requestJson('/api/status');
+  const menuLogs = menuLogStatus.logs.join('\n');
+  assert(menuLogs.includes('窗口按钮/菜单项 1：槽位 11；进入一号服务器 x1；提示：点击进入 / 当前 12 人'), '运行日志缺少 NPC 菜单文字和提示');
+  assert(!menuLogs.includes('玩家背包测试物品'), '运行日志不应把玩家背包物品当成 NPC 菜单项');
 
   await requestJson('/api/send', {
     method: 'POST',
@@ -323,6 +335,10 @@ function createMinecraftServer(port) {
     setTimeout(() => sendPlayerChat(client, 'Tester', 'ping'), 500);
     setTimeout(() => sendColoredSystemChat(client), 700);
     setTimeout(() => sendInteractiveSystemChat(client), 1200);
+    if (username === 'DashboardBotA') {
+      setTimeout(() => sendTestEntities(client), 900);
+      setTimeout(() => sendNpcMenu(client), 1600);
+    }
   });
 
   return server;
@@ -371,6 +387,59 @@ function sendInteractiveSystemChat(client) {
     position: 0,
     sender: '00000000-0000-0000-0000-000000000003'
   });
+}
+
+function sendTestEntities(client) {
+  sendLivingEntity(client, 9101, 'armor_stand', 2);
+  sendLivingEntity(client, 9102, 'zombie', 3);
+}
+
+function sendLivingEntity(client, entityId, entityName, x) {
+  client.write('spawn_entity_living', {
+    entityId,
+    entityUUID: `00000000-0000-0000-0000-${String(entityId).padStart(12, '0')}`,
+    type: mcData.entitiesByName[entityName].id,
+    x,
+    y: 64,
+    z: 1,
+    yaw: 0,
+    pitch: 0,
+    headPitch: 0,
+    velocity: { x: 0, y: 0, z: 0 }
+  });
+}
+
+function sendNpcMenu(client) {
+  const items = Array.from({ length: 63 }, () => Item.toNotch(null));
+  items[11] = createNamedItem('paper', '进入一号服务器', ['点击进入', '当前 12 人']);
+  items[30] = createNamedItem('stone', '玩家背包测试物品', []);
+  client.write('open_window', {
+    windowId: 1,
+    inventoryType: 2,
+    windowTitle: JSON.stringify({ text: '选择服务器' })
+  });
+  client.write('window_items', { windowId: 1, items });
+}
+
+function createNamedItem(itemName, displayName, lore) {
+  const item = new Item(mcData.itemsByName[itemName].id, 1, 0);
+  item.nbt = {
+    type: 'compound',
+    name: '',
+    value: {
+      display: {
+        type: 'compound',
+        value: {
+          Name: { type: 'string', value: JSON.stringify({ text: displayName }) },
+          Lore: {
+            type: 'list',
+            value: { type: 'string', value: lore.map((text) => JSON.stringify({ text })) }
+          }
+        }
+      }
+    }
+  };
+  return Item.toNotch(item);
 }
 
 function sendPlayerChat(client, username, text) {

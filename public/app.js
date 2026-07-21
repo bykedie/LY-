@@ -847,11 +847,11 @@ function renderPositionSnapshot(position, entities = []) {
       ? `当前坐标：X ${formatNumber(position.x)} / Y ${formatNumber(position.y)} / Z ${formatNumber(position.z)}`
       : '当前坐标：未读取';
   }
-  state.nearbyEntities = entities;
-  if (entityTitle) entityTitle.textContent = entities.length ? `附近实体：检测到 ${entities.length} 个` : '附近实体：未读取到可见实体';
+  state.nearbyEntities = entities.filter((entity) => !isArmorStandSnapshot(entity));
+  if (entityTitle) entityTitle.textContent = state.nearbyEntities.length ? `附近实体：检测到 ${state.nearbyEntities.length} 个` : '附近实体：未读取到可见实体';
   if (entityList) {
     entityList.innerHTML = '';
-    entities.forEach((entity, index) => {
+    state.nearbyEntities.forEach((entity, index) => {
       const name = entity.name || entity.username || entity.type || `ID ${entity.id}`;
       const button = document.createElement('button');
       button.className = 'entity-snapshot-item';
@@ -862,6 +862,11 @@ function renderPositionSnapshot(position, entities = []) {
     });
   }
   document.querySelectorAll('.lobby-action-entity').forEach((select) => populateEntitySelect(select, select.value));
+}
+
+function isArmorStandSnapshot(entity) {
+  return [entity?.name, entity?.username, entity?.type]
+    .some((value) => String(value || '').replace(/[\s_-]/g, '').toLowerCase() === 'armorstand');
 }
 
 function populateEntitySelect(select, selectedValue = '') {
@@ -895,12 +900,10 @@ function formatNumber(value) {
 
 function renderWindowSnapshot(windowSnapshot) {
   const title = $('#windowSnapshotTitle');
-  const contentList = $('#windowContentList');
   const grid = $('#windowGrid');
-  if (!title || !contentList || !grid) return;
+  if (!title || !grid) return;
 
   state.windowItems = [];
-  contentList.innerHTML = '';
   grid.innerHTML = '';
   if (!windowSnapshot) {
     title.textContent = '当前交互窗口：没有检测到已打开的窗口';
@@ -912,26 +915,22 @@ function renderWindowSnapshot(windowSnapshot) {
   state.windowItems = windowSnapshot.slots.filter((slot) => (
     slot.item && (!Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
   ));
-  title.textContent = `当前交互窗口：${windowSnapshot.title || '未命名窗口'}，检测到 ${state.windowItems.length} 个可操作内容`;
+  title.textContent = state.windowItems.length
+    ? `当前交互窗口：${windowSnapshot.title || '未命名窗口'}，检测到 ${state.windowItems.length} 个非空菜单项`
+    : `当前交互窗口：${windowSnapshot.title || '未命名窗口'}，没有检测到非空菜单项`;
   state.windowItems.forEach((slot, index) => {
     const name = slot.displayName || slot.name || `槽位 ${slot.slot}`;
-    const item = document.createElement('button');
-    item.className = 'window-content-item';
-    item.type = 'button';
-    const lore = (slot.lore || []).map((line) => `<small>${escapeHtml(line)}</small>`).join('');
-    item.innerHTML = `<span class="snapshot-number">${index + 1}</span><span class="snapshot-copy"><strong>${escapeHtml(name)}</strong><small>槽位 ${slot.slot} · 数量 ${slot.count}</small>${lore}</span>`;
-    item.addEventListener('click', () => fillSelectedWindowItem(slot));
-    contentList.appendChild(item);
-  });
-  for (const slot of windowSnapshot.slots) {
     const button = document.createElement('button');
     button.className = 'window-slot';
     button.type = 'button';
-    button.title = slot.item ? `槽位 ${slot.slot}: ${slot.displayName || slot.name} x${slot.count}` : `槽位 ${slot.slot}: 空`;
-    button.innerHTML = `<strong>${slot.slot}</strong><span>${slot.item ? escapeHtml(slot.displayName || slot.name) : '空'}</span>`;
-    button.addEventListener('click', () => fillSelectedLobbySlot(slot.slot));
+    const loreLines = (slot.lore || []).filter(Boolean);
+    const loreText = loreLines.length ? `\n提示：${loreLines.join(' / ')}` : '';
+    const loreHtml = loreLines.slice(0, 3).map((line) => `<small class="window-slot-lore">${escapeHtml(line)}</small>`).join('');
+    button.title = `${index + 1}. ${name}\n槽位 ${slot.slot} · 数量 ${slot.count}${loreText}`;
+    button.innerHTML = `<span class="window-slot-head"><strong>${index + 1}</strong><small>槽位 ${slot.slot} · x${slot.count}</small></span><span class="window-slot-name">${escapeHtml(name)}</span>${loreHtml}`;
+    button.addEventListener('click', () => fillSelectedWindowItem(slot));
     grid.appendChild(button);
-  }
+  });
   document.querySelectorAll('.lobby-action-item').forEach((select) => populateWindowItemSelect(select, select.value));
 }
 
@@ -1012,19 +1011,6 @@ async function executeLobbyAction(card) {
     button.disabled = false;
     button.textContent = '执行';
   }
-}
-
-function fillSelectedLobbySlot(slot) {
-  const cards = [...document.querySelectorAll('.lobby-action-card')];
-  const targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'clickSlot') || cards.at(-1);
-  if (!targetCard) {
-    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'clickSlot', slot, button: 'left', enabled: true }));
-    return;
-  }
-  targetCard.querySelector('.lobby-action-type').value = 'clickSlot';
-  targetCard.querySelector('.lobby-action-slot').value = slot;
-  updateLobbyActionFields(targetCard);
-  showToast(`已填入菜单槽位 ${slot}`);
 }
 
 function fillSelectedChatButton(label) {
