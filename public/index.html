@@ -169,6 +169,23 @@
               <div class="grid two">
                 <label>到达范围<input id="walkRange" type="number" min="0" step="0.5"><span class="field-note">距离目标多少方块内算到达。例：1 表示进入目标 1 格范围就停止。</span></label>
               </div>
+              <div class="grid three">
+                <label class="switch relative-walk-switch"><input id="relativeWalkEnabled" type="checkbox">按方向前进<span class="field-note">启用后不再使用固定坐标，而是按当前朝向或指定方向前进多少格。</span></label>
+                <label>前进方向
+                  <select id="relativeWalkDirection">
+                    <option value="forward">当前朝向前方</option>
+                    <option value="back">当前朝向后方</option>
+                    <option value="left">当前朝向左侧</option>
+                    <option value="right">当前朝向右侧</option>
+                    <option value="north">北 / Z-</option>
+                    <option value="south">南 / Z+</option>
+                    <option value="east">东 / X+</option>
+                    <option value="west">西 / X-</option>
+                  </select>
+                  <span class="field-note">例：选择“当前朝向前方”，距离填 10，就是按角色当前面向前进 10 格。</span>
+                </label>
+                <label>前进格数<input id="relativeWalkDistance" type="number" min="0" step="0.5"><span class="field-note">单位是方块格数。例：5、10、20。</span></label>
+              </div>
             </div>
           </article>
           <article>
@@ -248,6 +265,10 @@
             <div><strong>大厅自动使用物品</strong><span>进入大厅后按配置切换快捷栏并右键使用。</span></div>
             <label class="switch"><input data-feature="lobby.useItem" type="checkbox">启用</label>
           </article>
+          <article>
+            <div><strong>动作序列</strong><span>进入大厅后按顺序执行等待、切槽、使用物品、等待窗口、点击菜单槽位等动作。</span></div>
+            <label class="switch"><input data-feature="lobby.actionSequence" type="checkbox">启用</label>
+          </article>
         </div>
         <div class="sub-panel">
           <div class="grid three">
@@ -261,9 +282,15 @@
               <span class="field-note">用于菜单服大厅：按顺序切槽位、右键、等待窗口、点击指定槽位。点击第 3 行第 3 列会自动换算为槽位 20。</span>
             </div>
             <div class="action-sequence-buttons">
+              <select id="windowSnapshotTarget" title="选择要读取窗口的账号"></select>
+              <button class="ghost small" id="refreshWindowSnapshotBtn" type="button">刷新背包窗口</button>
               <button class="ghost small" id="addLobbyExampleActionBtn" type="button">添加选择服务器示例</button>
               <button class="ghost small" id="addLobbyActionBtn" type="button">添加动作</button>
             </div>
+          </div>
+          <div class="window-snapshot-panel" id="windowSnapshotPanel">
+            <div class="window-snapshot-title" id="windowSnapshotTitle">当前背包窗口：未读取</div>
+            <div class="window-grid" id="windowGrid"></div>
           </div>
           <div class="lobby-action-list" id="lobbyActionList"></div>
         </div>
@@ -480,7 +507,7 @@
         <select class="lobby-action-type">
           <option value="wait">等待</option>
           <option value="switchSlot">切换快捷栏</option>
-          <option value="useItem">右键使用物品</option>
+          <option value="useItem">使用物品</option>
           <option value="waitWindow">等待菜单窗口</option>
           <option value="clickSlot">点击菜单槽位</option>
         </select>
@@ -493,6 +520,13 @@
       <label>列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
       <label>槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">可不填；填写后优先用槽位。</span></label>
       <label>次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
+      <label>鼠标键
+        <select class="lobby-action-button">
+          <option value="right">右键</option>
+          <option value="left">左键</option>
+        </select>
+        <span class="field-note">点击菜单槽位时可选左键或右键；使用物品默认右键。</span>
+      </label>
       <label class="switch"><input class="lobby-action-enabled" type="checkbox">启用</label>
       <button class="danger small remove-lobby-action" type="button">删除</button>
     </article>

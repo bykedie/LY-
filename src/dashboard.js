@@ -24,6 +24,8 @@ let botProcess = null;
 let runningConfig = null;
 let stopping = false;
 let logs = [];
+let botStdoutBuffer = '';
+const windowSnapshots = new Map();
 const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
 const requiredDependencyFiles = [
@@ -202,6 +204,7 @@ function validateConfig(config) {
   requirePlainObject(config.features.combat, '战斗挂机配置');
   requirePlainObject(config.features.movement, '移动辅助配置');
   requirePlainObject(config.features.movement.walkTarget, '自动走路目标');
+  requirePlainObject(config.features.movement.relativeWalk, '按方向前进配置');
   requirePlainObject(config.features.chat, '智能交互配置');
   requirePlainObject(config.features.lobby, '大厅功能配置');
   requirePlainObject(config.features.scheduler, '定时任务配置');
@@ -256,6 +259,9 @@ function validateConfig(config) {
   requireNumber(config.features.movement.antiAfkWalkRange, '防挂机随机走动范围', { min: 0 });
   requireNumber(config.features.movement.heldSlot, '移动快捷栏槽位', { min: 0, max: 8, integer: true });
   requireNumber(config.features.movement.walkRange, '自动走路到达范围', { min: 0 });
+  requireBoolean(config.features.movement.relativeWalk.enabled, '按方向前进开关');
+  requireEnum(config.features.movement.relativeWalk.direction, '按方向前进方向', ['forward', 'back', 'left', 'right', 'north', 'south', 'east', 'west']);
+  requireNumber(config.features.movement.relativeWalk.distance, '按方向前进格数', { min: 0 });
   for (const axis of ['x', 'y', 'z']) {
     requireNumber(config.features.movement.walkTarget?.[axis], `自动走路目标 ${axis.toUpperCase()}`);
   }
@@ -270,6 +276,7 @@ function validateConfig(config) {
   validateStringList(config.features.chat.presetMessagesList, '预设消息');
 
   requireBoolean(config.features.lobby.useItem, '大厅自动使用物品开关');
+  requireBoolean(config.features.lobby.actionSequence, '大厅动作序列开关');
   requireNumber(config.features.lobby.delayMs, '大厅执行延迟', { min: 0 });
   requireNumber(config.features.lobby.heldSlot, '大厅快捷栏槽位', { min: 0, max: 8, integer: true });
   requireNumber(config.features.lobby.useCount, '大厅使用次数', { min: 1, integer: true });
@@ -354,6 +361,7 @@ function validateLobbyActions(actions) {
   for (const [index, action] of actions.entries()) {
     requirePlainObject(action, `第 ${index + 1} 个大厅动作`);
     requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot']);
+    if (action.button !== undefined) requireEnum(action.button, `第 ${index + 1} 个大厅动作鼠标键`, ['left', 'right']);
     if (action.enabled !== undefined) requireBoolean(action.enabled, `第 ${index + 1} 个大厅动作启用开关`);
     if (action.delayMs !== undefined) requireNumber(action.delayMs, `第 ${index + 1} 个大厅动作延迟`, { min: 0 });
     if (action.timeoutMs !== undefined) requireNumber(action.timeoutMs, `第 ${index + 1} 个大厅动作超时`, { min: 100 });
@@ -433,6 +441,7 @@ function startBot(startAccountNames = []) {
   }
   stopping = false;
   logs = [];
+  windowSnapshots.clear();
   botProcess = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
     env: { ...process.env, BOT_CONFIG_PATH: configPath, START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames) },
@@ -440,7 +449,7 @@ function startBot(startAccountNames = []) {
   });
 
   addLog('挂机进程已启动。');
-  botProcess.stdout.on('data', (data) => addLog(data.toString().trimEnd()));
+  botProcess.stdout.on('data', (data) => handleBotStdout(data.toString()));
   botProcess.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
   botProcess.on('exit', (code) => {
     addLog(`挂机进程已退出，退出码：${code}`);
@@ -448,6 +457,33 @@ function startBot(startAccountNames = []) {
     runningConfig = null;
     stopping = false;
   });
+}
+
+function handleBotStdout(chunk) {
+  botStdoutBuffer += chunk;
+  const lines = botStdoutBuffer.split(/\r?\n/);
+  botStdoutBuffer = lines.pop() || '';
+
+  for (const line of lines) {
+    if (!line) continue;
+    if (handleBotEventLine(line)) continue;
+    addLog(line);
+  }
+}
+
+function handleBotEventLine(line) {
+  const prefix = '::ly-event ';
+  if (!line.startsWith(prefix)) return false;
+
+  try {
+    const event = JSON.parse(line.slice(prefix.length));
+    if (event.type === 'windowSnapshot' && event.username) {
+      windowSnapshots.set(event.username, event.window || null);
+    }
+  } catch (error) {
+    addLog(`解析运行事件失败：${error.message}`);
+  }
+  return true;
 }
 
 function normalizeStartAccountNames(startAccountNames, accounts) {
@@ -502,6 +538,17 @@ function sendBotCommand(command) {
   }
 
   botProcess.stdin.write(`${JSON.stringify(command)}\n`);
+}
+
+async function requestWindowSnapshot(target) {
+  windowSnapshots.delete(target);
+  sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
+  const deadline = Date.now() + 800;
+  while (Date.now() < deadline) {
+    if (windowSnapshots.has(target)) return windowSnapshots.get(target) || null;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return null;
 }
 
 function sendRuntimeConfigUpdate(config) {
@@ -693,6 +740,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/stop') {
       stopBot();
       sendJson(res, 200, { ok: true, running: Boolean(botProcess), stopping });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/window') {
+      const target = url.searchParams.get('target') || '';
+      if (!target) throw new Error('请选择要读取窗口的账号。');
+      const window = await requestWindowSnapshot(target);
+      sendJson(res, 200, { ok: true, window });
       return;
     }
 

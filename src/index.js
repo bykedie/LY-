@@ -171,7 +171,8 @@ function mergeFeatures(features) {
       walkTarget: { x: 0, y: 64, z: 0 },
       walkRange: 1,
       heldSlot: 0,
-      ...(features.movement || {})
+      ...(features.movement || {}),
+      relativeWalk: { enabled: false, direction: 'forward', distance: 0, ...(features.movement?.relativeWalk || {}) }
     },
     chat: {
       keywordReply: false,
@@ -184,6 +185,7 @@ function mergeFeatures(features) {
     },
     lobby: {
       useItem: false,
+      actionSequence: false,
       delayMs: 3000,
       heldSlot: 0,
       useCount: 1,
@@ -400,6 +402,7 @@ function getEnabledFeatures() {
     'chat.remoteCommand': '发送游戏信息 / 指令',
     'chat.autoLogin': '自动登录',
     'lobby.useItem': '大厅自动使用物品',
+    'lobby.actionSequence': '大厅动作序列',
     'scheduler.enabled': '定时任务'
   };
 
@@ -487,10 +490,12 @@ function createBot(account) {
   session.bot.on('windowOpen', (window) => {
     session.lastWindow = window;
     log(account.username, `窗口打开：${getWindowTitle(window) || '未命名窗口'}`);
+    emitWindowSnapshot(account.username);
   });
 
   session.bot.on('windowClose', () => {
     session.lastWindow = null;
+    emitWindowSnapshot(account.username);
   });
 
   session.bot.on('death', () => {
@@ -534,7 +539,7 @@ function startFeatureWorkers(username) {
     startAutoWalk(username);
   }
 
-  if (ACTIVE_FEATURES.lobby.useItem) {
+  if (ACTIVE_FEATURES.lobby.useItem || ACTIVE_FEATURES.lobby.actionSequence) {
     startLobbyWorker(username);
   }
 
@@ -598,7 +603,7 @@ function restartLiveFeatureWorkers(username) {
     startAutoWalk(username);
   }
 
-  if (ACTIVE_FEATURES.lobby.useItem) {
+  if (ACTIVE_FEATURES.lobby.useItem || ACTIVE_FEATURES.lobby.actionSequence) {
     startLobbyWorker(username);
   }
 
@@ -868,7 +873,7 @@ function startAutoWalk(username) {
   const bot = session?.bot;
   if (!bot?.entity || !bot.pathfinder) return;
 
-  const target = ACTIVE_FEATURES.movement.walkTarget || { x: 0, y: 64, z: 0 };
+  const target = resolveWalkTarget(bot);
   const range = Number(ACTIVE_FEATURES.movement.walkRange) || 1;
 
   try {
@@ -878,6 +883,37 @@ function startAutoWalk(username) {
   } catch (error) {
     log(username, `自动走路失败：${error.message}`);
   }
+}
+
+function resolveWalkTarget(bot) {
+  const relativeWalk = ACTIVE_FEATURES.movement.relativeWalk || {};
+  if (!relativeWalk.enabled) return ACTIVE_FEATURES.movement.walkTarget || { x: 0, y: 64, z: 0 };
+
+  const position = bot.entity.position;
+  const distance = Math.max(0, Number(relativeWalk.distance) || 0);
+  const vector = getDirectionVector(bot, relativeWalk.direction);
+  return {
+    x: position.x + vector.x * distance,
+    y: position.y,
+    z: position.z + vector.z * distance
+  };
+}
+
+function getDirectionVector(bot, direction) {
+  const yaw = bot.entity.yaw || 0;
+  const forward = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+  const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+  const vectors = {
+    forward,
+    back: { x: -forward.x, z: -forward.z },
+    left: { x: -right.x, z: -right.z },
+    right,
+    north: { x: 0, z: -1 },
+    south: { x: 0, z: 1 },
+    east: { x: 1, z: 0 },
+    west: { x: -1, z: 0 }
+  };
+  return vectors[direction] || vectors.forward;
 }
 
 function startLobbyWorker(username) {
@@ -890,11 +926,15 @@ function startLobbyWorker(username) {
     if (!bot?.entity) return;
 
     try {
-      const actions = Array.isArray(ACTIVE_FEATURES.lobby.actions) ? ACTIVE_FEATURES.lobby.actions.filter((action) => action.enabled !== false) : [];
+      const actions = ACTIVE_FEATURES.lobby.actionSequence && Array.isArray(ACTIVE_FEATURES.lobby.actions)
+        ? ACTIVE_FEATURES.lobby.actions.filter((action) => action.enabled !== false)
+        : [];
       if (actions.length > 0) {
         await runLobbyActions(username, actions);
         return;
       }
+
+      if (!ACTIVE_FEATURES.lobby.useItem) return;
 
       switchHeldSlot(username, ACTIVE_FEATURES.lobby.heldSlot);
       await runUseItemAction(username, { count: ACTIVE_FEATURES.lobby.useCount, delayMs: 600 });
@@ -948,8 +988,13 @@ async function runUseItemAction(username, action, index = 0) {
   const count = Math.max(1, Number(action.count) || 1);
   const delayMs = Math.max(0, Number(action.delayMs) || 600);
   for (let i = 0; i < count; i += 1) {
-    bot.activateItem();
-    log(username, index ? `大厅动作 ${index}：右键使用物品 ${i + 1}/${count}` : `大厅使用物品：第 ${i + 1} 次`);
+    if (action.button === 'left') {
+      bot.swingArm('right');
+    } else {
+      bot.activateItem();
+    }
+    const buttonLabel = action.button === 'left' ? '左键' : '右键';
+    log(username, index ? `大厅动作 ${index}：${buttonLabel}使用物品 ${i + 1}/${count}` : `大厅使用物品：第 ${i + 1} 次`);
     await sleep(delayMs);
   }
 }
@@ -963,10 +1008,11 @@ async function runClickSlotAction(username, action, index) {
   const slot = resolveWindowSlot(action);
   const count = Math.max(1, Number(action.count) || 1);
   const delayMs = Math.max(0, Number(action.delayMs) || 500);
+  const mouseButton = action.button === 'right' ? 1 : 0;
 
   for (let i = 0; i < count; i += 1) {
-    await bot.clickWindow(slot, 0, 0);
-    log(username, `大厅动作 ${index}：点击窗口 ${getWindowTitle(window) || '未命名窗口'} 槽位 ${slot} (${i + 1}/${count})`);
+    await bot.clickWindow(slot, mouseButton, 0);
+    log(username, `大厅动作 ${index}：${action.button === 'right' ? '右键' : '左键'}点击窗口 ${getWindowTitle(window) || '未命名窗口'} 槽位 ${slot} (${i + 1}/${count})`);
     await sleep(delayMs);
   }
 }
@@ -1001,6 +1047,37 @@ async function waitForWindow(username, titleText = '', timeoutMs = 5000) {
   }
 
   throw new Error(title ? `等待窗口超时：${title}` : '等待窗口超时');
+}
+
+function emitRuntimeEvent(event) {
+  console.log(`::ly-event ${JSON.stringify(event)}`);
+}
+
+function emitWindowSnapshot(username) {
+  const session = sessions.get(username);
+  emitRuntimeEvent({ type: 'windowSnapshot', username, window: getWindowSnapshot(session) });
+}
+
+function getWindowSnapshot(session) {
+  const window = session?.bot?.currentWindow || session?.lastWindow;
+  if (!window) return null;
+
+  return {
+    title: getWindowTitle(window),
+    type: window.type || '',
+    slots: (window.slots || []).map((item, slot) => serializeWindowSlot(slot, item))
+  };
+}
+
+function serializeWindowSlot(slot, item) {
+  if (!item) return { slot, item: false, name: '', displayName: '', count: 0 };
+  return {
+    slot,
+    item: true,
+    name: item.name || '',
+    displayName: item.displayName || item.customName || item.name || '',
+    count: item.count || 1
+  };
 }
 
 function getWindowTitle(window) {
@@ -1350,6 +1427,11 @@ function listenDashboardCommands() {
 
       if (command.type === 'chat') {
         sendChatCommand(command.target || 'all', command.message || '');
+        return;
+      }
+
+      if (command.type === 'windowSnapshot') {
+        emitWindowSnapshot(command.target || '');
         return;
       }
 

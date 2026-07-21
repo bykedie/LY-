@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.23"
-EXPECTED_MANAGER_VERSION="v1.0.23"
+BOOTSTRAP_VERSION="v1.0.24"
+EXPECTED_MANAGER_VERSION="v1.0.24"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -276,6 +276,37 @@ dir_has_project_files() {
   [[ -f "$1/package.json" ]] && [[ -f "$1/deploy/ly-afk-manager.sh" ]]
 }
 
+backup_runtime_files() {
+  local source_dir backup_dir runtime_file
+  source_dir="$1"
+  backup_dir="$2"
+  mkdir -p "$backup_dir"
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+    if [[ -f "${source_dir}/${runtime_file}" ]]; then
+      cp "${source_dir}/${runtime_file}" "${backup_dir}/${runtime_file}"
+    fi
+    if [[ -d "${source_dir}/${runtime_file}" ]]; then
+      cp -a "${source_dir}/${runtime_file}" "${backup_dir}/${runtime_file}"
+    fi
+  done
+}
+
+restore_runtime_files() {
+  local SUDO backup_dir target_dir runtime_file
+  SUDO="$(need_sudo)"
+  backup_dir="$1"
+  target_dir="$2"
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+    if [[ -f "${backup_dir}/${runtime_file}" ]]; then
+      run $SUDO cp "${backup_dir}/${runtime_file}" "${target_dir}/${runtime_file}"
+    fi
+    if [[ -d "${backup_dir}/${runtime_file}" ]]; then
+      run $SUDO rm -rf "${target_dir}/${runtime_file}"
+      run $SUDO cp -a "${backup_dir}/${runtime_file}" "${target_dir}/${runtime_file}"
+    fi
+  done
+}
+
 prepare_existing_install_dir() {
   local SUDO backup_dir
   SUDO="$(need_sudo)"
@@ -372,16 +403,21 @@ check_repo_access() {
 }
 
 clone_or_update_with_git() {
-  local SUDO tmp_clone_dir
+  local SUDO tmp_clone_dir runtime_backup_dir
   SUDO="$(need_sudo)"
   step "3/5" "使用 Git 拉取或更新项目代码"
 
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     warn "检测到项目已存在，开始更新：${INSTALL_DIR}"
+    runtime_backup_dir="$(mktemp -d)"
+    backup_runtime_files "$INSTALL_DIR" "$runtime_backup_dir"
     if run_with_timeout "$GIT_CLONE_TIMEOUT" $SUDO git -C "$INSTALL_DIR" fetch --progress origin "$BRANCH"; then
       run $SUDO git -C "$INSTALL_DIR" checkout "$BRANCH"
       run $SUDO git -C "$INSTALL_DIR" merge --ff-only "origin/${BRANCH}"
+      restore_runtime_files "$runtime_backup_dir" "$INSTALL_DIR"
+      run rm -rf "$runtime_backup_dir"
     else
+      run rm -rf "$runtime_backup_dir"
       warn "Git 更新失败，准备改用压缩包更新已有项目。"
       return 1
     fi

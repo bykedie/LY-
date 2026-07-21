@@ -781,7 +781,7 @@ select:disabled {
 }
 
 .keyword-rule {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) 80px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 80px;
 }
 
 .keyword-rule label,
@@ -789,8 +789,16 @@ select:disabled {
   min-width: 0;
 }
 
+
+
 .scheduler-task {
-  grid-template-columns: 170px 150px 130px 1fr 72px 80px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 72px 80px;
+}
+
+.scheduler-task label,
+.scheduler-task input,
+.scheduler-task select {
+  min-width: 0;
 }
 
 .action-sequence-head {
@@ -814,14 +822,82 @@ select:disabled {
   justify-content: flex-end;
 }
 
+.action-sequence-buttons select {
+  width: 160px;
+}
+
+.window-snapshot-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.window-snapshot-title {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.window-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(42px, 1fr));
+  gap: 6px;
+}
+
+.window-slot {
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  min-width: 0;
+  height: 52px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #1f2d44;
+  background: var(--panel-soft);
+  font-size: 11px;
+}
+
+.window-slot strong,
+.window-slot span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-slot strong {
+  color: var(--primary);
+}
+
 .lobby-action-card {
-  grid-template-columns: 150px 130px 120px minmax(150px, 1fr) 72px 72px 84px 72px 72px 80px;
+  grid-template-columns: repeat(6, minmax(74px, 1fr)) 62px 70px 72px 72px 80px;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
 }
 
 .lobby-action-card label,
 .lobby-action-card input,
 .lobby-action-card select {
   min-width: 0;
+}
+
+.lobby-action-card input,
+.lobby-action-card select {
+  height: 32px;
+  padding: 0 8px;
+}
+
+.lobby-action-card .field-note {
+  display: none;
+}
+
+.lobby-action-card .small {
+  height: 32px;
+  padding: 0 8px;
 }
 
 .message-list-label {

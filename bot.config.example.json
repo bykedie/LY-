@@ -50,6 +50,11 @@
         "z": 0
       },
       "walkRange": 1,
+      "relativeWalk": {
+        "enabled": false,
+        "direction": "forward",
+        "distance": 0
+      },
       "heldSlot": 0
     },
     "chat": {
@@ -70,6 +75,7 @@
     },
     "lobby": {
       "useItem": false,
+      "actionSequence": false,
       "delayMs": 3000,
       "heldSlot": 0,
       "useCount": 1,

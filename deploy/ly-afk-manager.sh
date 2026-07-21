@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.23"
+  echo "LY 挂机控制台一键管理脚本  v1.0.24"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -709,21 +709,56 @@ health_check() {
   pause
 }
 
+backup_runtime_files() {
+  local source_dir backup_dir runtime_file
+  source_dir="$1"
+  backup_dir="$2"
+  mkdir -p "$backup_dir"
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+    if [[ -f "${source_dir}/${runtime_file}" ]]; then
+      cp "${source_dir}/${runtime_file}" "${backup_dir}/${runtime_file}"
+    fi
+    if [[ -d "${source_dir}/${runtime_file}" ]]; then
+      cp -a "${source_dir}/${runtime_file}" "${backup_dir}/${runtime_file}"
+    fi
+  done
+}
+
+restore_runtime_files() {
+  local SUDO backup_dir target_dir runtime_file
+  SUDO="$(need_sudo)"
+  backup_dir="$1"
+  target_dir="$2"
+  for runtime_file in .env bot.config.json accounts.json bot.config.profiles; do
+    if [[ -f "${backup_dir}/${runtime_file}" ]]; then
+      $SUDO cp "${backup_dir}/${runtime_file}" "${target_dir}/${runtime_file}"
+    fi
+    if [[ -d "${backup_dir}/${runtime_file}" ]]; then
+      $SUDO rm -rf "${target_dir}/${runtime_file}"
+      $SUDO cp -a "${backup_dir}/${runtime_file}" "${target_dir}/${runtime_file}"
+    fi
+  done
+}
+
 update_project() {
   print_header
   echo "更新项目并重启"
   echo "--------------------------------"
-  local SUDO tmp_dir archive_file extracted_dir backup_dir parent_dir current_name
+  local SUDO tmp_dir archive_file extracted_dir backup_dir parent_dir current_name runtime_backup_dir
   SUDO="$(need_sudo)"
   echo "当前正在更新 LY 控制台，请不要关闭 SSH 窗口。"
   echo "更新过程中会保留 .env、bot.config.json、accounts.json 等运行配置。"
   echo
   if [[ -d .git ]]; then
+    runtime_backup_dir="$(mktemp -d)"
+    backup_runtime_files "$PROJECT_DIR" "$runtime_backup_dir"
     progress "1/5" "当前正在连接 GitHub 仓库并下载更新..."
     git fetch --progress origin "$BRANCH"
     info "远程更新下载完成。"
     progress "2/5" "当前正在合并最新代码..."
     git merge --ff-only "origin/${BRANCH}"
+    restore_runtime_files "$runtime_backup_dir" "$PROJECT_DIR"
+    rm -rf "$runtime_backup_dir"
     info "代码合并完成。"
   else
     progress "1/5" "当前不是 Git 仓库，正在使用压缩包方式下载最新代码..."

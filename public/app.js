@@ -66,10 +66,11 @@ const defaultFeatures = {
     antiAfkWalkRange: 3,
     walkTarget: { x: 0, y: 64, z: 0 },
     walkRange: 1,
+    relativeWalk: { enabled: false, direction: 'forward', distance: 0 },
     heldSlot: 0
   },
   chat: { keywordReply: false, presetMessages: false, remoteCommand: false, autoLogin: false, keywordRules: [], presetMessagesList: [] },
-  lobby: { useItem: false, delayMs: 3000, heldSlot: 0, useCount: 1, actions: [] },
+  lobby: { useItem: false, actionSequence: false, delayMs: 3000, heldSlot: 0, useCount: 1, actions: [] },
   scheduler: { enabled: false, tasks: [] }
 };
 
@@ -200,7 +201,11 @@ function normalizeConfig(config) {
 function mergeFeatures(features) {
   return {
     combat: { ...defaultFeatures.combat, ...(features.combat || {}) },
-    movement: { ...defaultFeatures.movement, ...(features.movement || {}) },
+    movement: {
+      ...defaultFeatures.movement,
+      ...(features.movement || {}),
+      relativeWalk: { ...defaultFeatures.movement.relativeWalk, ...(features.movement?.relativeWalk || {}) }
+    },
     chat: { ...defaultFeatures.chat, ...(features.chat || {}) },
     lobby: { ...defaultFeatures.lobby, ...(features.lobby || {}) },
     scheduler: { ...defaultFeatures.scheduler, ...(features.scheduler || {}) }
@@ -234,6 +239,9 @@ function fillFeatureParams(features) {
   $('#walkTargetY').value = features.movement.walkTarget.y;
   $('#walkTargetZ').value = features.movement.walkTarget.z;
   $('#walkRange').value = features.movement.walkRange;
+  $('#relativeWalkEnabled').checked = Boolean(features.movement.relativeWalk?.enabled);
+  $('#relativeWalkDirection').value = features.movement.relativeWalk?.direction || 'forward';
+  $('#relativeWalkDistance').value = features.movement.relativeWalk?.distance ?? 0;
   $('#antiAfkCommand').value = features.movement.antiAfkCommand;
   $('#antiAfkSneak').checked = Boolean(features.movement.antiAfkSneak);
   $('#antiAfkWalk').checked = Boolean(features.movement.antiAfkWalk);
@@ -280,6 +288,11 @@ function readFeatures() {
     z: Number($('#walkTargetZ').value)
   };
   features.movement.walkRange = Number($('#walkRange').value);
+  features.movement.relativeWalk = {
+    enabled: $('#relativeWalkEnabled').checked,
+    direction: $('#relativeWalkDirection').value,
+    distance: Number($('#relativeWalkDistance').value)
+  };
   features.movement.heldSlot = uiSlotToIndex($('#movementHeldSlot').value);
 
   features.lobby.delayMs = Number($('#lobbyDelayMs').value);
@@ -590,9 +603,9 @@ function defaultLobbyAction() {
 function lobbyServerSelectorExampleActions() {
   return [
     { type: 'switchSlot', hotbarSlot: 1, enabled: true },
-    { type: 'useItem', count: 1, delayMs: 600, enabled: true },
+    { type: 'useItem', button: 'right', count: 1, delayMs: 600, enabled: true },
     { type: 'waitWindow', title: '选择服务器', timeoutMs: 5000, enabled: true },
-    { type: 'clickSlot', title: '选择服务器', row: 3, column: 3, delayMs: 500, count: 1, enabled: true }
+    { type: 'clickSlot', title: '选择服务器', row: 3, column: 3, button: 'left', delayMs: 500, count: 1, enabled: true }
   ];
 }
 
@@ -614,6 +627,7 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-column').value = action.column || '';
   card.querySelector('.lobby-action-slot').value = action.slot ?? '';
   card.querySelector('.lobby-action-count').value = action.count || '';
+  card.querySelector('.lobby-action-button').value = action.button === 'left' ? 'left' : 'right';
   card.querySelector('.lobby-action-enabled').checked = action.enabled !== false;
   card.querySelector('.remove-lobby-action').addEventListener('click', () => card.remove());
   return fragment;
@@ -632,6 +646,7 @@ function readLobbyActions() {
       const action = {
         type,
         title: card.querySelector('.lobby-action-title').value.trim(),
+        button: card.querySelector('.lobby-action-button').value,
         enabled: card.querySelector('.lobby-action-enabled').checked
       };
       if (Number.isFinite(delayValue) && delayValue > 0) action[type === 'waitWindow' ? 'timeoutMs' : 'delayMs'] = delayValue;
@@ -694,6 +709,73 @@ function renderCommandTargets(accounts = []) {
   }
 
   select.value = [...select.options].some((option) => option.value === previousValue) ? previousValue : 'all';
+  renderWindowSnapshotTargets(accounts);
+}
+
+function renderWindowSnapshotTargets(accounts = []) {
+  const select = $('#windowSnapshotTarget');
+  if (!select) return;
+
+  const previousValue = select.value;
+  select.innerHTML = '';
+  for (const account of accounts) {
+    if (account.enabled === false || !account.username) continue;
+    const option = document.createElement('option');
+    option.value = account.username;
+    option.textContent = account.username;
+    select.appendChild(option);
+  }
+  select.value = [...select.options].some((option) => option.value === previousValue) ? previousValue : (select.options[0]?.value || '');
+}
+
+async function refreshWindowSnapshot() {
+  const target = $('#windowSnapshotTarget')?.value || '';
+  if (!target) {
+    showToast('请先选择一个正在运行的账号');
+    return;
+  }
+
+  const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
+  renderWindowSnapshot(data.window);
+}
+
+function renderWindowSnapshot(windowSnapshot) {
+  const title = $('#windowSnapshotTitle');
+  const grid = $('#windowGrid');
+  if (!title || !grid) return;
+
+  grid.innerHTML = '';
+  if (!windowSnapshot) {
+    title.textContent = '当前背包窗口：没有检测到已打开的窗口';
+    return;
+  }
+
+  title.textContent = `当前背包窗口：${windowSnapshot.title || '未命名窗口'}，共 ${windowSnapshot.slots.length} 个槽位`;
+  for (const slot of windowSnapshot.slots) {
+    const button = document.createElement('button');
+    button.className = 'window-slot';
+    button.type = 'button';
+    button.title = slot.item ? `槽位 ${slot.slot}: ${slot.displayName || slot.name} x${slot.count}` : `槽位 ${slot.slot}: 空`;
+    button.innerHTML = `<strong>${slot.slot}</strong><span>${slot.item ? escapeHtml(slot.displayName || slot.name) : '空'}</span>`;
+    button.addEventListener('click', () => fillSelectedLobbySlot(slot.slot));
+    grid.appendChild(button);
+  }
+}
+
+function fillSelectedLobbySlot(slot) {
+  const cards = [...document.querySelectorAll('.lobby-action-card')];
+  const targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'clickSlot') || cards.at(-1);
+  if (!targetCard) {
+    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'clickSlot', slot, button: 'left', enabled: true }));
+    return;
+  }
+  targetCard.querySelector('.lobby-action-type').value = 'clickSlot';
+  targetCard.querySelector('.lobby-action-slot').value = slot;
+  showToast(`已填入菜单槽位 ${slot}`);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
 }
 
 function renderStartAccounts(accounts = []) {
@@ -870,8 +952,11 @@ function organizeFeaturePanels() {
   enhanceFeaturePanel('chat.autoLogin', [createPanelNote('启用后，账号需要填写“注册密码预留”。看到 /register 提示会发送 /register 密码 密码；看到 /login 提示会发送 /login 密码。')]);
 
   enhanceFeaturePanel('lobby.useItem', [
-    createGrid('three', ['#lobbyDelayMs', '#lobbyHeldSlot', '#lobbyUseCount']),
+    createGrid('three', ['#lobbyDelayMs', '#lobbyHeldSlot', '#lobbyUseCount'])
+  ]);
+  enhanceFeaturePanel('lobby.actionSequence', [
     nodeFromSelector('.action-sequence-head'),
+    nodeFromSelector('#windowSnapshotPanel'),
     nodeFromSelector('#lobbyActionList')
   ]);
   enhanceFeaturePanel('scheduler.enabled', [nodeFromSelector('#schedulerTaskList'), nodeFromSelector('#addSchedulerTaskBtn')]);
@@ -949,7 +1034,7 @@ function createPanelNote(text) {
 
 function removeEmptySubPanels() {
   document.querySelectorAll('.sub-panel').forEach((panel) => {
-    if (panel.classList.contains('deploy-help') || panel.classList.contains('account-pool-panel') || panel.closest('#lobby')) return;
+    if (panel.classList.contains('deploy-help') || panel.classList.contains('account-pool-panel')) return;
     if (!panel.querySelector('input, select, textarea, button, .keyword-list, .scheduler-list')) panel.remove();
   });
 }
@@ -1095,6 +1180,8 @@ function bindEvents() {
   $('#addLobbyExampleActionBtn')?.addEventListener('click', () => {
     renderLobbyActions(lobbyServerSelectorExampleActions());
   });
+
+  $('#refreshWindowSnapshotBtn')?.addEventListener('click', () => refreshWindowSnapshot().catch((error) => showToast(error.message)));
 
   $('#saveUiSettingsBtn').addEventListener('click', () => {
     saveUiSettings({
