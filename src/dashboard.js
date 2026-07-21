@@ -53,6 +53,7 @@ function saveConfig(config) {
   validateConfig(normalizedConfig);
   writeJson(configPath, normalizedConfig);
   saveActiveProfileConfig(normalizedConfig);
+  return normalizedConfig;
 }
 
 function resetConfig() {
@@ -503,6 +504,21 @@ function sendBotCommand(command) {
   botProcess.stdin.write(`${JSON.stringify(command)}\n`);
 }
 
+function sendRuntimeConfigUpdate(config) {
+  if (!botProcess?.stdin?.writable || !runningConfig || stopping) return false;
+
+  const runningAccounts = runningConfig.accounts;
+  const runningServer = runningConfig.server;
+  runningConfig = {
+    ...structuredClone(config),
+    server: runningServer,
+    accounts: runningAccounts
+  };
+  botProcess.stdin.write(`${JSON.stringify({ type: 'config', config: runningConfig })}\n`);
+  addLog('运行中配置已实时下发，功能参数将立即生效；服务器地址和账号列表仍需下次启动生效。');
+  return true;
+}
+
 function getRunningControlState() {
   if (!runningConfig) return null;
 
@@ -644,8 +660,9 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/config') {
       const config = JSON.parse(await readBody(req));
-      saveConfig(config);
-      sendJson(res, 200, { ok: true });
+      const normalizedConfig = saveConfig(config);
+      const liveApplied = sendRuntimeConfigUpdate(normalizedConfig);
+      sendJson(res, 200, { ok: true, liveApplied });
       return;
     }
 

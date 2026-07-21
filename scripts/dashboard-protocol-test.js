@@ -82,12 +82,14 @@ try {
 
   const remoteDisabledAfterStart = createDashboardConfig(minecraftPort);
   remoteDisabledAfterStart.features.chat.remoteCommand = false;
+  remoteDisabledAfterStart.features.chat.presetMessagesList = ['/new-live-preset'];
   await requestJson('/api/config', {
     method: 'POST',
     body: JSON.stringify(remoteDisabledAfterStart)
   });
   const remoteDisabledSavedStatus = await requestJson('/api/status');
-  assert(remoteDisabledSavedStatus.control?.remoteCommand === true, '运行中保存远程发送关闭不应该改变当前控制快照');
+  assert(remoteDisabledSavedStatus.control?.remoteCommand === false, '运行中保存后远程发送开关应该实时更新');
+  assert(remoteDisabledSavedStatus.control.presetMessagesList.includes('/new-live-preset'), '运行中保存后预设消息应该实时更新');
   await requestJson('/api/send', {
     method: 'POST',
     body: JSON.stringify({ target: 'DashboardBotB', message: '/still-running-remote' })

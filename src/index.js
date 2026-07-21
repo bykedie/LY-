@@ -102,24 +102,9 @@ const ACCOUNTS = [
 // =========================
 
 const FILE_CONFIG = loadMainConfigFromFile();
-const ACTIVE_CONFIG = FILE_CONFIG
-  ? {
-      host: FILE_CONFIG.server.host,
-      port: FILE_CONFIG.server.port,
-      version: FILE_CONFIG.server.version,
-      auth: FILE_CONFIG.server.auth,
-      connectIntervalMs: FILE_CONFIG.runtime.connectIntervalMs,
-      reconnect: FILE_CONFIG.runtime.reconnect,
-      reconnectDelayMs: FILE_CONFIG.runtime.reconnectDelayMs,
-      idleActions: FILE_CONFIG.runtime.idleActions,
-      idleIntervalMs: FILE_CONFIG.runtime.idleIntervalMs,
-      messageCooldownMs: FILE_CONFIG.runtime.messageCooldownMs,
-      chatOnJoin: FILE_CONFIG.runtime.chatOnJoin,
-      testExitAfterMs: FILE_CONFIG.runtime.testExitAfterMs
-    }
-  : USER_CONFIG;
-const ACTIVE_ACCOUNTS = FILE_CONFIG ? FILE_CONFIG.accounts : ACCOUNTS;
-const ACTIVE_FEATURES = mergeFeatures(FILE_CONFIG?.features || {});
+let ACTIVE_CONFIG = FILE_CONFIG ? createActiveConfig(FILE_CONFIG) : USER_CONFIG;
+let ACTIVE_ACCOUNTS = FILE_CONFIG ? FILE_CONFIG.accounts : ACCOUNTS;
+let ACTIVE_FEATURES = mergeFeatures(FILE_CONFIG?.features || {});
 const sessions = new Map();
 const FOOD_NAMES = new Set([
   'apple',
@@ -210,6 +195,23 @@ function mergeFeatures(features) {
       tasks: [],
       ...(features.scheduler || {})
     }
+  };
+}
+
+function createActiveConfig(fileConfig) {
+  return {
+    host: fileConfig.server.host,
+    port: fileConfig.server.port,
+    version: fileConfig.server.version,
+    auth: fileConfig.server.auth,
+    connectIntervalMs: fileConfig.runtime.connectIntervalMs,
+    reconnect: fileConfig.runtime.reconnect,
+    reconnectDelayMs: fileConfig.runtime.reconnectDelayMs,
+    idleActions: fileConfig.runtime.idleActions,
+    idleIntervalMs: fileConfig.runtime.idleIntervalMs,
+    messageCooldownMs: fileConfig.runtime.messageCooldownMs,
+    chatOnJoin: fileConfig.runtime.chatOnJoin,
+    testExitAfterMs: fileConfig.runtime.testExitAfterMs
   };
 }
 
@@ -565,6 +567,55 @@ function stopFeatureWorkers(username) {
   if (session) {
     session.fishing = false;
     session.bot?.pathfinder?.stop();
+  }
+}
+
+function restartLiveFeatureWorkers(username) {
+  stopIdleActions(username);
+  stopAttackWorker(username);
+  stopEatWorker(username);
+  stopSchedulerWorkers(username);
+  stopLobbyWorker(username);
+
+  const session = sessions.get(username);
+  if (!session) return;
+
+  const wasFishing = session.fishing;
+  if (!ACTIVE_FEATURES.combat.autoFish) {
+    session.fishing = false;
+  }
+  session.bot?.pathfinder?.stop?.();
+
+  if (ACTIVE_CONFIG.idleActions || ACTIVE_FEATURES.movement.antiAfk) {
+    startIdleActions(username);
+  }
+
+  if (ACTIVE_FEATURES.movement.switchHeldItem) {
+    switchHeldSlot(username, ACTIVE_FEATURES.movement.heldSlot);
+  }
+
+  if (ACTIVE_FEATURES.movement.autoWalk) {
+    startAutoWalk(username);
+  }
+
+  if (ACTIVE_FEATURES.lobby.useItem) {
+    startLobbyWorker(username);
+  }
+
+  if (ACTIVE_FEATURES.scheduler.enabled) {
+    startSchedulerWorkers(username);
+  }
+
+  if (ACTIVE_FEATURES.combat.autoAttack) {
+    startAttackWorker(username);
+  }
+
+  if (ACTIVE_FEATURES.combat.autoEat) {
+    startEatWorker(username);
+  }
+
+  if (ACTIVE_FEATURES.combat.autoFish && !wasFishing) {
+    runFishingLoop(username);
   }
 }
 
@@ -1269,6 +1320,27 @@ function stopAllAccounts() {
   }
 }
 
+function applyRuntimeConfig(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error('实时配置格式不正确');
+  }
+
+  const nextConfig = structuredClone(config);
+  normalizeFileConfig(nextConfig);
+
+  ACTIVE_CONFIG = createActiveConfig(nextConfig);
+  ACTIVE_ACCOUNTS = nextConfig.accounts;
+  ACTIVE_FEATURES = mergeFeatures(nextConfig.features || {});
+
+  for (const [username, session] of sessions) {
+    if (!session?.bot) continue;
+    restartLiveFeatureWorkers(username);
+  }
+
+  const enabledFeatures = getEnabledFeatures();
+  log(null, enabledFeatures.length ? `实时配置已应用，当前启用功能：${enabledFeatures.join('、')}` : '实时配置已应用，当前没有启用扩展功能。');
+}
+
 function listenDashboardCommands() {
   const input = readline.createInterface({ input: process.stdin });
 
@@ -1278,6 +1350,11 @@ function listenDashboardCommands() {
 
       if (command.type === 'chat') {
         sendChatCommand(command.target || 'all', command.message || '');
+        return;
+      }
+
+      if (command.type === 'config') {
+        applyRuntimeConfig(command.config);
       }
     } catch (error) {
       log(null, `控制台指令解析失败：${error.message}`);
