@@ -94,6 +94,22 @@
           "enabled": false
         },
         {
+          "type": "operateWindow",
+          "title": "商店",
+          "item": "确认购买",
+          "slot": 11,
+          "button": "left",
+          "count": 1,
+          "timeoutMs": 5000,
+          "enabled": false
+        },
+        {
+          "type": "pressKey",
+          "key": "W",
+          "durationMs": 500,
+          "enabled": false
+        },
+        {
           "type": "moveSlot",
           "slot": 20,
           "toSlot": 21,

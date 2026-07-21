@@ -77,11 +77,13 @@ try {
   assert(page.includes('value="findEntity"'), '动作序列缺少寻找实体/NPC 动作');
   assert(page.includes('value="moveSlot"'), '动作序列缺少移动背包槽位动作');
   assert(page.includes('value="clickItem"'), '动作序列缺少按物品名点击菜单动作');
+  assert(page.includes('value="operateWindow"'), '动作序列缺少操作点击窗口动作');
+  assert(page.includes('value="pressKey"'), '动作序列缺少按下按键动作');
   assert(page.includes('value="waitChat"'), '动作序列缺少等待聊天内容动作');
   assert(page.includes('value="clickChat"'), '动作序列缺少点击聊天按钮动作');
   assert(page.includes('positionSnapshotTitle'), '大厅功能缺少当前坐标显示');
-  assert(page.includes('entitySnapshotTitle'), '大厅功能缺少附近实体显示');
-  assert(page.includes('entitySnapshotList'), '大厅功能缺少编号实体列表');
+  assert(!page.includes('entitySnapshotTitle'), '大厅功能不应再单独展示实体统计区');
+  assert(!page.includes('entitySnapshotList'), '大厅功能不应再铺开实体卡片列表');
   assert(page.includes('windowGrid'), '大厅功能缺少 NPC 弹窗槽位列表');
   assert(!page.includes('windowContentList'), '大厅功能不应重复显示两套 NPC 弹窗内容');
   assert(!page.includes('chatMessageSnapshot'), '大厅功能不应继续显示最近对话');
@@ -90,14 +92,19 @@ try {
   assert(page.includes('class="primary small execute-lobby-action"'), '大厅动作缺少即时执行按钮');
   assert(page.includes('<select class="lobby-action-entity">'), '寻找实体/NPC 没有使用扫描结果下拉框');
   assert(page.includes('<select class="lobby-action-item">'), '弹窗按钮没有使用协议窗口下拉框');
+  assert(page.includes('class="lobby-action-key"'), '按下按键动作缺少按键输入框');
+
+  const appScript = await requestText('/app.js');
+  assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
+  assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
 
   const managerScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'ly-afk-manager.sh'), 'utf8');
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
-  assert(managerScript.includes('v1.0.29'), '管理脚本版本没有更新到 v1.0.29');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.29"'), '启动脚本期望版本没有更新到 v1.0.29');
+  assert(managerScript.includes('v1.0.30'), '管理脚本版本没有更新到 v1.0.30');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.30"'), '启动脚本期望版本没有更新到 v1.0.30');
   assert(managerScript.includes('start_or_restart_dashboard_service'), '管理脚本缺少按 .env 重新载入 PM2 的入口');
   assert(managerScript.includes('15. 修复公网 IP + 端口访问'), '管理脚本缺少公网端口修复菜单');
   assert(managerScript.includes('set_env_value "DASHBOARD_HOST" "0.0.0.0"'), '公网端口修复没有设置 0.0.0.0 监听');

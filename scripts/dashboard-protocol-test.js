@@ -18,6 +18,9 @@ const dashboardPort = 35000 + Math.floor(Math.random() * 4000);
 const minecraftPort = 41000 + Math.floor(Math.random() * 4000);
 const dashboardUrl = `http://127.0.0.1:${dashboardPort}`;
 const receivedMessages = [];
+const receivedMovementPackets = [];
+const receivedWindowClicks = [];
+const receivedEntityInteractions = [];
 const joinedUsers = [];
 const dashboardOutput = [];
 
@@ -61,7 +64,7 @@ try {
   await waitForMessageFrom('DashboardBotA', '/daily-reward');
   await waitForMessageFrom('DashboardBotB', '/daily-reward');
   await waitForDashboardLog('§a§l彩色提示');
-  await waitForDashboardLog('交互窗口：选择服务器');
+  await waitForDashboardLog('窗口按钮/菜单项 [选择服务器]');
   const protocolSnapshot = await requestJson('/api/window?target=DashboardBotA');
   assert(protocolSnapshot.position?.x === 1 && protocolSnapshot.position?.y === 64, '协议快照没有返回当前坐标');
   assert(protocolSnapshot.messages.some((item) => item.text.includes('领取奖励')), '协议快照没有返回最近聊天内容');
@@ -74,8 +77,58 @@ try {
   assert(!visibleEntityText.replace(/[\s_-]/g, '').includes('armorstand'), '协议快照没有过滤 Armor Stand');
   const menuLogStatus = await requestJson('/api/status');
   const menuLogs = menuLogStatus.logs.join('\n');
-  assert(menuLogs.includes('窗口按钮/菜单项 1：槽位 11；进入一号服务器 x1；提示：点击进入 / 当前 12 人'), '运行日志缺少 NPC 菜单文字和提示');
+  assert(menuLogs.includes('窗口按钮/菜单项 [选择服务器] 1：槽位 11；进入一号服务器 x1；提示：点击进入 / 当前 12 人'), '运行日志缺少 NPC 菜单文字和提示');
+  assert(!menuLogs.includes('交互窗口：选择服务器，检测到'), '运行日志不应重复输出交互窗口统计摘要');
   assert(!menuLogs.includes('玩家背包测试物品'), '运行日志不应把玩家背包物品当成 NPC 菜单项');
+
+  const rightInteractionStart = receivedEntityInteractions.length;
+  await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      action: { type: 'findEntity', entity: 'zombie', entityId: 9102, range: 2, interact: 'right', enabled: true }
+    })
+  });
+  await waitForEntityInteraction(rightInteractionStart, 9102, [0, 2]);
+
+  const leftInteractionStart = receivedEntityInteractions.length;
+  await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      action: { type: 'findEntity', entity: 'zombie', entityId: 9102, range: 2, interact: 'left', enabled: true }
+    })
+  });
+  await waitForEntityInteraction(leftInteractionStart, 9102, [1]);
+
+  const windowClickStart = receivedWindowClicks.length;
+  const operateWindowResult = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      action: { type: 'operateWindow', title: '选择服务器', item: '进入一号服务器', slot: 11, button: 'left', count: 1, timeoutMs: 5000, enabled: true }
+    })
+  });
+  await waitForWindowClick(windowClickStart, 11, 0);
+  assert(operateWindowResult.window?.title === '选择服务器', '操作点击窗口完成后没有自动返回最新窗口快照');
+
+  const keyPosition = operateWindowResult.position;
+  const keyMovementStart = receivedMovementPackets.length;
+  const pressKeyResult = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'DashboardBotA', action: { type: 'pressKey', key: 'W', durationMs: 500, enabled: true } })
+  });
+  await waitForMovementAfter(keyMovementStart);
+  assert(horizontalDistance(keyPosition, pressKeyResult.position) >= 0.1, '按下按键动作完成后坐标没有变化');
+
+  const walkPosition = pressKeyResult.position;
+  const walkMovementStart = receivedMovementPackets.length;
+  const relativeWalkResult = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'DashboardBotA', action: { type: 'relativeWalk', direction: 'east', distance: 2, enabled: true } })
+  });
+  await waitForMovementAfter(walkMovementStart);
+  assert(relativeWalkResult.position?.x > walkPosition.x + 1, '按方向前进没有向东产生足够位移');
 
   await requestJson('/api/send', {
     method: 'POST',
@@ -329,6 +382,23 @@ function createMinecraftServer(port) {
     client.on('chat', (packet) => {
       receivedMessages.push({ username, message: packet.message });
     });
+    client.on('position', (packet) => {
+      receivedMovementPackets.push({ username, packet });
+    });
+    client.on('position_look', (packet) => {
+      receivedMovementPackets.push({ username, packet });
+    });
+    client.on('window_click', (packet) => {
+      receivedWindowClicks.push({ username, packet });
+      client.write('transaction', {
+        windowId: packet.windowId,
+        action: packet.action,
+        accepted: true
+      });
+    });
+    client.on('use_entity', (packet) => {
+      receivedEntityInteractions.push({ username, packet });
+    });
 
     setTimeout(() => sendSystemChat(client, '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'), 250);
     setTimeout(() => sendSystemChat(client, '[玩家系统] 请输入“/register <密码> <再输入一次以确定密码>”以注册'), 650);
@@ -494,6 +564,44 @@ async function waitForDashboardLog(expected) {
   }
   const status = await requestJson('/api/status');
   throw new Error(`等待 dashboard 日志超时：${expected}\n当前日志：${status.logs.join('\n')}\ndashboard 输出：${dashboardOutput.join('')}`);
+}
+
+async function waitForEntityInteraction(startIndex, target, mouseValues) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const match = receivedEntityInteractions
+      .slice(startIndex)
+      .find(({ username, packet }) => username === 'DashboardBotA' && packet.target === target && mouseValues.includes(packet.mouse));
+    if (match) return match;
+    await delay(100);
+  }
+  throw new Error(`等待 NPC 实体交互包超时：target=${target}, mouse=${mouseValues.join('/')}`);
+}
+
+async function waitForWindowClick(startIndex, slot, mouseButton) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const match = receivedWindowClicks
+      .slice(startIndex)
+      .find(({ username, packet }) => username === 'DashboardBotA' && packet.slot === slot && packet.mouseButton === mouseButton);
+    if (match) return match;
+    await delay(100);
+  }
+  throw new Error(`等待窗口点击包超时：slot=${slot}, mouseButton=${mouseButton}`);
+}
+
+async function waitForMovementAfter(startIndex) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    if (receivedMovementPackets.slice(startIndex).some(({ username }) => username === 'DashboardBotA')) return;
+    await delay(100);
+  }
+  throw new Error('等待动作产生移动坐标包超时');
+}
+
+function horizontalDistance(left, right) {
+  if (!left || !right) return 0;
+  return Math.hypot(Number(right.x) - Number(left.x), Number(right.z) - Number(left.z));
 }
 
 function hasMessageFrom(username, expected) {

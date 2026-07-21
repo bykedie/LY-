@@ -615,7 +615,7 @@ function npcTradeExampleActions() {
   return [
     { type: 'findEntity', entity: '商店', range: 2, interact: 'right', enabled: true },
     { type: 'waitWindow', title: '商店', timeoutMs: 5000, enabled: true },
-    { type: 'clickItem', title: '商店', item: '确认购买', button: 'left', count: 1, timeoutMs: 5000, enabled: true },
+    { type: 'operateWindow', title: '商店', item: '确认购买', button: 'left', count: 1, timeoutMs: 5000, enabled: true },
     { type: 'waitChat', chatText: '成功', timeoutMs: 5000, enabled: true }
   ];
 }
@@ -644,9 +644,11 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-distance').value = action.distance ?? action.range ?? '';
   populateEntitySelect(card.querySelector('.lobby-action-entity'), action.entity || '');
   card.querySelector('.lobby-action-interact').value = action.interact || 'approach';
+  card.querySelector('.lobby-action-key').value = action.key || '';
+  card.querySelector('.lobby-action-key-duration').value = action.durationMs ?? '';
   card.querySelector('.lobby-action-to-slot').value = action.toSlot ?? '';
   card.querySelector('.lobby-action-message').value = action.message || '';
-  populateWindowItemSelect(card.querySelector('.lobby-action-item'), action.item || '');
+  populateWindowItemSelect(card.querySelector('.lobby-action-item'), action.item || '', action.slot);
   card.querySelector('.lobby-action-chat-text').value = action.chatText || '';
   card.querySelector('.lobby-action-chat-button').value = action.chatButton || '';
   card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
@@ -698,13 +700,13 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
 
   const delayValue = Number(card.querySelector('.lobby-action-delay').value);
   if (Number.isFinite(delayValue) && delayValue > 0) {
-    action[['waitWindow', 'clickItem', 'waitChat', 'clickChat'].includes(type) ? 'timeoutMs' : 'delayMs'] = delayValue;
+    action[['waitWindow', 'clickItem', 'operateWindow', 'waitChat', 'clickChat'].includes(type) ? 'timeoutMs' : 'delayMs'] = delayValue;
   }
   if (type === 'switchSlot') {
     const hotbarSlot = card.querySelector('.lobby-action-hotbar').value;
     if (hotbarSlot !== '') action.hotbarSlot = Number(hotbarSlot);
   }
-  if (['waitWindow', 'clickSlot', 'clickItem'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
+  if (['waitWindow', 'clickSlot', 'clickItem', 'operateWindow'].includes(type)) action.title = card.querySelector('.lobby-action-title').value.trim();
   if (type === 'clickSlot') {
     const row = card.querySelector('.lobby-action-row').value;
     const column = card.querySelector('.lobby-action-column').value;
@@ -713,7 +715,7 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
     if (column !== '') action.column = Number(column);
     if (slot !== '') action.slot = Number(slot);
   }
-  if (['useItem', 'clickSlot', 'clickItem'].includes(type)) {
+  if (['useItem', 'clickSlot', 'clickItem', 'operateWindow'].includes(type)) {
     action.button = card.querySelector('.lobby-action-button').value;
     action.count = Number(card.querySelector('.lobby-action-count').value) || 1;
   }
@@ -730,6 +732,10 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
     const entityId = Number(select.selectedOptions[0]?.dataset.entityId);
     if (includeRuntimeReference && Number.isInteger(entityId)) action.entityId = entityId;
   }
+  if (type === 'pressKey') {
+    action.key = card.querySelector('.lobby-action-key').value.trim();
+    action.durationMs = Number(card.querySelector('.lobby-action-key-duration').value) || 500;
+  }
   if (type === 'moveSlot') {
     const slot = card.querySelector('.lobby-action-slot').value;
     const toSlot = card.querySelector('.lobby-action-to-slot').value;
@@ -737,11 +743,11 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
     if (toSlot !== '') action.toSlot = Number(toSlot);
   }
   if (type === 'chat') action.message = card.querySelector('.lobby-action-message').value.trim();
-  if (type === 'clickItem') {
+  if (['clickItem', 'operateWindow'].includes(type)) {
     const select = card.querySelector('.lobby-action-item');
     action.item = select.value.trim();
     const slot = Number(select.selectedOptions[0]?.dataset.slot);
-    if (includeRuntimeReference && Number.isInteger(slot)) action.slot = slot;
+    if (Number.isInteger(slot)) action.slot = slot;
   }
   if (type === 'waitChat') action.chatText = card.querySelector('.lobby-action-chat-text').value.trim();
   if (type === 'clickChat') action.chatButton = card.querySelector('.lobby-action-chat-button').value.trim();
@@ -840,27 +846,12 @@ function setWindowSnapshotCollapsed(collapsed) {
 
 function renderPositionSnapshot(position, entities = []) {
   const positionTitle = $('#positionSnapshotTitle');
-  const entityTitle = $('#entitySnapshotTitle');
-  const entityList = $('#entitySnapshotList');
   if (positionTitle) {
     positionTitle.textContent = position
       ? `当前坐标：X ${formatNumber(position.x)} / Y ${formatNumber(position.y)} / Z ${formatNumber(position.z)}`
       : '当前坐标：未读取';
   }
   state.nearbyEntities = entities.filter((entity) => !isArmorStandSnapshot(entity));
-  if (entityTitle) entityTitle.textContent = state.nearbyEntities.length ? `附近实体：检测到 ${state.nearbyEntities.length} 个` : '附近实体：未读取到可见实体';
-  if (entityList) {
-    entityList.innerHTML = '';
-    state.nearbyEntities.forEach((entity, index) => {
-      const name = entity.name || entity.username || entity.type || `ID ${entity.id}`;
-      const button = document.createElement('button');
-      button.className = 'entity-snapshot-item';
-      button.type = 'button';
-      button.innerHTML = `<span class="snapshot-number">${index + 1}</span><span class="snapshot-copy"><strong>${escapeHtml(name)}</strong><small>距离 ${formatNumber(entity.distance)} 格 · X ${formatNumber(entity.x)} / Y ${formatNumber(entity.y)} / Z ${formatNumber(entity.z)}</small></span>`;
-      button.addEventListener('click', () => fillSelectedEntity(name));
-      entityList.appendChild(button);
-    });
-  }
   document.querySelectorAll('.lobby-action-entity').forEach((select) => populateEntitySelect(select, select.value));
 }
 
@@ -875,14 +866,14 @@ function populateEntitySelect(select, selectedValue = '') {
   select.innerHTML = '';
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = state.nearbyEntities.length ? '请选择附近实体/NPC' : '请先刷新附近实体';
+  placeholder.textContent = state.nearbyEntities.length ? '请选择全部实体中的目标' : '请先刷新全部实体';
   select.appendChild(placeholder);
   state.nearbyEntities.forEach((entity, index) => {
     const name = entity.name || entity.username || entity.type || `ID ${entity.id}`;
     const option = document.createElement('option');
     option.value = name;
     option.dataset.entityId = String(entity.id);
-    option.textContent = `${index + 1}. ${name}（${formatNumber(entity.distance)} 格）`;
+    option.textContent = `${index + 1}. ${name}（${formatNumber(entity.distance)} 格，X ${formatNumber(entity.x)} / Y ${formatNumber(entity.y)} / Z ${formatNumber(entity.z)}）`;
     select.appendChild(option);
   });
   if (current && ![...select.options].some((option) => option.value === current)) {
@@ -907,7 +898,9 @@ function renderWindowSnapshot(windowSnapshot) {
   grid.innerHTML = '';
   if (!windowSnapshot) {
     title.textContent = '当前交互窗口：没有检测到已打开的窗口';
-    document.querySelectorAll('.lobby-action-item').forEach((select) => populateWindowItemSelect(select, select.value));
+    document.querySelectorAll('.lobby-action-item').forEach((select) => (
+      populateWindowItemSelect(select, select.value, select.selectedOptions[0]?.dataset.slot)
+    ));
     return;
   }
 
@@ -915,26 +908,32 @@ function renderWindowSnapshot(windowSnapshot) {
   state.windowItems = windowSnapshot.slots.filter((slot) => (
     slot.item && (!Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
   ));
-  title.textContent = state.windowItems.length
-    ? `当前交互窗口：${windowSnapshot.title || '未命名窗口'}，检测到 ${state.windowItems.length} 个非空菜单项`
-    : `当前交互窗口：${windowSnapshot.title || '未命名窗口'}，没有检测到非空菜单项`;
-  state.windowItems.forEach((slot, index) => {
-    const name = slot.displayName || slot.name || `槽位 ${slot.slot}`;
+  title.textContent = `当前交互窗口：${windowSnapshot.title || '未命名窗口'}`;
+
+  const slotsByIndex = new Map(windowSnapshot.slots.map((slot) => [slot.slot, slot]));
+  for (let slotIndex = 0; slotIndex <= 80; slotIndex += 1) {
+    const slot = slotsByIndex.get(slotIndex) || { slot: slotIndex, item: false, name: '', displayName: '', count: 0, lore: [] };
+    const name = slot.displayName || slot.name || '';
     const button = document.createElement('button');
-    button.className = 'window-slot';
+    button.className = `window-slot${slot.item ? ' has-item' : ' is-empty'}`;
     button.type = 'button';
     const loreLines = (slot.lore || []).filter(Boolean);
     const loreText = loreLines.length ? `\n提示：${loreLines.join(' / ')}` : '';
-    const loreHtml = loreLines.slice(0, 3).map((line) => `<small class="window-slot-lore">${escapeHtml(line)}</small>`).join('');
-    button.title = `${index + 1}. ${name}\n槽位 ${slot.slot} · 数量 ${slot.count}${loreText}`;
-    button.innerHTML = `<span class="window-slot-head"><strong>${index + 1}</strong><small>槽位 ${slot.slot} · x${slot.count}</small></span><span class="window-slot-name">${escapeHtml(name)}</span>${loreHtml}`;
-    button.addEventListener('click', () => fillSelectedWindowItem(slot));
+    button.title = slot.item ? `槽位 ${slot.slot}：${name || '未命名物品'} x${slot.count}${loreText}` : `槽位 ${slot.slot}：空`;
+    button.innerHTML = `<strong>${slot.slot}</strong>${slot.item ? `<span>${escapeHtml(name || '物品')}</span>` : ''}`;
+    if (slot.item && (!Number.isInteger(inventoryStart) || slot.slot < inventoryStart)) {
+      button.addEventListener('click', () => fillSelectedWindowItem(slot));
+    } else {
+      button.disabled = true;
+    }
     grid.appendChild(button);
-  });
-  document.querySelectorAll('.lobby-action-item').forEach((select) => populateWindowItemSelect(select, select.value));
+  }
+  document.querySelectorAll('.lobby-action-item').forEach((select) => (
+    populateWindowItemSelect(select, select.value, select.selectedOptions[0]?.dataset.slot)
+  ));
 }
 
-function populateWindowItemSelect(select, selectedValue = '') {
+function populateWindowItemSelect(select, selectedValue = '', selectedSlot) {
   if (!select) return;
   const current = selectedValue || select.value || '';
   select.innerHTML = '';
@@ -944,19 +943,27 @@ function populateWindowItemSelect(select, selectedValue = '') {
   select.appendChild(placeholder);
   state.windowItems.forEach((slot, index) => {
     const name = slot.displayName || slot.name || `槽位 ${slot.slot}`;
+    const lore = (slot.lore || []).filter(Boolean).join(' / ');
     const option = document.createElement('option');
     option.value = name;
     option.dataset.slot = String(slot.slot);
-    option.textContent = `${index + 1}. ${name}（槽位 ${slot.slot}）`;
+    option.textContent = `${index + 1}. 槽位 ${slot.slot}：${name}${lore ? ` | ${lore}` : ''}`;
     select.appendChild(option);
   });
   if (current && ![...select.options].some((option) => option.value === current)) {
     const saved = document.createElement('option');
     saved.value = current;
+    if (selectedSlot !== undefined && selectedSlot !== null && selectedSlot !== '' && Number.isInteger(Number(selectedSlot))) {
+      saved.dataset.slot = String(Number(selectedSlot));
+    }
     saved.textContent = `已保存：${current}`;
     select.appendChild(saved);
   }
-  select.value = current;
+  const selectedSlotOption = selectedSlot !== undefined && selectedSlot !== null && selectedSlot !== '' && Number.isInteger(Number(selectedSlot))
+    ? [...select.options].find((option) => Number(option.dataset.slot) === Number(selectedSlot) && (!current || option.value === current))
+    : null;
+  if (selectedSlotOption) selectedSlotOption.selected = true;
+  else select.value = current;
 }
 
 function fillSelectedEntity(name) {
@@ -976,16 +983,16 @@ function fillSelectedEntity(name) {
 function fillSelectedWindowItem(slot) {
   const name = slot.displayName || slot.name;
   const cards = [...document.querySelectorAll('.lobby-action-card')];
-  let targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'clickItem');
+  let targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'operateWindow');
   if (!targetCard) {
-    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'clickItem', item: name, button: 'left', count: 1, timeoutMs: 5000, enabled: true }));
+    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'operateWindow', item: name, slot: slot.slot, button: 'left', count: 1, timeoutMs: 5000, enabled: true }));
     refreshLobbyActionOrder();
-    showToast(`已新增弹窗按钮动作：${name}`);
+    showToast(`已新增操作窗口动作：槽位 ${slot.slot} ${name}`);
     return;
   }
-  populateWindowItemSelect(targetCard.querySelector('.lobby-action-item'), name);
+  populateWindowItemSelect(targetCard.querySelector('.lobby-action-item'), name, slot.slot);
   updateLobbyActionFields(targetCard);
-  showToast(`已选择弹窗按钮：${name}`);
+  showToast(`已选择窗口按钮：槽位 ${slot.slot} ${name}`);
 }
 
 async function executeLobbyAction(card) {
@@ -998,13 +1005,14 @@ async function executeLobbyAction(card) {
   button.disabled = true;
   button.textContent = '执行中';
   try {
-    await requestJson('/api/lobby/action', {
+    const data = await requestJson('/api/lobby/action', {
       method: 'POST',
       body: JSON.stringify({ target, action: readLobbyActionCard(card, { includeRuntimeReference: true }) })
     });
-    showToast(`步骤已下发到 ${target}，无需保存配置`);
-    setTimeout(() => refreshWindowSnapshot().catch(() => {}), 800);
-    setTimeout(() => refreshWindowSnapshot().catch(() => {}), 2200);
+    renderWindowSnapshot(data.window);
+    renderPositionSnapshot(data.position, data.entities || []);
+    setWindowSnapshotCollapsed(false);
+    showToast(`步骤已在 ${target} 执行完成，坐标和窗口已刷新`);
   } catch (error) {
     showToast(error.message);
   } finally {

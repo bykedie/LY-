@@ -300,8 +300,6 @@
               <button class="snapshot-toggle" id="windowSnapshotToggle" type="button" aria-expanded="true" title="收放协议快照"><span>▾</span></button>
             </div>
             <div class="window-snapshot-content" id="windowSnapshotContent">
-              <div class="entity-snapshot-title" id="entitySnapshotTitle">附近实体：未读取</div>
-              <div class="entity-snapshot-list" id="entitySnapshotList"></div>
               <div class="window-snapshot-title" id="windowSnapshotTitle">当前交互窗口：未读取</div>
               <div class="window-grid" id="windowGrid"></div>
             </div>
@@ -533,9 +531,11 @@
           <option value="useItem">使用物品</option>
           <option value="waitWindow">等待菜单窗口</option>
           <option value="clickSlot">点击菜单槽位</option>
-          <option value="clickItem">按物品名点击菜单</option>
+          <option value="operateWindow">操作点击窗口</option>
+          <option value="clickItem">按物品名点击菜单（兼容旧方案）</option>
           <option value="relativeWalk">按方向前进</option>
           <option value="findEntity">寻找实体/NPC</option>
+          <option value="pressKey">按下按键</option>
           <option value="moveSlot">移动背包槽位</option>
           <option value="chat">发送聊天/指令</option>
           <option value="waitChat">等待聊天内容</option>
@@ -543,14 +543,14 @@
         </select>
         <span class="field-note">按从上到下的顺序执行。</span>
       </label>
-      <label data-action-types="wait,useItem,waitWindow,clickSlot,clickItem,findEntity,waitChat,clickChat">延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口、聊天或按钮用作最长等待。</span></label>
+      <label data-action-types="wait,useItem,waitWindow,clickSlot,clickItem,operateWindow,findEntity,waitChat,clickChat">延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口、聊天或按钮用作最长等待。</span></label>
       <label data-action-types="switchSlot">快捷栏 1-9<input class="lobby-action-hotbar" type="number" min="1" max="9" placeholder="例如：1"><span class="field-note">切换快捷栏动作使用。</span></label>
-      <label data-action-types="waitWindow,clickSlot,clickItem">窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
+      <label data-action-types="waitWindow,clickSlot,clickItem,operateWindow">窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
       <label data-action-types="clickSlot">行<input class="lobby-action-row" type="number" min="1" max="6" placeholder="3"><span class="field-note">箱子菜单行号，从 1 开始。</span></label>
       <label data-action-types="clickSlot">列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
       <label data-action-types="clickSlot,moveSlot">来源槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">菜单点击可填写槽位；背包移动时填写来源槽位。</span></label>
-      <label data-action-types="useItem,clickSlot,clickItem">次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
-      <label data-action-types="useItem,clickSlot,clickItem">鼠标键
+      <label data-action-types="useItem,clickSlot,clickItem,operateWindow">次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
+      <label data-action-types="useItem,clickSlot,clickItem,operateWindow">鼠标键
         <select class="lobby-action-button">
           <option value="right">右键</option>
           <option value="left">左键</option>
@@ -572,22 +572,24 @@
       </label>
       <label data-action-types="relativeWalk,findEntity">距离/范围<input class="lobby-action-distance" type="number" min="0" step="0.5" placeholder="10"><span class="field-note">前进距离或寻找实体后的靠近范围。</span></label>
       <label data-action-types="findEntity">实体/NPC
-        <select class="lobby-action-entity"><option value="">请先刷新附近实体</option></select>
-        <span class="field-note">刷新坐标/窗口后，可直接选择客户端协议当前可见的实体。</span>
+        <select class="lobby-action-entity"><option value="">请先刷新全部实体</option></select>
+        <span class="field-note">刷新后会读取客户端当前已加载的全部实体，可直接选择玩家或 NPC。</span>
       </label>
       <label data-action-types="findEntity">交互方式
         <select class="lobby-action-interact">
           <option value="approach">只靠近</option>
-          <option value="right">靠近后右键</option>
-          <option value="left">靠近后左键</option>
+          <option value="right">朝向目标并右键交互</option>
+          <option value="left">朝向目标并左键交互</option>
         </select>
-        <span class="field-note">寻找实体/NPC 动作使用。</span>
+        <span class="field-note">到达范围后先面向目标，再通过协议发送左键或右键实体交互。</span>
       </label>
+      <label data-action-types="pressKey">按键<input class="lobby-action-key" placeholder="W / A / S / D / Space / Shift / Ctrl"><span class="field-note">支持移动控制键及中文名称，例如 W、空格、左移、潜行。</span></label>
+      <label data-action-types="pressKey">按住时间 ms<input class="lobby-action-key-duration" type="number" min="50" max="60000" placeholder="500"><span class="field-note">按键保持时间，范围 50-60000ms。</span></label>
       <label data-action-types="moveSlot">目标槽位<input class="lobby-action-to-slot" type="number" min="0" placeholder="21"><span class="field-note">移动背包槽位时的放置位置。</span></label>
       <label data-action-types="chat">聊天/指令<input class="lobby-action-message" placeholder="/spawn 或 普通聊天"><span class="field-note">动作序列执行到这里时发送。</span></label>
-      <label data-action-types="clickItem">弹窗按钮/物品
+      <label data-action-types="clickItem,operateWindow">当前窗口按钮
         <select class="lobby-action-item"><option value="">请先与 NPC 交互并刷新窗口</option></select>
-        <span class="field-note">从当前协议窗口读取按钮名称和描述，执行时按名称匹配并点击。</span>
+        <span class="field-note">从当前协议窗口读取槽位、按钮名称和提示，选择后按协议点击。</span>
       </label>
       <label data-action-types="waitChat">等待聊天文本<input class="lobby-action-chat-text" placeholder="例如：请选择要购买的物品"><span class="field-note">检测到包含这段文字的聊天后继续下一步。</span></label>
       <label data-action-types="clickChat">聊天按钮文字<input class="lobby-action-chat-button" placeholder="例如：[确认]、购买、下一页"><span class="field-note">从协议收到的 clickEvent 按钮中模糊匹配并执行。</span></label>

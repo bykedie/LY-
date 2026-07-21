@@ -27,6 +27,7 @@ let stopping = false;
 let logs = [];
 let botStdoutBuffer = '';
 const runtimeSnapshots = new Map();
+const pendingLobbyActions = new Map();
 const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
 const requiredDependencyFiles = [
@@ -394,7 +395,7 @@ function validateLobbyActions(actions) {
   if (!Array.isArray(actions)) throw new Error('大厅动作序列必须是数组。');
   for (const [index, action] of actions.entries()) {
     requirePlainObject(action, `第 ${index + 1} 个大厅动作`);
-    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'clickItem', 'relativeWalk', 'findEntity', 'moveSlot', 'chat', 'waitChat', 'clickChat']);
+    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'clickItem', 'operateWindow', 'relativeWalk', 'findEntity', 'pressKey', 'moveSlot', 'chat', 'waitChat', 'clickChat']);
     if (action.button !== undefined) requireEnum(action.button, `第 ${index + 1} 个大厅动作鼠标键`, ['left', 'right']);
     if (action.direction !== undefined) requireEnum(action.direction, `第 ${index + 1} 个大厅动作方向`, ['forward', 'back', 'left', 'right', 'north', 'south', 'east', 'west']);
     if (action.interact !== undefined) requireEnum(action.interact, `第 ${index + 1} 个大厅动作交互方式`, ['approach', 'left', 'right']);
@@ -405,6 +406,7 @@ function validateLobbyActions(actions) {
     if (action.count !== undefined) requireNumber(action.count, `第 ${index + 1} 个大厅动作次数`, { min: 1, integer: true });
     if (action.distance !== undefined) requireNumber(action.distance, `第 ${index + 1} 个大厅动作距离`, { min: 0 });
     if (action.range !== undefined) requireNumber(action.range, `第 ${index + 1} 个大厅动作范围`, { min: 0 });
+    if (action.durationMs !== undefined) requireNumber(action.durationMs, `第 ${index + 1} 个大厅动作按键时间`, { min: 50, max: 60000 });
     if (action.row !== undefined) requireNumber(action.row, `第 ${index + 1} 个大厅动作行`, { min: 1, max: 6, integer: true });
     if (action.column !== undefined) requireNumber(action.column, `第 ${index + 1} 个大厅动作列`, { min: 1, max: 9, integer: true });
     if (action.slot !== undefined) requireNumber(action.slot, `第 ${index + 1} 个大厅动作槽位`, { min: 0, integer: true });
@@ -418,6 +420,8 @@ function validateLobbyActions(actions) {
     if (typeof action.message === 'string') action.message = action.message.trim();
     if (action.item !== undefined && typeof action.item !== 'string') throw new Error(`第 ${index + 1} 个大厅动作菜单物品名必须是文本。`);
     if (typeof action.item === 'string') action.item = action.item.trim();
+    if (action.key !== undefined && typeof action.key !== 'string') throw new Error(`第 ${index + 1} 个大厅动作按键必须是文本。`);
+    if (typeof action.key === 'string') action.key = action.key.trim();
     if (action.chatText !== undefined && typeof action.chatText !== 'string') throw new Error(`第 ${index + 1} 个大厅动作聊天文本必须是文本。`);
     if (typeof action.chatText === 'string') action.chatText = action.chatText.trim();
     if (action.chatButton !== undefined && typeof action.chatButton !== 'string') throw new Error(`第 ${index + 1} 个大厅动作聊天按钮必须是文本。`);
@@ -425,14 +429,16 @@ function validateLobbyActions(actions) {
 
     const actionLabel = `第 ${index + 1} 个大厅动作`;
     if (action.type === 'switchSlot' && action.hotbarSlot === undefined) throw new Error(`${actionLabel}需要填写快捷栏 1-9。`);
-    if (action.type === 'relativeWalk' && action.distance === undefined) throw new Error(`${actionLabel}需要填写前进格数。`);
+    if (action.type === 'relativeWalk' && !(Number(action.distance) > 0)) throw new Error(`${actionLabel}需要填写大于 0 的前进格数。`);
     if (action.type === 'findEntity' && !action.entity) throw new Error(`${actionLabel}需要填写实体/NPC 名。`);
+    if (action.type === 'pressKey' && !action.key) throw new Error(`${actionLabel}需要填写要按下的按键。`);
     if (action.type === 'moveSlot') {
       if (action.slot === undefined || action.toSlot === undefined) throw new Error(`${actionLabel}需要填写来源槽位和目标槽位。`);
       if (action.slot === action.toSlot) throw new Error(`${actionLabel}的来源槽位和目标槽位不能相同。`);
     }
     if (action.type === 'chat' && !action.message) throw new Error(`${actionLabel}需要填写聊天内容或指令。`);
     if (action.type === 'clickItem' && !action.item) throw new Error(`${actionLabel}需要填写菜单物品名。`);
+    if (action.type === 'operateWindow' && !action.item && action.slot === undefined) throw new Error(`${actionLabel}需要从当前窗口选择按钮。`);
     if (action.type === 'waitChat' && !action.chatText) throw new Error(`${actionLabel}需要填写等待的聊天文本。`);
     if (action.type === 'clickChat' && !action.chatButton) throw new Error(`${actionLabel}需要填写聊天按钮文字。`);
     if (action.type === 'clickSlot' && action.slot === undefined && (action.row === undefined || action.column === undefined)) {
@@ -519,6 +525,7 @@ function startBot(startAccountNames = []) {
   botProcess.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
   botProcess.on('exit', (code) => {
     addLog(`挂机进程已退出，退出码：${code}`);
+    rejectPendingLobbyActions(new Error(`挂机进程已退出，退出码：${code}`));
     botProcess = null;
     runningConfig = null;
     stopping = false;
@@ -551,6 +558,15 @@ function handleBotEventLine(line) {
         messages: Array.isArray(event.messages) ? event.messages : [],
         chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : []
       });
+    }
+    if (event.type === 'lobbyActionResult' && event.requestId) {
+      const pending = pendingLobbyActions.get(event.requestId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        pendingLobbyActions.delete(event.requestId);
+        if (event.ok) pending.resolve(event);
+        else pending.reject(new Error(event.message || '大厅动作执行失败。'));
+      }
     }
   } catch (error) {
     addLog(`解析运行事件失败：${error.message}`);
@@ -621,6 +637,49 @@ async function requestWindowSnapshot(target) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return { window: null, position: null, entities: [], messages: [], chatButtons: [] };
+}
+
+function createLobbyActionRequestId() {
+  return `lobby-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function getLobbyActionTimeout(action) {
+  const movementEstimateMs = action?.type === 'relativeWalk'
+    ? Math.max(0, Number(action.distance) || 0) * 3000
+    : (action?.type === 'findEntity' ? 60000 : 0);
+  const requestedMs = Math.max(
+    Number(action?.delayMs) || 0,
+    Number(action?.timeoutMs) || 0,
+    Number(action?.durationMs) || 0,
+    movementEstimateMs
+  );
+  return Math.min(300000, Math.max(15000, requestedMs + 10000));
+}
+
+function waitForLobbyActionResult(requestId, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingLobbyActions.delete(requestId);
+      reject(new Error('等待大厅动作执行结果超时。'));
+    }, timeoutMs);
+    pendingLobbyActions.set(requestId, { resolve, reject, timer });
+  });
+}
+
+function cancelPendingLobbyAction(requestId, error) {
+  const pending = pendingLobbyActions.get(requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingLobbyActions.delete(requestId);
+  pending.reject(error);
+}
+
+function rejectPendingLobbyActions(error) {
+  for (const [requestId, pending] of pendingLobbyActions) {
+    clearTimeout(pending.timer);
+    pendingLobbyActions.delete(requestId);
+    pending.reject(error);
+  }
 }
 
 function sendRuntimeConfigUpdate(config) {
@@ -847,13 +906,24 @@ const server = http.createServer(async (req, res) => {
       const action = structuredClone(body.action || {});
       action.enabled = true;
       validateLobbyActions([action]);
-      sendBotCommand({
-        type: 'lobbyAction',
-        target,
-        action,
-        message: '__lobby_action__'
-      });
-      sendJson(res, 200, { ok: true, target });
+      const requestId = createLobbyActionRequestId();
+      const actionResult = waitForLobbyActionResult(requestId, getLobbyActionTimeout(action));
+      try {
+        sendBotCommand({
+          type: 'lobbyAction',
+          requestId,
+          target,
+          action,
+          message: '__lobby_action__'
+        });
+      } catch (error) {
+        cancelPendingLobbyAction(requestId, error);
+        actionResult.catch(() => {});
+        throw error;
+      }
+      await actionResult;
+      const snapshot = runtimeSnapshots.get(target) || await requestWindowSnapshot(target);
+      sendJson(res, 200, { ok: true, target, ...snapshot });
       return;
     }
 

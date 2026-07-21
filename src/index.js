@@ -438,6 +438,7 @@ function createBot(account) {
       loginSuccessDetected: false,
       registerSingleCommandSent: false,
       registerConfirmCommandSent: false,
+      manualLobbyActionRunning: false,
       reconnectTimer: null,
       reconnecting: false,
       stopped: false
@@ -966,6 +967,7 @@ function startLobbyWorker(username) {
 async function runLobbyActions(username, actions) {
   for (const [index, action] of actions.entries()) {
     await runLobbyAction(username, action, index + 1);
+    emitWindowSnapshot(username);
   }
 }
 
@@ -999,7 +1001,7 @@ async function runLobbyAction(username, action, index) {
     return;
   }
 
-  if (type === 'clickItem') {
+  if (type === 'clickItem' || type === 'operateWindow') {
     await runClickItemAction(username, action, index);
     return;
   }
@@ -1011,6 +1013,11 @@ async function runLobbyAction(username, action, index) {
 
   if (type === 'findEntity') {
     await runFindEntityAction(username, action, index);
+    return;
+  }
+
+  if (type === 'pressKey') {
+    await runPressKeyAction(username, action, index);
     return;
   }
 
@@ -1039,12 +1046,23 @@ async function runRelativeWalkAction(username, action, index) {
   const bot = session?.bot;
   if (!bot?.entity || !bot.pathfinder) return;
 
-  const target = resolveRelativeWalkTarget(bot, action.direction, action.distance);
-  const range = Math.max(0, Number(action.range ?? ACTIVE_FEATURES.movement.walkRange) || 1);
+  const distance = Number(action.distance);
+  if (!(distance > 0)) throw new Error('按方向前进需要填写大于 0 的格数。');
+  const start = bot.entity.position.clone();
+  const target = resolveRelativeWalkTarget(bot, action.direction, distance);
+  const range = Math.min(0.45, Math.max(0.15, distance * 0.1));
+  const timeoutMs = Math.min(180000, Math.max(10000, distance * 2500));
   bot.pathfinder.setMovements(new Movements(bot));
   log(username, `大厅动作 ${index}：开始前进到 ${target.x.toFixed(1)}, ${target.y.toFixed(1)}, ${target.z.toFixed(1)}`);
-  await bot.pathfinder.goto(new goals.GoalNear(target.x, target.y, target.z, range));
-  log(username, `大厅动作 ${index}：已到达目标范围，当前坐标 ${formatPosition(bot.entity.position)}`);
+  try {
+    await withTimeout(bot.pathfinder.goto(new goals.GoalNear(target.x, target.y, target.z, range)), timeoutMs, '按方向前进超时');
+  } catch (error) {
+    bot.pathfinder.stop();
+    throw error;
+  }
+  const moved = Math.hypot(bot.entity.position.x - start.x, bot.entity.position.z - start.z);
+  if (moved < Math.min(0.25, distance * 0.4)) throw new Error(`按方向前进没有产生有效位移，当前只移动 ${moved.toFixed(2)} 格。`);
+  log(username, `大厅动作 ${index}：已移动 ${moved.toFixed(1)} 格，当前坐标 ${formatPosition(bot.entity.position)}`);
 }
 
 async function runFindEntityAction(username, action, index) {
@@ -1058,19 +1076,85 @@ async function runFindEntityAction(username, action, index) {
   const range = Math.max(1, Number(action.range) || 2);
   bot.pathfinder.setMovements(new Movements(bot));
   log(username, `大厅动作 ${index}：寻找 ${getEntityLabel(entity)}，距离 ${bot.entity.position.distanceTo(entity.position).toFixed(1)}`);
-  await bot.pathfinder.goto(new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, range));
+  try {
+    await withTimeout(
+      bot.pathfinder.goto(new goals.GoalNear(entity.position.x, entity.position.y, entity.position.z, range)),
+      60000,
+      `寻找实体/NPC 超时：${getEntityLabel(entity)}`
+    );
+  } catch (error) {
+    bot.pathfinder.stop();
+    throw error;
+  }
   const interactionEntity = findEntityByName(bot, action.entity, action.entityId);
   if (!interactionEntity) throw new Error(`到达后实体/NPC 已不可见：${action.entity}`);
   log(username, `大厅动作 ${index}：已靠近 ${getEntityLabel(interactionEntity)}，当前坐标 ${formatPosition(bot.entity.position)}`);
   await sleep(Math.max(0, Number(action.delayMs) || 0));
 
-  if (action.interact === 'right') {
-    bot.activateEntity(interactionEntity);
-    log(username, `大厅动作 ${index}：右键交互 ${getEntityLabel(interactionEntity)}`);
-  } else if (action.interact === 'left') {
-    bot.attack(interactionEntity);
-    log(username, `大厅动作 ${index}：左键交互 ${getEntityLabel(interactionEntity)}`);
+  if (action.interact === 'right' || action.interact === 'left') {
+    const targetHeight = Math.max(0.5, Number(interactionEntity.height) || 1.8);
+    await bot.lookAt(interactionEntity.position.offset(0, targetHeight * 0.65, 0), true);
+    await sleep(80);
+    if (action.interact === 'right') {
+      await bot.activateEntity(interactionEntity);
+      log(username, `大厅动作 ${index}：已朝向并右键交互 ${getEntityLabel(interactionEntity)}`);
+    } else {
+      await bot.attack(interactionEntity);
+      log(username, `大厅动作 ${index}：已朝向并左键交互 ${getEntityLabel(interactionEntity)}`);
+    }
+    await sleep(250);
   }
+}
+
+async function runPressKeyAction(username, action, index) {
+  const session = sessions.get(username);
+  const bot = session?.bot;
+  if (!bot?.entity) return;
+
+  const requestedKey = String(action.key || '').trim();
+  const control = resolveControlState(requestedKey);
+  if (!control) throw new Error(`不支持的按键：${requestedKey}。可用 W/A/S/D/Space/Shift/Ctrl。`);
+  const durationMs = Math.max(50, Math.min(60000, Number(action.durationMs) || 500));
+
+  log(username, `大厅动作 ${index}：按下 ${requestedKey}，保持 ${durationMs}ms`);
+  bot.setControlState(control, true);
+  try {
+    await sleep(durationMs);
+  } finally {
+    bot.setControlState(control, false);
+  }
+  log(username, `大厅动作 ${index}：已松开 ${requestedKey}，当前坐标 ${formatPosition(bot.entity.position)}`);
+}
+
+function resolveControlState(key) {
+  const normalized = String(key || '').trim().toLowerCase().replace(/\s+/g, '');
+  const controls = {
+    w: 'forward',
+    forward: 'forward',
+    前进: 'forward',
+    s: 'back',
+    back: 'back',
+    后退: 'back',
+    a: 'left',
+    left: 'left',
+    左移: 'left',
+    d: 'right',
+    right: 'right',
+    右移: 'right',
+    space: 'jump',
+    spacebar: 'jump',
+    空格: 'jump',
+    jump: 'jump',
+    跳跃: 'jump',
+    shift: 'sneak',
+    sneak: 'sneak',
+    潜行: 'sneak',
+    ctrl: 'sprint',
+    control: 'sprint',
+    sprint: 'sprint',
+    疾跑: 'sprint'
+  };
+  return controls[normalized] || '';
 }
 
 async function runMoveSlotAction(username, action, index) {
@@ -1168,17 +1252,21 @@ async function runClickItemAction(username, action, index) {
   const keyword = normalizeSearchText(action.item);
   const preferredSlot = Number(action.slot);
   const preferredItem = Number.isInteger(preferredSlot) ? window.slots?.[preferredSlot] : null;
-  const slot = preferredItem && getItemSearchText(preferredItem).includes(keyword)
-    ? preferredSlot
-    : (window.slots || []).findIndex((item) => item && getItemSearchText(item).includes(keyword));
-  if (slot < 0) throw new Error(`窗口里找不到物品：${action.item}`);
+  let slot = -1;
+  if (preferredItem && (!keyword || getItemSearchText(preferredItem).includes(keyword))) {
+    slot = preferredSlot;
+  } else if (keyword) {
+    slot = (window.slots || []).findIndex((item) => item && getItemSearchText(item).includes(keyword));
+  }
+  if (slot < 0) throw new Error(`窗口里找不到按钮/物品：${action.item || `槽位 ${preferredSlot}`}`);
 
   const count = Math.max(1, Number(action.count) || 1);
   const delayMs = Math.max(0, Number(action.delayMs) || 500);
   const mouseButton = action.button === 'right' ? 1 : 0;
   for (let i = 0; i < count; i += 1) {
     await bot.clickWindow(slot, mouseButton, 0);
-    log(username, `大厅动作 ${index}：按物品名点击 ${action.item}，槽位 ${slot} (${i + 1}/${count})`);
+    const actionLabel = action.type === 'operateWindow' ? '操作点击窗口' : '按物品名点击';
+    log(username, `大厅动作 ${index}：${actionLabel} ${action.item || '已选按钮'}，槽位 ${slot}，${action.button === 'right' ? '右键' : '左键'} (${i + 1}/${count})`);
     await sleep(delayMs);
   }
 }
@@ -1309,8 +1397,7 @@ function getEntitySnapshot(session) {
       z: entity.position.z,
       distance: bot.entity.position.distanceTo(entity.position)
     }))
-    .sort((left, right) => left.distance - right.distance)
-    .slice(0, 30);
+    .sort((left, right) => left.distance - right.distance);
 }
 
 function isArmorStandEntity(entity) {
@@ -1360,16 +1447,12 @@ function logWindowContents(username, session, window) {
   if (signature === session.lastWindowLogSignature) return;
   session.lastWindowLogSignature = signature;
 
-  log(username, `交互窗口：${title}，检测到 ${items.length} 个非空菜单项。`);
-  if (items.length === 0) {
-    log(username, '交互窗口内容：没有收到可显示的文字、提示或物品按钮。');
-    return;
-  }
+  if (items.length === 0) return;
 
   items.forEach((item, index) => {
     const name = item.displayName || item.name || '未命名物品';
     const lore = item.lore.length ? `；提示：${item.lore.join(' / ')}` : '';
-    log(username, `窗口按钮/菜单项 ${index + 1}：槽位 ${item.slot}；${name} x${item.count}${lore}`);
+    log(username, `窗口按钮/菜单项 [${title}] ${index + 1}：槽位 ${item.slot}；${name} x${item.count}${lore}`);
   });
 }
 
@@ -1827,9 +1910,7 @@ function listenDashboardCommands() {
       }
 
       if (command.type === 'lobbyAction') {
-        void runManualLobbyAction(command.target || '', command.action || {}).catch((error) => {
-          log(command.target || null, `网页即时动作失败：${error.message}`);
-        });
+        void runManualLobbyAction(command.target || '', command.action || {}, command.requestId || '');
         return;
       }
 
@@ -1842,20 +1923,37 @@ function listenDashboardCommands() {
   });
 }
 
-async function runManualLobbyAction(username, action) {
+async function runManualLobbyAction(username, action, requestId) {
   const session = sessions.get(username);
-  if (!session?.bot?.entity) throw new Error(`账号未在线：${username}`);
-  if (session.manualLobbyActionRunning) throw new Error('上一个网页即时动作仍在执行。');
-
-  session.manualLobbyActionRunning = true;
+  let claimed = false;
   try {
+    if (!session?.bot?.entity) throw new Error(`账号未在线：${username}`);
+    if (session.manualLobbyActionRunning) throw new Error('上一个网页即时动作仍在执行。');
+    session.manualLobbyActionRunning = true;
+    claimed = true;
     log(username, `网页即时执行大厅动作：${action.type || '未知动作'}`);
     await runLobbyAction(username, { ...action, enabled: true }, '即时');
     await sleep(300);
     emitWindowSnapshot(username);
     log(username, '网页即时动作执行完成。');
+    emitRuntimeEvent({
+      type: 'lobbyActionResult',
+      requestId,
+      username,
+      ok: true,
+      message: '动作执行完成。'
+    });
+  } catch (error) {
+    log(username || null, `网页即时动作失败：${error.message}`);
+    emitRuntimeEvent({
+      type: 'lobbyActionResult',
+      requestId,
+      username,
+      ok: false,
+      message: error.message
+    });
   } finally {
-    session.manualLobbyActionRunning = false;
+    if (claimed) session.manualLobbyActionRunning = false;
   }
 }
 
