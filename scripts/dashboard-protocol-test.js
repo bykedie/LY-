@@ -81,11 +81,14 @@ try {
   assert(!visibleEntityText.replace(/[\s_-]/g, '').includes('armorstand'), '协议快照没有过滤 Armor Stand');
   const menuLogStatus = await requestJson('/api/status');
   const menuLogs = menuLogStatus.logs.join('\n');
+  const initialMenuEntries = menuLogStatus.logs.filter((line) => line.includes('窗口按钮/菜单项 [选择服务器]'));
   assert(menuLogs.includes('窗口按钮/菜单项 [选择服务器] 1：槽位 11；进入一号服务器 x1；提示：点击进入 / 当前 12 人'), '运行日志缺少 NPC 菜单文字和提示');
+  assert(initialMenuEntries.length === 1, `选择服务器菜单应该只输出一个有效按钮，实际输出 ${initialMenuEntries.length} 行`);
   assert(!menuLogs.includes('交互窗口：选择服务器，检测到'), '运行日志不应重复输出交互窗口统计摘要');
   assert(!menuLogs.includes('玩家背包测试物品'), '运行日志不应把玩家背包物品当成 NPC 菜单项');
+  assert(!menuLogs.includes('Stained Glass Pane'), '运行日志不应输出没有自定义名称和提示的玻璃板装饰槽位');
   assert(!/更新数据|team_expand_|playertag_|YeeCombatView/i.test(menuLogs), '运行日志不应输出 DragonCore HUD、血条或玩家标签更新');
-  assert(menuLogs.includes('新手福利七日签到'), '运行日志缺少有效 DragonCore NPC 菜单文字');
+  assert(!menuLogs.includes('模组界面协议 [dragoncore:main]'), '运行日志不应逐条输出 DragonCore 原始载荷');
 
   const rightInteractionStart = receivedEntityInteractions.length;
   const delayedWindowResult = await requestJson('/api/lobby/action', {
@@ -507,6 +510,7 @@ function sendLivingEntity(client, entityId, entityName, x) {
 
 function sendNpcMenu(client, windowId = 1) {
   const items = Array.from({ length: 63 }, () => Item.toNotch(null));
+  items[10] = createNamedItem('white_stained_glass_pane', 'Stained Glass Pane', []);
   items[11] = createNamedItem('paper', '进入一号服务器', ['点击进入', '当前 12 人']);
   items[30] = createNamedItem('stone', '玩家背包测试物品', []);
   client.write('open_window', {

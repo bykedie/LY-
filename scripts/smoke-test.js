@@ -113,8 +113,8 @@ try {
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
   assert(styles.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), '大厅步骤没有按每排五张卡片布局');
   assert(styles.includes('.lobby-action-step-block:nth-child(5n) .lobby-action-connector'), '每排第五张步骤卡缺少换行连接节点');
-  assert(managerScript.includes('v1.0.36'), '管理脚本版本没有更新到 v1.0.36');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.36"'), '启动脚本期望版本没有更新到 v1.0.36');
+  assert(managerScript.includes('v1.0.37'), '管理脚本版本没有更新到 v1.0.37');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.37"'), '启动脚本期望版本没有更新到 v1.0.37');
   assert(managerScript.includes('exec bash ./deploy/ly-afk-manager.sh'), '管理脚本生成的 j 快捷命令仍依赖执行权限');
   assert(bootstrapScript.includes('exec sudo bash ./deploy/ly-afk-manager.sh'), '启动脚本生成的 j 快捷命令没有通过 bash 启动');
   assert(bootstrapScript.includes('run_interactive $SUDO bash ./deploy/ly-afk-manager.sh'), '首次部署仍直接执行管理脚本');

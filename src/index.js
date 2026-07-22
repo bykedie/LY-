@@ -515,7 +515,7 @@ function createBot(account) {
     session.lastWindow = window;
     session.lastWindowOpenedAt = Date.now();
     session.lastWindowLogSignature = '';
-    logWindowContents(account.username, session, window);
+    scheduleWindowContents(account.username, session, window);
     window.on('updateSlot', () => scheduleWindowContents(account.username, session, window));
     emitWindowSnapshot(account.username);
   });
@@ -1499,7 +1499,7 @@ function scheduleWindowContents(username, session, window) {
 
 function logWindowContents(username, session, window) {
   const title = getWindowTitle(window) || '未命名窗口';
-  const items = getWindowMenuItems(window);
+  const items = getWindowMenuItems(window).filter(isLoggableWindowMenuItem);
   const signature = JSON.stringify({
     title,
     items: items.map((item) => [item.slot, item.name, item.displayName, item.count, item.lore])
@@ -1514,6 +1514,14 @@ function logWindowContents(username, session, window) {
     const lore = item.lore.length ? `；提示：${item.lore.join(' / ')}` : '';
     log(username, `窗口按钮/菜单项 [${title}] ${index + 1}：槽位 ${item.slot}；${name} x${item.count}${lore}`);
   });
+}
+
+function isLoggableWindowMenuItem(item) {
+  const itemName = String(item?.name || '').toLowerCase();
+  const displayName = String(item?.displayName || '').trim().toLowerCase().replaceAll('_', ' ');
+  const isGlassPane = itemName === 'glass_pane' || itemName.endsWith('stained_glass_pane');
+  const hasCustomName = displayName && !['glass pane', 'stained glass pane'].includes(displayName);
+  return !isGlassPane || hasCustomName || item.lore.length > 0;
 }
 
 function serializeWindowSlot(slot, item) {
@@ -1775,8 +1783,6 @@ function recordProtocolPayload(username, session, packet) {
     log(username, `模组对话协议 [${channel}]：实体 ID ${item.entityId}，对话 ID ${item.dialogId}。这是 CustomNPCs 客户端对话，不是背包槽位窗口；协议只提供编号，按钮文字来自客户端模组同步数据。`);
     return;
   }
-  const content = text ? `；内容片段：${text}` : '';
-  log(username, `模组界面协议 [${channel}]：${item.packetType}，${item.size} 字节${content}`);
 }
 
 function isNoisyProtocolPayload(channel, text) {
