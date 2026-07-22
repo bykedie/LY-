@@ -802,9 +802,13 @@ select:disabled {
   gap: 12px;
 }
 
+.lobby-action-list {
+  gap: 0;
+}
+
 .lobby-action-step-block {
   display: grid;
-  gap: 6px;
+  gap: 0;
   min-width: 0;
 }
 
@@ -1055,18 +1059,49 @@ select:disabled {
   padding: 0 8px;
 }
 
+.lobby-action-connector {
+  position: relative;
+  display: grid;
+  height: 52px;
+  place-items: center;
+}
+
+.lobby-action-connector::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  content: '';
+  background: #cbd8e8;
+  transform: translateX(-50%);
+}
+
+.lobby-action-step-block:last-child .lobby-action-connector::before {
+  bottom: 50%;
+}
+
 .insert-lobby-action {
-  justify-self: center;
-  min-width: 190px;
-  height: 34px;
-  border-style: dashed;
+  position: relative;
+  z-index: 1;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 0 2px;
+  border: 1px solid #8eb7e7;
+  border-radius: 50%;
   color: var(--primary);
   background: #ffffff;
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: 0 2px 7px rgba(31, 105, 204, 0.16);
 }
 
 .insert-lobby-action:hover {
   border-color: #78a8df;
   background: #eef6ff;
+  transform: scale(1.08);
 }
 
 .message-list-label {
@@ -1464,7 +1499,4 @@ select:disabled {
     flex-wrap: wrap;
   }
 
-  .insert-lobby-action {
-    width: 100%;
-  }
 }
