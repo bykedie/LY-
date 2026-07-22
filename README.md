@@ -95,7 +95,7 @@ http://127.0.0.1:30123
 ```bash
 cd /opt/pcl-afk-bot
 chmod +x deploy/ly-afk-manager.sh
-sudo ./deploy/ly-afk-manager.sh
+sudo bash deploy/ly-afk-manager.sh
 ```
 
 第一次进入菜单建议选择 `2. 一键安装环境 + 配置 + 启动`。脚本顶部会自动显示“当前公网 IP / 当前私有 IP”，域名只需要在 DNS 后台添加 A 记录指向脚本检测到的当前公网 IP。安装完成后，以后在服务器终端直接输入 `j` 就能再次打开管理菜单。更详细的逐步教程见 [docs/ubuntu-24.04-deploy.md](docs/ubuntu-24.04-deploy.md)。

@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.31"
-EXPECTED_MANAGER_VERSION="v1.0.31"
+BOOTSTRAP_VERSION="v1.0.32"
+EXPECTED_MANAGER_VERSION="v1.0.32"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -221,7 +221,7 @@ run_interactive() {
     warn "当前会话没有可用的交互终端，无法自动打开菜单。"
     echo "项目已经下载完成，请手动执行："
     echo "cd ${INSTALL_DIR}"
-    echo "sudo ./deploy/ly-afk-manager.sh"
+    echo "sudo bash ./deploy/ly-afk-manager.sh"
   fi
 }
 
@@ -235,9 +235,9 @@ install_j_shortcut() {
 #!/usr/bin/env bash
 cd "${INSTALL_DIR}"
 if [[ "\${EUID}" -eq 0 ]]; then
-  exec ./deploy/ly-afk-manager.sh "\$@"
+  exec bash ./deploy/ly-afk-manager.sh "\$@"
 fi
-exec sudo ./deploy/ly-afk-manager.sh "\$@"
+exec sudo bash ./deploy/ly-afk-manager.sh "\$@"
 EOF
   run $SUDO chmod +x "$shortcut_file"
   info "快捷命令已安装：以后在终端输入 j 可直接打开 LY 管理界面。"
@@ -557,7 +557,7 @@ run_manager() {
   show_installed_version
   info "项目已准备完成，正在打开 LY 控制台一键管理菜单。"
   step "5/5" "进入菜单，请根据提示选择功能"
-  run_interactive $SUDO ./deploy/ly-afk-manager.sh
+  run_interactive $SUDO bash ./deploy/ly-afk-manager.sh
 }
 
 main() {

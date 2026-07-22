@@ -90,9 +90,9 @@ install_j_shortcut() {
 #!/usr/bin/env bash
 cd "${PROJECT_DIR}"
 if [[ "\${EUID}" -eq 0 ]]; then
-  exec ./deploy/ly-afk-manager.sh "\$@"
+  exec bash ./deploy/ly-afk-manager.sh "\$@"
 fi
-exec sudo ./deploy/ly-afk-manager.sh "\$@"
+exec sudo bash ./deploy/ly-afk-manager.sh "\$@"
 EOF
   $SUDO chmod +x "$shortcut_file"
   info "快捷命令已安装：以后在终端输入 j 可直接打开本界面。"
@@ -103,7 +103,7 @@ ensure_interactive_terminal() {
     echo "当前没有可用的交互终端，无法打开菜单。"
     echo "请登录服务器后手动执行："
     echo "cd ${PROJECT_DIR}"
-    echo "sudo ./deploy/ly-afk-manager.sh"
+    echo "sudo bash ./deploy/ly-afk-manager.sh"
     exit 0
   fi
 }
@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.31"
+  echo "LY 挂机控制台一键管理脚本  v1.0.32"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -908,6 +908,7 @@ update_project() {
     echo "旧项目已备份到：${backup_dir}"
     info "代码替换完成。"
   fi
+  $SUDO chmod +x "$PROJECT_DIR/deploy/ly-afk-manager.sh"
   progress "3/5" "当前正在安装/更新 npm 依赖..."
   npm install --progress=true
   info "npm 依赖安装完成。"

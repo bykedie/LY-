@@ -81,7 +81,7 @@ ls -la /opt/ly-console
 
 ```bash
 cd /opt/ly-console
-sudo ./deploy/ly-afk-manager.sh
+sudo bash ./deploy/ly-afk-manager.sh
 ```
 
 也可以手动测试服务器网络：
@@ -200,7 +200,7 @@ chmod +x deploy/ly-afk-manager.sh
 打开菜单：
 
 ```bash
-sudo ./deploy/ly-afk-manager.sh
+sudo bash ./deploy/ly-afk-manager.sh
 ```
 
 推荐第一次选择：
