@@ -72,7 +72,13 @@ try {
   assert(protocolSnapshot.protocolDialogs.some((item) => item.packetType === 'DIALOG' && item.dialogId === 77), '协议快照没有识别 CustomNPCs 对话协议');
   assert(protocolSnapshot.protocolDialogs.some((item) => item.channel === 'dragoncore:main' && item.text.includes('新手福利')), '协议快照过滤掉了有效 DragonCore NPC 菜单内容');
   assert(!protocolSnapshot.protocolDialogs.some((item) => /更新数据|team_expand_|playertag_/i.test(item.text)), '协议快照没有过滤 DragonCore HUD 更新噪声');
+  assert(protocolSnapshot.protocolMenu?.title === '选服', '协议快照没有解析 DragonCore 界面名称');
+  assert(
+    protocolSnapshot.protocolMenu?.entries.some((entry) => entry.name === '新手福利七日签到' && entry.slot === 20),
+    '协议快照没有把 DragonCore 按钮名称映射到槽位'
+  );
   await waitForDashboardLog('模组对话协议 [CustomNPCs]：实体 ID 9102，对话 ID 77');
+  await waitForDashboardLog('DragonCore 界面 [选服]');
   assert(protocolSnapshot.window?.title === '选择服务器', '协议快照没有返回 NPC 交互窗口标题');
   assert(protocolSnapshot.window?.slots[11]?.displayName === '进入一号服务器', '协议快照没有解析菜单物品名称');
   assert(protocolSnapshot.window?.slots[11]?.lore.includes('点击进入'), '协议快照没有解析菜单 Lore 提示');
@@ -89,6 +95,7 @@ try {
   assert(!menuLogs.includes('Stained Glass Pane'), '运行日志不应输出没有自定义名称和提示的玻璃板装饰槽位');
   assert(!/更新数据|team_expand_|playertag_|YeeCombatView/i.test(menuLogs), '运行日志不应输出 DragonCore HUD、血条或玩家标签更新');
   assert(!menuLogs.includes('模组界面协议 [dragoncore:main]'), '运行日志不应逐条输出 DragonCore 原始载荷');
+  assert(menuLogs.includes('DragonCore 界面 [选服]：识别到 1 个可操作项：槽位 20 新手福利七日签到'), '运行日志缺少精简后的 DragonCore 可操作按钮摘要');
 
   const rightInteractionStart = receivedEntityInteractions.length;
   const delayedWindowResult = await requestJson('/api/lobby/action', {
@@ -113,6 +120,25 @@ try {
   });
   await waitForEntityInteraction(leftInteractionStart, 9102, [1]);
   assert(restoredWindowResult.window?.title === '选择服务器', '左键实体交互后没有捕获重新打开的标准菜单');
+
+  const protocolClickStart = receivedWindowClicks.length;
+  await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      action: {
+        type: 'operateWindow',
+        item: '新手福利七日签到',
+        slot: 20,
+        protocolEntry: true,
+        button: 'left',
+        count: 1,
+        timeoutMs: 5000,
+        enabled: true
+      }
+    })
+  });
+  await waitForWindowClick(protocolClickStart, 20, 0);
 
   const windowClickStart = receivedWindowClicks.length;
   const operateWindowResult = await requestJson('/api/lobby/action', {
@@ -436,6 +462,8 @@ function createMinecraftServer(port) {
       setTimeout(() => sendDragonCorePayload(client, 'playertag_player_op playertag_playerhealth_op 9.5 playertag_playermaxhealth_op 330'), 1350);
       setTimeout(() => sendCustomNpcsDialog(client), 1400);
       setTimeout(() => sendDragonCorePayload(client, 'NPC对话：1.新手福利食用图鉴 2.新手福利七日签到 3.新手福利等级奖励'), 1450);
+      setTimeout(() => sendDragonCorePayload(client, 'craftx_entry_configName 选服 craftx_entry_functionName 新手福利七日签到 craftx_entry_right-click false craftx_entry_left-click false craftx_entry_shift-click false craftx_entry_inventory-action'), 1500);
+      setTimeout(() => sendDragonCorePayload(client, 'craftx_slot-id_20 新手福利七日签到'), 1550);
       setTimeout(() => sendNpcMenu(client), 1600);
     }
   });

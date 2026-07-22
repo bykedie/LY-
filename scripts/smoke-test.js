@@ -103,6 +103,9 @@ try {
   assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
   assert(appScript.includes('最近模组界面：'), '前端没有显示最近检测到的模组界面协议');
+  assert(appScript.includes('data.protocolMenu || null'), '前端没有接收 DragonCore 菜单映射');
+  assert(appScript.includes('dataset.protocolEntry'), '前端没有保留 DragonCore 按钮来源标记');
+  assert(appScript.includes('当前模组界面：'), '前端没有显示 DragonCore 可选择按钮界面');
   assert(appScript.includes('block.after(createLobbyAction(defaultLobbyAction()))'), '步骤后的添加动作按钮没有按当前位置插入');
 
   const rendererScript = await requestText('/log-renderer.js');
@@ -113,8 +116,8 @@ try {
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
   assert(styles.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), '大厅步骤没有按每排五张卡片布局');
   assert(styles.includes('.lobby-action-step-block:nth-child(5n) .lobby-action-connector'), '每排第五张步骤卡缺少换行连接节点');
-  assert(managerScript.includes('v1.0.37'), '管理脚本版本没有更新到 v1.0.37');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.37"'), '启动脚本期望版本没有更新到 v1.0.37');
+  assert(managerScript.includes('v1.0.38'), '管理脚本版本没有更新到 v1.0.38');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.38"'), '启动脚本期望版本没有更新到 v1.0.38');
   assert(managerScript.includes('exec bash ./deploy/ly-afk-manager.sh'), '管理脚本生成的 j 快捷命令仍依赖执行权限');
   assert(bootstrapScript.includes('exec sudo bash ./deploy/ly-afk-manager.sh'), '启动脚本生成的 j 快捷命令没有通过 bash 启动');
   assert(bootstrapScript.includes('run_interactive $SUDO bash ./deploy/ly-afk-manager.sh'), '首次部署仍直接执行管理脚本');

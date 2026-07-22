@@ -432,6 +432,9 @@ function createBot(account) {
       recentMessages: [],
       chatButtons: [],
       protocolDialogs: [],
+      protocolMenu: null,
+      protocolMenuLogTimer: null,
+      lastProtocolMenuLogSignature: '',
       lastProtocolDialogSignature: '',
       lastProtocolDialogAt: 0,
       chatQueue: [],
@@ -460,6 +463,10 @@ function createBot(account) {
   session.recentMessages = [];
   session.chatButtons = [];
   session.protocolDialogs = [];
+  session.protocolMenu = null;
+  clearTimeout(session.protocolMenuLogTimer);
+  session.protocolMenuLogTimer = null;
+  session.lastProtocolMenuLogSignature = '';
   session.lastProtocolDialogSignature = '';
   session.lastProtocolDialogAt = 0;
 
@@ -1130,12 +1137,14 @@ function createInteractionResponseMarker(session) {
     window: session?.bot?.currentWindow || session?.lastWindow || null,
     windowOpenedAt: session?.lastWindowOpenedAt || 0,
     chatButtonAt: session?.chatButtons?.at(-1)?.at || 0,
-    protocolDialogAt: session?.protocolDialogs?.at(-1)?.at || 0
+    protocolDialogAt: session?.protocolDialogs?.at(-1)?.at || 0,
+    protocolMenuAt: session?.protocolMenu?.at || 0
   };
 }
 
 async function waitForInteractionResponse(username, session, marker, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  let protocolDetectedAt = 0;
   while (Date.now() <= deadline) {
     const window = session?.bot?.currentWindow || session?.lastWindow || null;
     if (window && (window !== marker.window || (session.lastWindowOpenedAt || 0) > marker.windowOpenedAt)) {
@@ -1149,10 +1158,20 @@ async function waitForInteractionResponse(username, session, marker, timeoutMs) 
       return { type: 'chatButton', chatButton };
     }
 
+    const protocolMenu = session?.protocolMenu;
+    if (protocolMenu && protocolMenu.at > marker.protocolMenuAt && protocolMenu.entries?.some((entry) => Number.isInteger(entry.slot))) {
+      const count = protocolMenu.entries.filter((entry) => Number.isInteger(entry.slot)).length;
+      log(username, `NPC 交互响应：已解析 DragonCore 界面 ${protocolMenu.title || '未命名界面'}，可选择 ${count} 个按钮。`);
+      return { type: 'protocolMenu', protocolMenu };
+    }
+
     const protocolDialog = session?.protocolDialogs?.findLast((item) => item.at > marker.protocolDialogAt);
     if (protocolDialog) {
-      log(username, `NPC 交互响应：检测到模组界面协议 ${protocolDialog.channel}${protocolDialog.packetType ? ` / ${protocolDialog.packetType}` : ''}。`);
-      return { type: 'protocolDialog', protocolDialog };
+      protocolDetectedAt ||= Date.now();
+      if (Date.now() - protocolDetectedAt >= 700) {
+        log(username, `NPC 交互响应：检测到模组界面协议 ${protocolDialog.channel}${protocolDialog.packetType ? ` / ${protocolDialog.packetType}` : ''}，但暂未解析到可操作槽位。`);
+        return { type: 'protocolDialog', protocolDialog };
+      }
     }
     await sleep(100);
   }
@@ -1303,12 +1322,19 @@ async function runClickItemAction(username, action, index) {
   const bot = session?.bot;
   if (!bot?.entity) return;
 
-  const window = await waitForWindow(username, action.title, Number(action.timeoutMs) || 5000);
+  const window = action.protocolEntry
+    ? (bot.currentWindow || session.lastWindow)
+    : await waitForWindow(username, action.title, Number(action.timeoutMs) || 5000);
+  if (!window) {
+    throw new Error('已识别 DragonCore 界面按钮，但当前没有可点击的底层容器窗口；需要采集该服务器真实客户端的点击协议。');
+  }
   const keyword = normalizeSearchText(action.item);
   const preferredSlot = Number(action.slot);
   const preferredItem = Number.isInteger(preferredSlot) ? window.slots?.[preferredSlot] : null;
   let slot = -1;
-  if (preferredItem && (!keyword || getItemSearchText(preferredItem).includes(keyword))) {
+  if (action.protocolEntry && Number.isInteger(preferredSlot)) {
+    slot = preferredSlot;
+  } else if (preferredItem && (!keyword || getItemSearchText(preferredItem).includes(keyword))) {
     slot = preferredSlot;
   } else if (keyword) {
     slot = (window.slots || []).findIndex((item) => item && getItemSearchText(item).includes(keyword));
@@ -1320,7 +1346,7 @@ async function runClickItemAction(username, action, index) {
   const mouseButton = action.button === 'right' ? 1 : 0;
   for (let i = 0; i < count; i += 1) {
     await bot.clickWindow(slot, mouseButton, 0);
-    const actionLabel = action.type === 'operateWindow' ? '操作点击窗口' : '按物品名点击';
+    const actionLabel = action.protocolEntry ? '操作 DragonCore 映射按钮' : (action.type === 'operateWindow' ? '操作点击窗口' : '按物品名点击');
     log(username, `大厅动作 ${index}：${actionLabel} ${action.item || '已选按钮'}，槽位 ${slot}，${action.button === 'right' ? '右键' : '左键'} (${i + 1}/${count})`);
     await sleep(delayMs);
   }
@@ -1418,7 +1444,8 @@ function emitWindowSnapshot(username) {
     entities: getEntitySnapshot(session),
     messages: getMessageSnapshot(session),
     chatButtons: getChatButtonSnapshot(session),
-    protocolDialogs: getProtocolDialogSnapshot(session)
+    protocolDialogs: getProtocolDialogSnapshot(session),
+    protocolMenu: getProtocolMenuSnapshot(session)
   });
 }
 
@@ -1432,6 +1459,14 @@ function getChatButtonSnapshot(session) {
 
 function getProtocolDialogSnapshot(session) {
   return (session?.protocolDialogs || []).slice(-20).map((item) => ({ ...item }));
+}
+
+function getProtocolMenuSnapshot(session) {
+  if (!session?.protocolMenu) return null;
+  return {
+    ...session.protocolMenu,
+    entries: (session.protocolMenu.entries || []).map((entry) => ({ ...entry }))
+  };
 }
 
 function getPositionSnapshot(session) {
@@ -1753,6 +1788,7 @@ function recordProtocolPayload(username, session, packet) {
   }
 
   const text = extractProtocolPayloadText(data);
+  if (channel.toLowerCase() === 'dragoncore:main') updateDragonCoreProtocolMenu(username, session, text);
   if (isNoisyProtocolPayload(channel, text)) return;
   const signal = parseKnownProtocolDialog(channel, data);
   const likelyUiChannel = /(npc|dialog|gui|menu|quest|screen)/i.test(channel);
@@ -1783,6 +1819,80 @@ function recordProtocolPayload(username, session, packet) {
     log(username, `模组对话协议 [${channel}]：实体 ID ${item.entityId}，对话 ID ${item.dialogId}。这是 CustomNPCs 客户端对话，不是背包槽位窗口；协议只提供编号，按钮文字来自客户端模组同步数据。`);
     return;
   }
+}
+
+function updateDragonCoreProtocolMenu(username, session, text) {
+  if (!text || !/craftx_(?:entry_|slot-id_)/i.test(text)) return;
+
+  const now = Date.now();
+  const titleMatch = text.match(/craftx_entry_configName\s+([^\s]+)/i);
+  const title = cleanProtocolMenuLabel(titleMatch?.[1]);
+  const previous = session.protocolMenu;
+  const menu = previous && (!title || previous.title === title)
+    ? { ...previous, entries: (previous.entries || []).map((entry) => ({ ...entry })) }
+    : { channel: 'dragoncore:main', title: title || 'DragonCore 界面', entries: [], at: now };
+  if (title) menu.title = title;
+
+  let changed = false;
+  const upsertEntry = (rawName, slot = null) => {
+    const name = cleanProtocolMenuLabel(rawName);
+    if (!name || isProtocolMenuDecoration(name)) return;
+    const key = normalizeSearchText(name);
+    let entry = menu.entries.find((item) => normalizeSearchText(item.name) === key);
+    if (!entry) {
+      entry = { name, slot: null, lore: [], source: 'dragoncore' };
+      menu.entries.push(entry);
+      changed = true;
+    }
+    if (Number.isInteger(slot) && entry.slot !== slot) {
+      entry.slot = slot;
+      changed = true;
+    }
+  };
+
+  for (const match of text.matchAll(/craftx_entry_functionName\s*(.*?)(?=\s+craftx_entry_(?:right|left|shift)-click|\s+craftx_|$)/gi)) {
+    upsertEntry(match[1]);
+  }
+  for (const match of text.matchAll(/craftx_slot-id_(\d+)\s+(.+?)(?=\s+craftx_slot-id_|\s+craftx_|$)/gi)) {
+    upsertEntry(match[2], Number(match[1]));
+  }
+
+  if (!changed && previous) return;
+  menu.entries = menu.entries
+    .slice(-80)
+    .sort((left, right) => (Number.isInteger(left.slot) ? left.slot : 9999) - (Number.isInteger(right.slot) ? right.slot : 9999));
+  menu.at = now;
+  session.protocolMenu = menu;
+  scheduleProtocolMenuSummary(username, session);
+}
+
+function cleanProtocolMenuLabel(value) {
+  return normalizeSearchDisplayText(value)
+    .replace(/^[\s'"!#&*+,.?]+/, '')
+    .replace(/[\s'"!#&*+,.?]+$/, '')
+    .trim();
+}
+
+function isProtocolMenuDecoration(value) {
+  const normalized = normalizeSearchText(value).replace(/[\s_-]/g, '');
+  return ['background', '背景', 'display', 'lore', 'name'].includes(normalized);
+}
+
+function scheduleProtocolMenuSummary(username, session) {
+  clearTimeout(session.protocolMenuLogTimer);
+  session.protocolMenuLogTimer = setTimeout(() => {
+    session.protocolMenuLogTimer = null;
+    const menu = session.protocolMenu;
+    const entries = (menu?.entries || []).filter((entry) => Number.isInteger(entry.slot));
+    if (!menu || entries.length === 0) return;
+    const signature = JSON.stringify([menu.title, entries.map((entry) => [entry.slot, entry.name])]);
+    if (signature === session.lastProtocolMenuLogSignature) return;
+    session.lastProtocolMenuLogSignature = signature;
+    const summary = entries.slice(0, 12).map((entry) => `槽位 ${entry.slot} ${entry.name}`).join('；');
+    const more = entries.length > 12 ? `；另有 ${entries.length - 12} 项` : '';
+    log(username, `DragonCore 界面 [${menu.title}]：识别到 ${entries.length} 个可操作项：${summary}${more}`);
+    emitWindowSnapshot(username);
+  }, 300);
 }
 
 function isNoisyProtocolPayload(channel, text) {

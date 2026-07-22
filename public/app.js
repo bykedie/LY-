@@ -650,7 +650,7 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-key-duration').value = action.durationMs ?? '';
   card.querySelector('.lobby-action-to-slot').value = action.toSlot ?? '';
   card.querySelector('.lobby-action-message').value = action.message || '';
-  populateWindowItemSelect(card.querySelector('.lobby-action-item'), action.item || '', action.slot);
+  populateWindowItemSelect(card.querySelector('.lobby-action-item'), action.item || '', action.slot, action.protocolEntry === true);
   card.querySelector('.lobby-action-chat-text').value = action.chatText || '';
   card.querySelector('.lobby-action-chat-button').value = action.chatButton || '';
   card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
@@ -755,8 +755,10 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
   if (['clickItem', 'operateWindow'].includes(type)) {
     const select = card.querySelector('.lobby-action-item');
     action.item = select.value.trim();
-    const slot = Number(select.selectedOptions[0]?.dataset.slot);
+    const selectedOption = select.selectedOptions[0];
+    const slot = Number(selectedOption?.dataset.slot);
     if (Number.isInteger(slot)) action.slot = slot;
+    if (selectedOption?.dataset.protocolEntry === 'true') action.protocolEntry = true;
   }
   if (type === 'waitChat') action.chatText = card.querySelector('.lobby-action-chat-text').value.trim();
   if (type === 'clickChat') action.chatButton = card.querySelector('.lobby-action-chat-button').value.trim();
@@ -839,7 +841,7 @@ async function refreshWindowSnapshot() {
   }
 
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
-  renderWindowSnapshot(data.window, data.protocolDialogs || []);
+  renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null);
   renderPositionSnapshot(data.position, data.entities || []);
   setWindowSnapshotCollapsed(false);
 }
@@ -898,14 +900,15 @@ function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '-';
 }
 
-function renderWindowSnapshot(windowSnapshot, protocolDialogs = []) {
+function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu = null) {
   const title = $('#windowSnapshotTitle');
   const grid = $('#windowGrid');
   if (!title || !grid) return;
 
   state.windowItems = [];
   grid.innerHTML = '';
-  if (!windowSnapshot) {
+  const protocolItems = getProtocolMenuItems(protocolMenu);
+  if (!windowSnapshot && protocolItems.length === 0) {
     const protocolDialog = protocolDialogs.at(-1);
     if (protocolDialog) {
       const ids = [
@@ -917,29 +920,47 @@ function renderWindowSnapshot(windowSnapshot, protocolDialogs = []) {
       title.textContent = '当前交互窗口：没有检测到已打开的窗口';
     }
     document.querySelectorAll('.lobby-action-item').forEach((select) => (
-      populateWindowItemSelect(select, select.value, select.selectedOptions[0]?.dataset.slot)
+      populateWindowItemSelect(
+        select,
+        select.value,
+        select.selectedOptions[0]?.dataset.slot,
+        select.selectedOptions[0]?.dataset.protocolEntry === 'true'
+      )
     ));
     return;
   }
 
-  const inventoryStart = windowSnapshot.inventoryStart;
-  state.windowItems = windowSnapshot.slots.filter((slot) => (
-    slot.item && (!Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
+  const inventoryStart = windowSnapshot?.inventoryStart;
+  const slotsByIndex = new Map((windowSnapshot?.slots || []).map((slot) => [slot.slot, slot]));
+  protocolItems.forEach((slot) => slotsByIndex.set(slot.slot, slot));
+  state.windowItems = [...slotsByIndex.values()].filter((slot) => (
+    slot.item
+    && (slot.protocolEntry || !Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
+    && isSelectableWindowItem(slot)
   ));
-  title.textContent = `当前交互窗口：${windowSnapshot.title || '未命名窗口'}`;
+  if (windowSnapshot && protocolItems.length) {
+    title.textContent = `当前交互窗口：${windowSnapshot.title || '未命名窗口'}（DragonCore：${protocolMenu.title || '模组界面'}，识别到 ${protocolItems.length} 个选项）`;
+  } else if (windowSnapshot) {
+    title.textContent = `当前交互窗口：${windowSnapshot.title || '未命名窗口'}`;
+  } else {
+    title.textContent = `当前模组界面：${protocolMenu.title || 'DragonCore 界面'}，识别到 ${protocolItems.length} 个可选项`;
+  }
 
-  const slotsByIndex = new Map(windowSnapshot.slots.map((slot) => [slot.slot, slot]));
   for (let slotIndex = 0; slotIndex <= 80; slotIndex += 1) {
     const slot = slotsByIndex.get(slotIndex) || { slot: slotIndex, item: false, name: '', displayName: '', count: 0, lore: [] };
     const name = slot.displayName || slot.name || '';
     const button = document.createElement('button');
-    button.className = `window-slot${slot.item ? ' has-item' : ' is-empty'}`;
+    const selectable = slot.item
+      && (slot.protocolEntry || !Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
+      && isSelectableWindowItem(slot);
+    button.className = `window-slot${selectable ? ' has-item' : ' is-empty'}${slot.protocolEntry ? ' is-protocol-item' : ''}`;
     button.type = 'button';
     const loreLines = (slot.lore || []).filter(Boolean);
     const loreText = loreLines.length ? `\n提示：${loreLines.join(' / ')}` : '';
-    button.title = slot.item ? `槽位 ${slot.slot}：${name || '未命名物品'} x${slot.count}${loreText}` : `槽位 ${slot.slot}：空`;
-    button.innerHTML = `<strong>${slot.slot}</strong>${slot.item ? `<span>${escapeHtml(name || '物品')}</span>` : ''}`;
-    if (slot.item && (!Number.isInteger(inventoryStart) || slot.slot < inventoryStart)) {
+    const sourceText = slot.protocolEntry ? '\n来源：DragonCore 槽位映射' : '';
+    button.title = slot.item ? `槽位 ${slot.slot}：${name || '未命名物品'} x${slot.count}${loreText}${sourceText}` : `槽位 ${slot.slot}：空`;
+    button.innerHTML = `<strong>${slot.slot}</strong>${selectable ? `<span>${escapeHtml(name || '物品')}</span>` : ''}`;
+    if (selectable) {
       button.addEventListener('click', () => fillSelectedWindowItem(slot));
     } else {
       button.disabled = true;
@@ -947,11 +968,38 @@ function renderWindowSnapshot(windowSnapshot, protocolDialogs = []) {
     grid.appendChild(button);
   }
   document.querySelectorAll('.lobby-action-item').forEach((select) => (
-    populateWindowItemSelect(select, select.value, select.selectedOptions[0]?.dataset.slot)
+    populateWindowItemSelect(
+      select,
+      select.value,
+      select.selectedOptions[0]?.dataset.slot,
+      select.selectedOptions[0]?.dataset.protocolEntry === 'true'
+    )
   ));
 }
 
-function populateWindowItemSelect(select, selectedValue = '', selectedSlot) {
+function getProtocolMenuItems(protocolMenu) {
+  return (protocolMenu?.entries || [])
+    .filter((entry) => Number.isInteger(entry.slot) && entry.slot >= 0 && entry.slot <= 80)
+    .map((entry) => ({
+      slot: entry.slot,
+      item: true,
+      name: entry.name,
+      displayName: entry.name,
+      count: 1,
+      lore: Array.isArray(entry.lore) ? entry.lore : [],
+      protocolEntry: true
+    }));
+}
+
+function isSelectableWindowItem(slot) {
+  const itemName = String(slot?.name || '').toLowerCase();
+  const displayName = String(slot?.displayName || '').trim().toLowerCase().replaceAll('_', ' ');
+  const isGlassPane = itemName === 'glass_pane' || itemName.endsWith('stained_glass_pane');
+  const hasCustomName = displayName && !['glass pane', 'stained glass pane'].includes(displayName);
+  return slot?.protocolEntry || !isGlassPane || hasCustomName || (slot?.lore || []).length > 0;
+}
+
+function populateWindowItemSelect(select, selectedValue = '', selectedSlot, selectedProtocolEntry = false) {
   if (!select) return;
   const current = selectedValue || select.value || '';
   select.innerHTML = '';
@@ -965,7 +1013,8 @@ function populateWindowItemSelect(select, selectedValue = '', selectedSlot) {
     const option = document.createElement('option');
     option.value = name;
     option.dataset.slot = String(slot.slot);
-    option.textContent = `${index + 1}. 槽位 ${slot.slot}：${name}${lore ? ` | ${lore}` : ''}`;
+    option.dataset.protocolEntry = slot.protocolEntry ? 'true' : 'false';
+    option.textContent = `${index + 1}. ${slot.protocolEntry ? '[模组] ' : ''}槽位 ${slot.slot}：${name}${lore ? ` | ${lore}` : ''}`;
     select.appendChild(option);
   });
   if (current && ![...select.options].some((option) => option.value === current)) {
@@ -974,11 +1023,16 @@ function populateWindowItemSelect(select, selectedValue = '', selectedSlot) {
     if (selectedSlot !== undefined && selectedSlot !== null && selectedSlot !== '' && Number.isInteger(Number(selectedSlot))) {
       saved.dataset.slot = String(Number(selectedSlot));
     }
+    saved.dataset.protocolEntry = selectedProtocolEntry ? 'true' : 'false';
     saved.textContent = `已保存：${current}`;
     select.appendChild(saved);
   }
   const selectedSlotOption = selectedSlot !== undefined && selectedSlot !== null && selectedSlot !== '' && Number.isInteger(Number(selectedSlot))
-    ? [...select.options].find((option) => Number(option.dataset.slot) === Number(selectedSlot) && (!current || option.value === current))
+    ? [...select.options].find((option) => (
+      Number(option.dataset.slot) === Number(selectedSlot)
+      && (!current || option.value === current)
+      && option.dataset.protocolEntry === (selectedProtocolEntry ? 'true' : 'false')
+    ))
     : null;
   if (selectedSlotOption) selectedSlotOption.selected = true;
   else select.value = current;
@@ -1003,14 +1057,23 @@ function fillSelectedWindowItem(slot) {
   const cards = [...document.querySelectorAll('.lobby-action-card')];
   let targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'operateWindow');
   if (!targetCard) {
-    $('#lobbyActionList').appendChild(createLobbyAction({ type: 'operateWindow', item: name, slot: slot.slot, button: 'left', count: 1, timeoutMs: 5000, enabled: true }));
+    $('#lobbyActionList').appendChild(createLobbyAction({
+      type: 'operateWindow',
+      item: name,
+      slot: slot.slot,
+      protocolEntry: slot.protocolEntry === true,
+      button: 'left',
+      count: 1,
+      timeoutMs: 5000,
+      enabled: true
+    }));
     refreshLobbyActionOrder();
-    showToast(`已新增操作窗口动作：槽位 ${slot.slot} ${name}`);
+    showToast(`已新增${slot.protocolEntry ? ' DragonCore' : ''}操作窗口动作：槽位 ${slot.slot} ${name}`);
     return;
   }
-  populateWindowItemSelect(targetCard.querySelector('.lobby-action-item'), name, slot.slot);
+  populateWindowItemSelect(targetCard.querySelector('.lobby-action-item'), name, slot.slot, slot.protocolEntry === true);
   updateLobbyActionFields(targetCard);
-  showToast(`已选择窗口按钮：槽位 ${slot.slot} ${name}`);
+  showToast(`已选择${slot.protocolEntry ? ' DragonCore' : ''}窗口按钮：槽位 ${slot.slot} ${name}`);
 }
 
 async function executeLobbyAction(card) {
@@ -1027,7 +1090,7 @@ async function executeLobbyAction(card) {
       method: 'POST',
       body: JSON.stringify({ target, action: readLobbyActionCard(card, { includeRuntimeReference: true }) })
     });
-    renderWindowSnapshot(data.window, data.protocolDialogs || []);
+    renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null);
     renderPositionSnapshot(data.position, data.entities || []);
     setWindowSnapshotCollapsed(false);
     showToast(`步骤已在 ${target} 执行完成，坐标和窗口已刷新`);

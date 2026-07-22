@@ -400,6 +400,7 @@ function validateLobbyActions(actions) {
     if (action.direction !== undefined) requireEnum(action.direction, `第 ${index + 1} 个大厅动作方向`, ['forward', 'back', 'left', 'right', 'north', 'south', 'east', 'west']);
     if (action.interact !== undefined) requireEnum(action.interact, `第 ${index + 1} 个大厅动作交互方式`, ['approach', 'left', 'right']);
     if (action.enabled !== undefined) requireBoolean(action.enabled, `第 ${index + 1} 个大厅动作启用开关`);
+    if (action.protocolEntry !== undefined) requireBoolean(action.protocolEntry, `第 ${index + 1} 个大厅动作模组槽位标记`);
     if (action.delayMs !== undefined) requireNumber(action.delayMs, `第 ${index + 1} 个大厅动作延迟`, { min: 0 });
     if (action.timeoutMs !== undefined) requireNumber(action.timeoutMs, `第 ${index + 1} 个大厅动作超时`, { min: 100 });
     if (action.responseTimeoutMs !== undefined) requireNumber(action.responseTimeoutMs, `第 ${index + 1} 个大厅动作交互响应等待`, { min: 0, max: 15000 });
@@ -558,7 +559,8 @@ function handleBotEventLine(line) {
         entities: Array.isArray(event.entities) ? event.entities : [],
         messages: Array.isArray(event.messages) ? event.messages : [],
         chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : [],
-        protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : []
+        protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : [],
+        protocolMenu: event.protocolMenu || null
       });
     }
     if (event.type === 'lobbyActionResult' && event.requestId) {
@@ -635,10 +637,10 @@ async function requestWindowSnapshot(target) {
   sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
   const deadline = Date.now() + 800;
   while (Date.now() < deadline) {
-    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [] };
+    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [], protocolMenu: null };
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  return { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [] };
+  return { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [], protocolMenu: null };
 }
 
 function createLobbyActionRequestId() {
