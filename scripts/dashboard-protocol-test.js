@@ -70,6 +70,8 @@ try {
   assert(protocolSnapshot.messages.some((item) => item.text.includes('领取奖励')), '协议快照没有返回最近聊天内容');
   assert(protocolSnapshot.chatButtons.some((item) => item.value === '/daily-reward'), '协议快照没有识别聊天 clickEvent 按钮');
   assert(protocolSnapshot.protocolDialogs.some((item) => item.packetType === 'DIALOG' && item.dialogId === 77), '协议快照没有识别 CustomNPCs 对话协议');
+  assert(protocolSnapshot.protocolDialogs.some((item) => item.channel === 'dragoncore:main' && item.text.includes('新手福利')), '协议快照过滤掉了有效 DragonCore NPC 菜单内容');
+  assert(!protocolSnapshot.protocolDialogs.some((item) => /更新数据|team_expand_|playertag_/i.test(item.text)), '协议快照没有过滤 DragonCore HUD 更新噪声');
   await waitForDashboardLog('模组对话协议 [CustomNPCs]：实体 ID 9102，对话 ID 77');
   assert(protocolSnapshot.window?.title === '选择服务器', '协议快照没有返回 NPC 交互窗口标题');
   assert(protocolSnapshot.window?.slots[11]?.displayName === '进入一号服务器', '协议快照没有解析菜单物品名称');
@@ -82,6 +84,8 @@ try {
   assert(menuLogs.includes('窗口按钮/菜单项 [选择服务器] 1：槽位 11；进入一号服务器 x1；提示：点击进入 / 当前 12 人'), '运行日志缺少 NPC 菜单文字和提示');
   assert(!menuLogs.includes('交互窗口：选择服务器，检测到'), '运行日志不应重复输出交互窗口统计摘要');
   assert(!menuLogs.includes('玩家背包测试物品'), '运行日志不应把玩家背包物品当成 NPC 菜单项');
+  assert(!/更新数据|team_expand_|playertag_|YeeCombatView/i.test(menuLogs), '运行日志不应输出 DragonCore HUD、血条或玩家标签更新');
+  assert(menuLogs.includes('新手福利七日签到'), '运行日志缺少有效 DragonCore NPC 菜单文字');
 
   const rightInteractionStart = receivedEntityInteractions.length;
   const delayedWindowResult = await requestJson('/api/lobby/action', {
@@ -424,7 +428,11 @@ function createMinecraftServer(port) {
     setTimeout(() => sendInteractiveSystemChat(client), 1200);
     if (username === 'DashboardBotA') {
       setTimeout(() => sendTestEntities(client), 900);
+      setTimeout(() => sendDragonCorePayload(client, "team_expand_是否显示剩余时间hud false team_expand_是否显示伤害hud false"), 1250);
+      setTimeout(() => sendDragonCorePayload(client, "YeeCombatView血条视图 方法.执行方法('更新数据')"), 1300);
+      setTimeout(() => sendDragonCorePayload(client, 'playertag_player_op playertag_playerhealth_op 9.5 playertag_playermaxhealth_op 330'), 1350);
       setTimeout(() => sendCustomNpcsDialog(client), 1400);
+      setTimeout(() => sendDragonCorePayload(client, 'NPC对话：1.新手福利食用图鉴 2.新手福利七日签到 3.新手福利等级奖励'), 1450);
       setTimeout(() => sendNpcMenu(client), 1600);
     }
   });
@@ -528,6 +536,10 @@ function sendCustomNpcsDialog(client) {
   data.writeInt32BE(9102, 4);
   data.writeInt32BE(77, 8);
   client.write('custom_payload', { channel: 'CustomNPCs', data });
+}
+
+function sendDragonCorePayload(client, text) {
+  client.write('custom_payload', { channel: 'dragoncore:main', data: Buffer.from(text, 'utf8') });
 }
 
 function createNamedItem(itemName, displayName, lore) {

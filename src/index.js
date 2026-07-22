@@ -1745,6 +1745,7 @@ function recordProtocolPayload(username, session, packet) {
   }
 
   const text = extractProtocolPayloadText(data);
+  if (isNoisyProtocolPayload(channel, text)) return;
   const signal = parseKnownProtocolDialog(channel, data);
   const likelyUiChannel = /(npc|dialog|gui|menu|quest|screen)/i.test(channel);
   if (!signal && !likelyUiChannel && !/[\u3400-\u9fff]/u.test(text)) return;
@@ -1776,6 +1777,19 @@ function recordProtocolPayload(username, session, packet) {
   }
   const content = text ? `；内容片段：${text}` : '';
   log(username, `模组界面协议 [${channel}]：${item.packetType}，${item.size} 字节${content}`);
+}
+
+function isNoisyProtocolPayload(channel, text) {
+  if (channel.toLowerCase() !== 'dragoncore:main') return false;
+  if (!text || text.length < 8) return true;
+  return [
+    /team_expand_/i,
+    /yeecombatview/i,
+    /playertag_/i,
+    /(?:剩余时间|伤害)hud/i,
+    /血条视图/i,
+    /执行方法\(['"]?更新数据/i
+  ].some((pattern) => pattern.test(text));
 }
 
 function parseKnownProtocolDialog(channel, data) {
