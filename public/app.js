@@ -630,6 +630,7 @@ function renderLobbyActions(actions = []) {
 
 function createLobbyAction(action = {}) {
   const fragment = $('#lobbyActionTemplate').content.cloneNode(true);
+  const block = fragment.querySelector('.lobby-action-step-block');
   const card = fragment.querySelector('.lobby-action-card');
   card.querySelector('.lobby-action-type').value = action.type || 'wait';
   card.querySelector('.lobby-action-delay').value = action.delayMs ?? action.timeoutMs ?? '';
@@ -655,20 +656,25 @@ function createLobbyAction(action = {}) {
   card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
   card.querySelector('.execute-lobby-action').addEventListener('click', () => executeLobbyAction(card));
   card.querySelector('.remove-lobby-action').addEventListener('click', () => {
-    card.remove();
+    block.remove();
     refreshLobbyActionOrder();
   });
   card.querySelector('.move-lobby-action-up').addEventListener('click', () => moveLobbyAction(card, -1));
   card.querySelector('.move-lobby-action-down').addEventListener('click', () => moveLobbyAction(card, 1));
+  block.querySelector('.insert-lobby-action').addEventListener('click', () => {
+    block.after(createLobbyAction(defaultLobbyAction()));
+    refreshLobbyActionOrder();
+  });
   updateLobbyActionFields(card);
   return fragment;
 }
 
 function moveLobbyAction(card, direction) {
-  const sibling = direction < 0 ? card.previousElementSibling : card.nextElementSibling;
+  const block = card.closest('.lobby-action-step-block');
+  const sibling = direction < 0 ? block.previousElementSibling : block.nextElementSibling;
   if (!sibling) return;
-  if (direction < 0) card.parentElement.insertBefore(card, sibling);
-  else card.parentElement.insertBefore(sibling, card);
+  if (direction < 0) block.parentElement.insertBefore(block, sibling);
+  else block.parentElement.insertBefore(sibling, block);
   refreshLobbyActionOrder();
 }
 

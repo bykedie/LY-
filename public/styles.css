@@ -802,6 +802,12 @@ select:disabled {
   gap: 12px;
 }
 
+.lobby-action-step-block {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .keyword-rule,
 .scheduler-task,
 .lobby-action-card {
@@ -811,7 +817,8 @@ select:disabled {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel-soft);
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(31, 45, 68, 0.06);
 }
 
 .keyword-rule {
@@ -1046,6 +1053,20 @@ select:disabled {
 .lobby-action-card .small {
   height: 32px;
   padding: 0 8px;
+}
+
+.insert-lobby-action {
+  justify-self: center;
+  min-width: 190px;
+  height: 34px;
+  border-style: dashed;
+  color: var(--primary);
+  background: #ffffff;
+}
+
+.insert-lobby-action:hover {
+  border-color: #78a8df;
+  background: #eef6ff;
 }
 
 .message-list-label {
@@ -1428,6 +1449,7 @@ select:disabled {
   .feature-disclosure-body,
   .window-snapshot-panel,
   .lobby-action-list,
+  .lobby-action-step-block,
   .lobby-action-card {
     grid-template-columns: minmax(0, 1fr);
     min-width: 0;
@@ -1440,5 +1462,9 @@ select:disabled {
 
   .lobby-action-card-tools {
     flex-wrap: wrap;
+  }
+
+  .insert-lobby-action {
+    width: 100%;
   }
 }

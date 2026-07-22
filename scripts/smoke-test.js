@@ -94,19 +94,22 @@ try {
   assert(page.includes('<select class="lobby-action-item">'), '弹窗按钮没有使用协议窗口下拉框');
   assert(page.includes('class="lobby-action-key"'), '按下按键动作缺少按键输入框');
   assert(page.includes('class="lobby-action-response-timeout"'), '寻找 NPC 动作缺少交互响应等待参数');
+  assert(page.includes('class="lobby-action-step-block"'), '大厅动作没有使用独立步骤块');
+  assert(page.includes('class="ghost small insert-lobby-action"'), '每个大厅步骤后缺少添加动作按钮');
 
   const appScript = await requestText('/app.js');
   assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
   assert(appScript.includes('最近模组界面：'), '前端没有显示最近检测到的模组界面协议');
+  assert(appScript.includes('block.after(createLobbyAction(defaultLobbyAction()))'), '步骤后的添加动作按钮没有按当前位置插入');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
 
   const managerScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'ly-afk-manager.sh'), 'utf8');
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
-  assert(managerScript.includes('v1.0.33'), '管理脚本版本没有更新到 v1.0.33');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.33"'), '启动脚本期望版本没有更新到 v1.0.33');
+  assert(managerScript.includes('v1.0.34'), '管理脚本版本没有更新到 v1.0.34');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.34"'), '启动脚本期望版本没有更新到 v1.0.34');
   assert(managerScript.includes('exec bash ./deploy/ly-afk-manager.sh'), '管理脚本生成的 j 快捷命令仍依赖执行权限');
   assert(bootstrapScript.includes('exec sudo bash ./deploy/ly-afk-manager.sh'), '启动脚本生成的 j 快捷命令没有通过 bash 启动');
   assert(bootstrapScript.includes('run_interactive $SUDO bash ./deploy/ly-afk-manager.sh'), '首次部署仍直接执行管理脚本');

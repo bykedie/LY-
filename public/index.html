@@ -514,7 +514,8 @@
   </template>
 
   <template id="lobbyActionTemplate">
-    <article class="lobby-action-card">
+    <div class="lobby-action-step-block">
+      <article class="lobby-action-card">
       <div class="lobby-action-card-head">
         <strong class="lobby-action-step">步骤 1</strong>
         <div class="lobby-action-card-tools">
@@ -594,7 +595,9 @@
       </label>
       <label data-action-types="waitChat">等待聊天文本<input class="lobby-action-chat-text" placeholder="例如：请选择要购买的物品"><span class="field-note">检测到包含这段文字的聊天后继续下一步。</span></label>
       <label data-action-types="clickChat">聊天按钮文字<input class="lobby-action-chat-button" placeholder="例如：[确认]、购买、下一页"><span class="field-note">从协议收到的 clickEvent 按钮中模糊匹配并执行。</span></label>
-    </article>
+      </article>
+      <button class="ghost small insert-lobby-action" type="button">在此步骤后添加动作</button>
+    </div>
   </template>
   <template id="schedulerTaskTemplate">
     <article class="scheduler-task">
