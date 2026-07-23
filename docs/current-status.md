@@ -43,17 +43,17 @@
 
 ## 正在进行事项
 
-无。stdout 行缓冲隔离已保存为本地提交 `502a7fc`；工作区应保持干净。
+Dashboard IPC 错误成功语义已修复；专项、交接、维护、安全和完整项目测试全部通过，等待创建里程碑提交。
 
 ## 下一步明确动作
 
-继续审计 API 部分成功响应和持久化一致性，优先检查写入失败、子进程 stdin 失败以及静态流错误；先复现再修复。
+创建 IPC 错误语义的独立本地提交；之后继续静态流错误和持久化一致性审计。
 
 ## 已修改文件
 
-- `src/line-reader.js`
+- `src/process-ipc.js`
 - `src/dashboard.js`
-- `scripts/line-reader-test.js`
+- `scripts/process-ipc-test.js`
 - `scripts/handoff-check.js`
 - `package.json`
 - `docs/project-architecture.md`
@@ -70,15 +70,13 @@
 
 ## 最近测试结果
 
-- 代码审计确认旧 `botStdoutBuffer` 跨所有执行子进程共享，启动和退出均未清空。
-- `node scripts/line-reader-test.js`：通过，覆盖分块、尾行和新实例隔离。
+- 失败测试先确认 `src/process-ipc.js` 不存在，旧 Dashboard 没有可等待的 IPC 错误边界。
+- `node scripts/process-ipc-test.js`：通过，覆盖成功写入、异步回调错误、流 `error`、同步异常和关闭流。
 - `node scripts/smoke-test.js`：通过。
 - `npm.cmd run handoff:check`：通过。
-- `npm.cmd run maintenance:check`：通过，Dashboard 为 1003 行。
+- `npm.cmd run maintenance:check`：通过，Dashboard 为 1009 行。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
-- 首次 `npm.cmd test`：在防挂机重连场景失败，定位为测试阶段判定竞态而非产品回归。
-- `node scripts/anti-afk-movement-test.js`：修正阶段边界后连续运行三次通过。
-- 重新 `npm.cmd test`：全部通过，包含行读取器和稳定后的防挂机重连测试。
+- `npm.cmd test`：全部通过，包含 IPC 专项和所有既有协议场景。
 
 ## 恢复开发命令
 
@@ -99,4 +97,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 19:30:00 +08:00
+2026-07-23 19:31:00 +08:00

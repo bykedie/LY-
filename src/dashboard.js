@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, writeJson } from './json-store.js';
 import { requestProcessStop } from './process-lifecycle.js';
+import { writeJsonLine } from './process-ipc.js';
 import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
 
@@ -541,6 +542,7 @@ function startBot(startAccountNames = []) {
   botProcess.stdout.on('data', stdoutReader.push);
   botProcess.stdout.once('end', stdoutReader.end);
   botProcess.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
+  botProcess.stdin.on('error', (error) => addLog(`执行进程通信失败：${error.message}`));
   botProcess.on('exit', (code) => {
     addLog(`挂机进程已退出，退出码：${code}`);
     rejectPendingLobbyActions(new Error(`挂机进程已退出，退出码：${code}`));
@@ -623,7 +625,7 @@ function shutdownDashboard(signal) {
   requestProcessStop(child);
 }
 
-function sendBotCommand(command) {
+async function sendBotCommand(command) {
   if (!botProcess?.stdin?.writable) {
     throw new Error('挂机进程未启动。');
   }
@@ -652,12 +654,12 @@ function sendBotCommand(command) {
     }
   }
 
-  botProcess.stdin.write(`${JSON.stringify(command)}\n`);
+  await writeJsonLine(botProcess.stdin, command);
 }
 
 async function requestWindowSnapshot(target) {
   runtimeSnapshots.delete(target);
-  sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
+  await sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
   const deadline = Date.now() + 800;
   while (Date.now() < deadline) {
     if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [], protocolMenu: null };
@@ -710,17 +712,21 @@ function rejectPendingLobbyActions(error) {
   }
 }
 
-function sendRuntimeConfigUpdate(config) {
+async function sendRuntimeConfigUpdate(config) {
   if (!botProcess?.stdin?.writable || !runningConfig || stopping) return false;
 
-  const runningAccounts = runningConfig.accounts;
-  const runningServer = runningConfig.server;
-  runningConfig = {
+  const nextRunningConfig = {
     ...structuredClone(config),
-    server: runningServer,
-    accounts: runningAccounts
+    server: runningConfig.server,
+    accounts: runningConfig.accounts
   };
-  botProcess.stdin.write(`${JSON.stringify({ type: 'config', config: runningConfig })}\n`);
+  try {
+    await writeJsonLine(botProcess.stdin, { type: 'config', config: nextRunningConfig });
+  } catch (error) {
+    addLog(`运行中配置实时下发失败：${error.message}`);
+    return false;
+  }
+  runningConfig = nextRunningConfig;
   addLog('运行中配置已实时下发，功能参数将立即生效；服务器地址和账号列表仍需下次启动生效。');
   return true;
 }
@@ -864,7 +870,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/profiles') {
       const body = JSON.parse(await readBody(req));
       const result = saveProfile({ id: body.id, name: body.name, config: body.config });
-      const liveApplied = sendRuntimeConfigUpdate(result.config);
+      const liveApplied = await sendRuntimeConfigUpdate(result.config);
       sendJson(res, 200, { ok: true, ...result, liveApplied });
       return;
     }
@@ -872,7 +878,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/profiles/use') {
       const body = JSON.parse(await readBody(req));
       const result = useProfile(body.id);
-      const liveApplied = sendRuntimeConfigUpdate(result.config);
+      const liveApplied = await sendRuntimeConfigUpdate(result.config);
       sendJson(res, 200, { ok: true, ...result, liveApplied });
       return;
     }
@@ -880,7 +886,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/profiles/delete') {
       const body = JSON.parse(await readBody(req));
       const result = deleteProfile(body.id);
-      const liveApplied = sendRuntimeConfigUpdate(result.config);
+      const liveApplied = await sendRuntimeConfigUpdate(result.config);
       sendJson(res, 200, { ok: true, ...result, liveApplied });
       return;
     }
@@ -905,14 +911,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/config') {
       const config = JSON.parse(await readBody(req));
       const normalizedConfig = saveConfig(config);
-      const liveApplied = sendRuntimeConfigUpdate(normalizedConfig);
+      const liveApplied = await sendRuntimeConfigUpdate(normalizedConfig);
       sendJson(res, 200, { ok: true, liveApplied });
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/api/reset') {
       const config = resetConfig();
-      const liveApplied = sendRuntimeConfigUpdate(config);
+      const liveApplied = await sendRuntimeConfigUpdate(config);
       sendJson(res, 200, { ok: true, config, liveApplied });
       return;
     }
@@ -959,7 +965,7 @@ const server = http.createServer(async (req, res) => {
       const requestId = createLobbyActionRequestId();
       const actionResult = waitForLobbyActionResult(requestId, getLobbyActionTimeout(action));
       try {
-        sendBotCommand({
+        await sendBotCommand({
           type: 'lobbyAction',
           requestId,
           target,
@@ -979,7 +985,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/send') {
       const body = JSON.parse(await readBody(req));
-      sendBotCommand({
+      await sendBotCommand({
         type: 'chat',
         target: body.target || 'all',
         message: body.message || ''
