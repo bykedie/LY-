@@ -35,9 +35,11 @@ const requiredFiles = [
   'docs/decisions.md',
   'docs/ideas.md',
   'docs/work-log.md',
+  'docs/next-ai-prompt.md',
   'docs/conversation-handoff.md',
   'docs/ubuntu-24.04-deploy.md',
   'src/dashboard.js',
+  'src/json-store.js',
   'src/index.js',
   'public/index.html',
   'public/styles.css',
@@ -47,6 +49,14 @@ const requiredFiles = [
 ];
 
 for (const relativePath of requiredFiles) read(relativePath);
+
+const handoffDocuments = requiredFiles.filter((relativePath) => relativePath === 'AGENTS.md' || relativePath.startsWith('docs/'));
+for (const relativePath of handoffDocuments) {
+  const content = read(relativePath);
+  requireCondition(!/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(content), `交接文档包含隐藏控制字符：${relativePath}`);
+  const escapedLineBreak = String.fromCharCode(96, 110, 45);
+  requireCondition(!content.includes(escapedLineBreak), `交接文档包含字面量转义换行：${relativePath}`);
+}
 
 const status = read('docs/current-status.md');
 const decisions = read('docs/decisions.md');
@@ -81,12 +91,29 @@ const documentedBranch = section(status, '当前本地分支').match(/`([^`]+)`/
 const gitBranchResult = spawnSync('git', ['branch', '--show-current'], { cwd: projectRoot, encoding: 'utf8' });
 const actualBranch = gitBranchResult.stdout.trim();
 
-requireCondition(stableVersion === 'v1.0.40', '当前稳定版本必须为 v1.0.40。');
-requireCondition(developmentVersion === 'v1.0.42', '当前本地开发版本必须为 v1.0.42。');
-requireCondition(documentedBranch === 'local/v1.0.42', '当前状态中的本地分支必须为 local/v1.0.42。');
+function parseVersion(version) {
+  const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(version || '');
+  return match ? match.slice(1).map(Number) : null;
+}
+
+function compareVersions(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
+}
+
+const stableParts = parseVersion(stableVersion);
+const developmentParts = parseVersion(developmentVersion);
+requireCondition(Boolean(stableParts), '当前稳定版本必须使用 v主版本.次版本.修订号 格式。');
+requireCondition(Boolean(developmentParts), '当前本地开发版本必须使用 v主版本.次版本.修订号 格式。');
+if (stableParts && developmentParts) {
+  requireCondition(compareVersions(developmentParts, stableParts) > 0, '当前本地开发版本必须高于稳定版本。');
+}
+requireCondition(documentedBranch === `local/${developmentVersion}`, '当前本地分支必须使用 local/<当前本地开发版本>。');
 requireCondition(actualBranch === documentedBranch, `Git 当前分支 ${actualBranch || '(未知)'} 与交接记录 ${documentedBranch || '(缺失)'} 不一致。`);
-requireCondition(decisions.includes('`v1.0.40`') && decisions.includes('`v1.0.42`'), '决策记录缺少稳定版或开发版约定。');
-requireCondition(architecture.includes('`v1.0.40`'), '架构文档缺少当前稳定架构基线。');
+requireCondition(decisions.includes(`\`${stableVersion}\``) && decisions.includes(`\`${developmentVersion}\``), '决策记录缺少稳定版或开发版约定。');
+requireCondition(architecture.includes(`\`${stableVersion}\``), '架构文档缺少当前稳定架构基线。');
 
 const pushPermission = section(status, '是否允许推送');
 requireCondition(/^否[。\s]/.test(pushPermission), '推送许可必须存在并默认明确为“否”。');

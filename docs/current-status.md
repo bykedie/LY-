@@ -16,54 +16,70 @@
 
 ## 当前目标
 
-AI 续接体系已落地；等待项目所有者提供 `v1.0.42` 的首个具体开发需求。
+持续提升项目的 AI 可维护性：迭代发现并修复真实 bug、逐步降低结构风险、补齐自动验证，所有成果仅在本地供项目所有者审阅。
 
 ## 本轮需求和验收标准
 
-- 强制 AI 协作协议、当前状态、想法、决策和工作日志已建立。
-- 历史交接与当前架构已分离，不存在多个“当前状态”来源。
-- 自动交接校验已纳入本地测试。
-- 本轮只创建本地里程碑，不执行任何推送。
+- 审计大型文件、CSS 覆盖、API/测试覆盖和错误处理，形成可追踪证据。
+- 优先修复能够复现的 bug，并为修复增加自动验证。
+- 只做有明确边界的小范围拆分，不进行无业务目标的全面重构。
+- 每个稳定阶段创建本地里程碑提交；未经项目所有者批准不推送。
+- 提供下一位 AI 可直接使用的续接提示语，并通过冷启动演练验证。
 
 ## 已完成事项
 
-- 创建本地开发分支 `local/v1.0.42`。
-- 建立 `AGENTS.md`、当前状态、想法、决策和工作日志。
-- 重写当前架构文档，将旧交接限定为历史记录并修复重复编号。
-- 实现 `scripts/handoff-check.js`，检查必填状态、版本/分支、推送许可、下一步、ID 唯一性、忽略规则和关键文件。
-- 将 `npm run handoff:check` 纳入 `npm run check`。
+- AI 续接体系已在本地里程碑 `f2a8840` 建立。
+- 修复重置不同步：主配置、当前档案和运行中控制快照现在一致。
+- 修复配置档案保存、切换和删除未实时下发在线配置的问题。
+- 修正运行中保存、重置和档案操作提示，区分实时应用项与下次启动项。
+- 增加配置档案删除、重置档案同步、运行时重置和档案实时应用回归测试。
+- Dashboard 请求体限制为 1 MiB；带长度或分块超限请求均返回结构化 `413`，拒绝后服务仍可用。
+- 增加静态路径穿越回归测试，确认无法读取仓库文件。
+- 提取 `src/json-store.js`，运行时 JSON 改为原子写入并增加独立测试。
+- 交接校验动态解析版本和 `local/<开发版本>` 分支，并拒绝隐藏控制字符和转义换行残留。
+- 新增维护守卫：13 个 Dashboard API 测试引用、CSS 覆盖基线、`!important` 和大型文件预算。
+- 新增 `docs/next-ai-prompt.md`，冷启动演练可恢复版本、分支、目标、下一步、测试和推送许可。
 - 完整测试全部通过。
 
 ## 正在进行事项
 
-无。当前处于可安全续接状态。
+无。当前维护里程碑已保存为本地提交 `d695b85`。
 
 ## 下一步明确动作
 
-收到项目所有者的下一个具体需求后，先记录需求和验收标准，再在 `local/v1.0.42` 本地开发并运行相关测试。
+继续按维护守卫审计下一批可复现问题，或执行项目所有者提出的具体需求；任何成果仍先本地验证并等待审阅。
 
 ## 已修改文件
 
-- `.gitignore`
 - `AGENTS.md`
 - `package.json`
+- `src/dashboard.js`
+- `src/json-store.js`
+- `public/app.js`
 - `scripts/handoff-check.js`
+- `scripts/maintenance-check.js`
+- `scripts/json-store-test.js`
+- `scripts/smoke-test.js`
+- `scripts/dashboard-protocol-test.js`
 - `docs/current-status.md`
 - `docs/ideas.md`
 - `docs/decisions.md`
 - `docs/work-log.md`
 - `docs/project-architecture.md`
-- `docs/conversation-handoff.md`
+- `docs/next-ai-prompt.md`
 
 ## 未解决问题和阻塞项
 
-当前无阻塞项。AI 续接体系已保存为本地 `docs:` 里程碑提交；`IDEA-002` 等待 `v1.0.42` 的具体界面需求后评估。
+- 现有 CSS 有 80 个完全重复选择器和 12 个 `!important`，已锁定为不得增长的基线，后续随具体界面需求逐步减少。
+- 大型核心文件仍需按真实功能边界逐步拆分；本轮已先提取原子 JSON 存储。
+- 当前无外部阻塞，推送许可为否。
 
 ## 最近测试结果
 
 - `npm.cmd run handoff:check`：通过。
-- `npm.cmd test`：通过。
-- 覆盖交接一致性、JavaScript 语法、日志渲染、smoke、协议、钓鱼、重生、防挂机移动、自动登录、账号校验、Dashboard 协议和鉴权。
+- `npm.cmd run maintenance:check`：通过，13 个 API 均有测试引用，CSS 重复选择器保持 80，`!important` 保持 12。
+- `npm.cmd test`：全部通过，覆盖交接、维护、JSON 存储、请求边界、配置档案、协议、功能和鉴权。
+- 冷启动演练：能够恢复稳定版、本地开发版、分支、目标、下一步、测试结果和推送许可。
 
 ## 恢复开发命令
 
@@ -73,6 +89,7 @@ git switch local/v1.0.42
 git status --short --branch
 git log --oneline -5
 npm.cmd run handoff:check
+npm.cmd run maintenance:check
 ```
 
 ## 是否允许推送
@@ -81,4 +98,4 @@ npm.cmd run handoff:check
 
 ## 最后更新时间
 
-2026-07-23 14:49:10 +08:00
+2026-07-23 15:30:23 +08:00

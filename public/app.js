@@ -1303,7 +1303,7 @@ async function saveProfile() {
   fillForm(state.config);
   renderProfiles();
   await refreshStatus();
-  showToast('配置档案已保存');
+  showToast(data.liveApplied ? '配置档案已保存并实时应用；服务器和账号下次启动生效' : '配置档案已保存');
 }
 
 async function loadSelectedProfile() {
@@ -1318,7 +1318,7 @@ async function loadSelectedProfile() {
   fillForm(state.config);
   renderProfiles();
   await refreshStatus();
-  showToast(state.running ? '配置档案已载入，下次启动生效' : '配置档案已载入');
+  showToast(data.liveApplied ? '配置档案已载入并实时应用；服务器和账号下次启动生效' : '配置档案已载入');
 }
 
 async function deleteSelectedProfile() {
@@ -1333,7 +1333,8 @@ async function deleteSelectedProfile() {
   state.activeProfileId = data.activeProfileId || 'default';
   fillForm(state.config);
   renderProfiles();
-  showToast('配置档案已删除');
+  await refreshStatus();
+  showToast(data.liveApplied ? '配置档案已删除，当前配置已实时应用' : '配置档案已删除');
 }
 
 function isSelectingLogText() {
@@ -1497,14 +1498,14 @@ async function loadConfig() {
 
 async function saveConfig() {
   const config = readForm();
-  await requestJson('/api/config', {
+  const data = await requestJson('/api/config', {
     method: 'POST',
     body: JSON.stringify(config)
   });
   state.config = config;
   await loadProfiles();
   await refreshStatus();
-  showToast(state.running ? '配置已保存，下次启动生效' : '配置已保存');
+  showToast(data.liveApplied ? '配置已保存并实时应用；服务器和账号下次启动生效' : '配置已保存');
 }
 
 async function resetConfig() {
@@ -1512,7 +1513,8 @@ async function resetConfig() {
   state.config = normalizeConfig(data.config);
   fillForm(state.config);
   await loadProfiles();
-  showToast('已重置为默认配置');
+  await refreshStatus();
+  showToast(data.liveApplied ? '已重置为默认配置并实时应用' : '已重置为默认配置');
 }
 
 function beginResetConfirmation() {

@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readJson, writeJson } from './json-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -35,14 +36,8 @@ const requiredDependencyFiles = [
   'node_modules/mineflayer/package.json',
   'node_modules/mineflayer-pathfinder/package.json'
 ];
+const maxRequestBodyBytes = 1024 * 1024;
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function writeJson(filePath, data) {
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-}
 
 function readConfig() {
   if (!fs.existsSync(configPath)) {
@@ -61,9 +56,7 @@ function saveConfig(config) {
 }
 
 function resetConfig() {
-  const config = defaultConfig;
-  writeJson(configPath, config);
-  return config;
+  return saveConfig(structuredClone(defaultConfig));
 }
 
 function ensureProfilesDir() {
@@ -795,10 +788,28 @@ function isInsideDirectory(rootDir, candidatePath) {
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
+function requestError(statusCode, message) {
+  return Object.assign(new Error(message), { statusCode });
+}
+
 async function readBody(req) {
+  const contentLength = Number(req.headers['content-length'] || 0);
+  if (Number.isFinite(contentLength) && contentLength > maxRequestBodyBytes) {
+    req.resume();
+    throw requestError(413, '请求内容过大，最大允许 1 MiB。');
+  }
+
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  return Buffer.concat(chunks).toString('utf8');
+  let totalBytes = 0;
+  for await (const chunk of req) {
+    totalBytes += chunk.length;
+    if (totalBytes > maxRequestBodyBytes) {
+      req.resume();
+      throw requestError(413, '请求内容过大，最大允许 1 MiB。');
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, totalBytes).toString('utf8');
 }
 
 const server = http.createServer(async (req, res) => {
@@ -823,21 +834,24 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/profiles') {
       const body = JSON.parse(await readBody(req));
       const result = saveProfile({ id: body.id, name: body.name, config: body.config });
-      sendJson(res, 200, { ok: true, ...result });
+      const liveApplied = sendRuntimeConfigUpdate(result.config);
+      sendJson(res, 200, { ok: true, ...result, liveApplied });
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/api/profiles/use') {
       const body = JSON.parse(await readBody(req));
       const result = useProfile(body.id);
-      sendJson(res, 200, { ok: true, ...result });
+      const liveApplied = sendRuntimeConfigUpdate(result.config);
+      sendJson(res, 200, { ok: true, ...result, liveApplied });
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/api/profiles/delete') {
       const body = JSON.parse(await readBody(req));
       const result = deleteProfile(body.id);
-      sendJson(res, 200, { ok: true, ...result });
+      const liveApplied = sendRuntimeConfigUpdate(result.config);
+      sendJson(res, 200, { ok: true, ...result, liveApplied });
       return;
     }
 
@@ -868,7 +882,8 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/reset') {
       const config = resetConfig();
-      sendJson(res, 200, { ok: true, config });
+      const liveApplied = sendRuntimeConfigUpdate(config);
+      sendJson(res, 200, { ok: true, config, liveApplied });
       return;
     }
 
@@ -945,7 +960,7 @@ const server = http.createServer(async (req, res) => {
 
     sendStatic(req, res);
   } catch (error) {
-    sendJson(res, 400, { ok: false, message: error.message });
+    sendJson(res, Number(error.statusCode) || 400, { ok: false, message: error.message });
   }
 });
 

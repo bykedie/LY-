@@ -7,7 +7,7 @@
 1. 阅读 `docs/current-status.md`，以它作为“当前状态”的唯一权威入口。
 2. 执行 `git status --short --branch` 和 `git log --oneline -5`，核对实际仓库状态。
 3. 阅读 `docs/project-architecture.md` 和 `docs/decisions.md`。
-4. 阅读 `docs/work-log.md` 的最近记录；仅在任务涉及历史需求时再查阅 `docs/conversation-handoff.md`。
+4. 阅读 `docs/work-log.md` 的最近记录；仅在任务涉及历史需求时再查阅 `docs/conversation-handoff.md`。需要向新 AI 交接时使用 `docs/next-ai-prompt.md`。
 5. 按 `docs/current-status.md` 的“下一步明确动作”继续；文档与代码或 Git 冲突时，以代码和 Git 为事实来源，并先修正文档。
 
 ## 检查点规则
@@ -34,7 +34,7 @@
 
 ## Git 与发布边界
 
-- 当前稳定远端基线为 `v1.0.40`；本地研发从 `local/v1.0.42` 开始。
+- 稳定版本、本地开发版本和当前分支以 `docs/current-status.md` 为准；本地研发分支使用 `local/<开发版本>`。
 - 允许在功能完整、文档同步且相关测试通过后创建本地里程碑提交。
 - 未完成但必须防止中断丢失时，可使用明确的 `checkpoint:` 本地提交。
 - 未经项目所有者明确同意，禁止执行 `git push`、创建远端分支或标签、发布版本或把本地研发合并到远端发布分支。

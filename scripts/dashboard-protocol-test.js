@@ -223,6 +223,44 @@ try {
   });
   await waitForMessageFrom('DashboardBotB', '/still-running-remote');
 
+  const profileConfig = createDashboardConfig(minecraftPort);
+  profileConfig.features.chat.remoteCommand = false;
+  profileConfig.features.chat.presetMessagesList = ['/profile-live'];
+  const liveProfile = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Live Profile', config: profileConfig })
+  });
+  assert(liveProfile.liveApplied === true, '运行中保存配置档案没有报告实时应用');
+  const liveProfileStatus = await requestJson('/api/status');
+  assert(liveProfileStatus.control.presetMessagesList.includes('/profile-live'), '运行中保存配置档案没有更新控制快照');
+
+  const reloadedDefaultProfile = await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id: 'default' })
+  });
+  assert(reloadedDefaultProfile.liveApplied === true, '运行中切换配置档案没有报告实时应用');
+  const reloadedDefaultStatus = await requestJson('/api/status');
+  assert(reloadedDefaultStatus.control.presetMessagesList.includes('/new-live-preset'), '运行中切换配置档案没有更新控制快照');
+
+  const deletedLiveProfile = await requestJson('/api/profiles/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id: liveProfile.activeProfileId })
+  });
+  assert(deletedLiveProfile.liveApplied === true, '运行中删除配置档案没有报告实时应用');
+
+  const resetWhileRunning = await requestJson('/api/reset', { method: 'POST' });
+  assert(resetWhileRunning.liveApplied === true, '运行中重置没有报告配置已实时应用');
+  const resetRunningStatus = await requestJson('/api/status');
+  const defaultConfig = JSON.parse(fs.readFileSync(path.join(projectRoot, 'bot.config.example.json'), 'utf8'));
+  assert(
+    JSON.stringify(resetRunningStatus.control.presetMessagesList) === JSON.stringify(defaultConfig.features.chat.presetMessagesList),
+    '运行中重置后控制快照没有恢复默认预设消息'
+  );
+  assert(
+    resetRunningStatus.control.remoteCommand === Boolean(defaultConfig.features.chat.remoteCommand),
+    '运行中重置后控制快照没有恢复默认远程命令开关'
+  );
+
   const changedAccountsAfterStart = createDashboardConfig(minecraftPort);
   changedAccountsAfterStart.accounts = [
     { username: 'NewConfigBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: 'pass-new' }

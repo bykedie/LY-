@@ -24,6 +24,7 @@ Mineflayer 执行层：src/index.js
 LY控制台
 ├─ src/
 │  ├─ dashboard.js                # API、配置校验、档案/自动化、鉴权、进程、日志和协议事件
+│  ├─ json-store.js               # 运行时 JSON 的原子读取和写入
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
 │  ├─ index.html                  # 业务 DOM 和页面区域
@@ -78,9 +79,9 @@ accounts.json                   # 可选独立账号列表
 .env                            # Dashboard 端口、监听和 Basic Auth
 ```
 
-Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。当前档案保存时同步主配置；切换档案会替换当前主配置。
+Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。
 
-保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发 `runtimeConfig` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接。
+保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接。
 
 以上运行时数据均由 `.gitignore` 排除。部署脚本使用 Git 或压缩包更新时必须备份并恢复这些文件和目录。
 
@@ -105,7 +106,7 @@ GET  /api/window                 # 请求指定账号窗口和协议快照
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
 ```
 
-所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。
+所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。JSON 请求体最大为 1 MiB，超限返回 `413`。
 
 ## 六、运行时通信协议
 
@@ -113,7 +114,7 @@ Dashboard 向 `src/index.js` 的 stdin 写入一行一个 JSON 命令：
 
 ```text
 chat             # 发送聊天或命令
-runtimeConfig    # 下发运行时配置
+config          # 下发运行时配置
 windowSnapshot   # 请求位置、实体、窗口和模组数据
 lobbyAction      # 立即执行单个大厅动作并携带 requestId
 ```
@@ -182,7 +183,8 @@ curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh | sudo
 ## 十、测试与开发入口
 
 ```powershell
-npm.cmd run handoff:check # 交接体系一致性
+npm.cmd run handoff:check     # 交接体系一致性
+npm.cmd run maintenance:check # API、CSS 和大型文件维护预算
 npm.cmd run check         # JavaScript 语法检查
 npm.cmd test              # 完整测试
 ```

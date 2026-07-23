@@ -31,6 +31,26 @@ try {
   const initialStatus = await requestJson('/api/status');
   assert(initialStatus.control === null, '未启动时不应该返回运行控制快照');
   assert(initialStatus.stopping === false, '未启动时不应该处于停止中状态');
+  const oversizedResponse = await request('/api/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target: 'all', message: 'x'.repeat(1024 * 1024) })
+  });
+  assert(oversizedResponse.statusCode === 413, '超大请求体没有返回 413');
+  const oversizedJson = JSON.parse(oversizedResponse.body);
+  assert(oversizedJson.ok === false && oversizedJson.message.includes('过大'), '超大请求体没有返回明确错误');
+  const statusAfterOversizedBody = await requestJson('/api/status');
+  assert(statusAfterOversizedBody.running === false, '拒绝超大请求后 Dashboard 无法继续响应');
+  const oversizedChunkedResponse = await request('/api/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target: 'all', message: 'y'.repeat(1024 * 1024) }),
+    omitContentLength: true
+  });
+  assert(oversizedChunkedResponse.statusCode === 413, '分块超大请求体没有返回 413');
+  const traversalResponse = await request('/%2e%2e/package.json');
+  assert(traversalResponse.statusCode !== 200, '静态文件服务允许路径穿越读取 package.json');
+  assert(!traversalResponse.body.includes('mineflayer'), '路径穿越响应泄露项目文件内容');
   const stoppedLobbyAction = await requestJson('/api/lobby/action', {
     method: 'POST',
     body: JSON.stringify({ target: 'SmokeBot', action: { type: 'wait', delayMs: 100, enabled: true } }),
@@ -107,6 +127,8 @@ try {
   assert(appScript.includes('dataset.protocolEntry'), '前端没有保留 DragonCore 按钮来源标记');
   assert(appScript.includes('当前模组界面：'), '前端没有显示 DragonCore 可选择按钮界面');
   assert(appScript.includes('block.after(createLobbyAction(defaultLobbyAction()))'), '步骤后的添加动作按钮没有按当前位置插入');
+  assert(appScript.includes('配置已保存并实时应用；服务器和账号下次启动生效'), '运行中保存提示没有区分实时配置与下次启动配置');
+  assert(appScript.includes('已重置为默认配置并实时应用'), '运行中重置提示没有表达实时应用结果');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
@@ -198,6 +220,28 @@ try {
     body: JSON.stringify({ id: namedProfile.activeProfileId })
   });
   assert(loadedProfile.config.server.host === '127.0.0.1', '载入配置档案后服务器地址不正确');
+  const disposableProfile = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Disposable Profile', config: testConfig })
+  });
+  const deletedProfile = await requestJson('/api/profiles/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id: disposableProfile.activeProfileId })
+  });
+  assert(
+    !deletedProfile.profiles.some((profile) => profile.id === disposableProfile.activeProfileId),
+    '删除配置档案后列表仍保留已删除档案'
+  );
+  const missingDeletedProfile = await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id: disposableProfile.activeProfileId }),
+    expectOk: false
+  });
+  assert(missingDeletedProfile.ok === false && missingDeletedProfile.message.includes('找不到'), '已删除配置档案仍可载入');
+  await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id: namedProfile.activeProfileId })
+  });
   const savedAutomation = await requestJson('/api/automations', {
     method: 'POST',
     body: JSON.stringify({
@@ -445,6 +489,14 @@ try {
 
   const reset = await requestJson('/api/reset', { method: 'POST' });
   assert(reset.config.accounts.length === exampleConfig.accounts.length, '重置配置没有返回默认账号');
+  const reloadedResetProfile = await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id: namedProfile.activeProfileId })
+  });
+  assert(
+    reloadedResetProfile.config.accounts.length === exampleConfig.accounts.length,
+    '重置后重新载入当前档案恢复了重置前的旧账号配置'
+  );
 
   console.log('smoke test ok');
 } finally {
@@ -481,7 +533,7 @@ function request(pathname, options = {}) {
         method: options.method || 'GET',
         headers: {
           ...(options.headers || {}),
-          ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {})
+          ...(body && !options.omitContentLength ? { 'Content-Length': Buffer.byteLength(body) } : {})
         }
       },
       (res) => {
