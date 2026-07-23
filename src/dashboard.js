@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, writeJson } from './json-store.js';
 import { requestProcessStop } from './process-lifecycle.js';
 import { writeJsonLine } from './process-ipc.js';
+import { serveStaticFile } from './static-server.js';
 import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
 
@@ -788,42 +789,6 @@ function sendUnauthorized(res) {
   res.end('Authentication required');
 }
 
-function sendStatic(req, res) {
-  const requestPath = decodeURIComponent(new URL(req.url, `http://localhost:${port}`).pathname);
-  const safePath = requestPath === '/' ? '/index.html' : requestPath;
-  const filePath = path.normalize(path.join(publicDir, safePath));
-
-  if (!isInsideDirectory(publicDir, filePath)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  if (!fs.existsSync(filePath)) {
-    res.writeHead(404);
-    res.end('Not found');
-    return;
-  }
-
-  const ext = path.extname(filePath);
-  const contentTypes = {
-    '.html': 'text/html; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8'
-  };
-
-  res.writeHead(200, {
-    'Content-Type': contentTypes[ext] || 'application/octet-stream',
-    'Cache-Control': 'no-store'
-  });
-  fs.createReadStream(filePath).pipe(res);
-}
-
-function isInsideDirectory(rootDir, candidatePath) {
-  const relativePath = path.relative(rootDir, candidatePath);
-  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
-}
-
 function requestError(statusCode, message) {
   return Object.assign(new Error(message), { statusCode });
 }
@@ -994,7 +959,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    sendStatic(req, res);
+    const requestPath = decodeURIComponent(url.pathname);
+    await serveStaticFile(requestPath, res, { publicDir });
   } catch (error) {
     sendJson(res, Number(error.statusCode) || 400, { ok: false, message: error.message });
   }

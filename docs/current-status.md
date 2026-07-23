@@ -44,17 +44,17 @@
 
 ## 正在进行事项
 
-无。IPC 错误语义修复已保存为本地提交 `413e88f`；工作区应保持干净。
+静态文件 TOCTOU 和流错误已修复；专项、交接、维护、安全和完整测试全部通过，等待创建里程碑提交。
 
 ## 下一步明确动作
 
-继续审计静态文件流错误和持久化一致性；优先检查文件在 `existsSync` 后消失、读取流错误以及多文件保存的部分写入。
+创建静态文件流错误修复的独立本地提交；之后继续多文件持久化一致性审计。
 
 ## 已修改文件
 
-- `src/process-ipc.js`
+- `src/static-server.js`
 - `src/dashboard.js`
-- `scripts/process-ipc-test.js`
+- `scripts/static-server-test.js`
 - `scripts/handoff-check.js`
 - `package.json`
 - `docs/project-architecture.md`
@@ -71,13 +71,13 @@
 
 ## 最近测试结果
 
-- 失败测试先确认 `src/process-ipc.js` 不存在，旧 Dashboard 没有可等待的 IPC 错误边界。
-- `node scripts/process-ipc-test.js`：通过，覆盖成功写入、异步回调错误、流 `error`、同步异常和关闭流。
+- 失败测试先确认旧静态服务没有独立错误边界，读取流错误未监听。
+- `node scripts/static-server-test.js`：通过，覆盖成功、文件消失、权限失败、同步打开异常、流中途失败、目录和路径穿越。
 - `node scripts/smoke-test.js`：通过。
 - `npm.cmd run handoff:check`：通过。
-- `npm.cmd run maintenance:check`：通过，Dashboard 为 1009 行。
+- `npm.cmd run maintenance:check`：通过，Dashboard 为 975 行。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
-- `npm.cmd test`：全部通过，包含 IPC 专项和所有既有协议场景。
+- `npm.cmd test`：全部通过，包含静态服务专项和所有既有场景。
 
 ## 恢复开发命令
 
@@ -98,4 +98,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 19:33:00 +08:00
+2026-07-23 19:38:00 +08:00

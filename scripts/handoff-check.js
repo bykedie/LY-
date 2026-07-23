@@ -44,6 +44,7 @@ const requiredFiles = [
   'src/line-reader.js',
   'src/process-ipc.js',
   'src/process-lifecycle.js',
+  'src/static-server.js',
   'public/api-client.js',
   'scripts/security-audit.js',
   'src/index.js',
