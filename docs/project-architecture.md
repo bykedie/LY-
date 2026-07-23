@@ -25,6 +25,7 @@ LY控制台
 ├─ src/
 │  ├─ dashboard.js                # API、配置校验、档案/自动化、鉴权、进程、日志和协议事件
 │  ├─ json-store.js               # 运行时 JSON 的原子读取和写入
+│  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
 │  ├─ index.html                  # 业务 DOM 和页面区域
@@ -65,7 +66,7 @@ public/app.js
   -> src/index.js 创建 Mineflayer 会话
 ```
 
-停止机器人由 `/api/stop` 结束子进程。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝等待中的动作、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等，停止完成前的新启动请求会明确拒绝。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝等待中的动作、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
 
 ## 四、配置与持久化
 

@@ -510,6 +510,8 @@ try {
 
   const stopResponseBeforeRestart = await requestJson('/api/stop', { method: 'POST' });
   assert(stopResponseBeforeRestart.stopping === true || stopResponseBeforeRestart.running === false, '停止响应没有表达停止中或已停止状态');
+  const startWhileStopping = await requestJson('/api/start', { method: 'POST', expectOk: false });
+  assert(startWhileStopping.ok === false && startWhileStopping.message.includes('正在停止'), '停止中再次启动没有被明确拒绝');
   const restartedFromSavedConfig = await waitForStopped();
   assert(restartedFromSavedConfig.running === false, '切换远程发送配置前旧进程没有停止');
   assert(restartedFromSavedConfig.stopping === false, '旧进程停止后仍处于停止中状态');

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, writeJson } from './json-store.js';
+import { requestProcessStop } from './process-lifecycle.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -533,6 +534,7 @@ function ensureProjectDependencies() {
 }
 
 function startBot(startAccountNames = []) {
+  if (stopping) throw new Error('挂机进程正在停止，请等待停止完成后再启动。');
   if (botProcess) return;
 
   ensureProjectDependencies();
@@ -626,10 +628,10 @@ function normalizeStartAccountNames(startAccountNames, accounts) {
 }
 
 function stopBot() {
-  if (!botProcess) return;
+  if (!botProcess || stopping) return;
   stopping = true;
-  botProcess.kill('SIGINT');
-  addLog('已发送停止指令。');
+  requestProcessStop(botProcess);
+  addLog('已发送停止指令；若 5 秒内未退出将强制停止。');
 }
 
 function shutdownDashboard(signal) {
@@ -646,14 +648,8 @@ function shutdownDashboard(signal) {
 
   stopping = true;
   const child = botProcess;
-  const forceTimer = setTimeout(() => {
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-  }, 5000);
-  child.once('exit', () => {
-    clearTimeout(forceTimer);
-    process.exit(0);
-  });
-  child.kill('SIGINT');
+  child.once('exit', () => process.exit(0));
+  requestProcessStop(child);
 }
 
 function sendBotCommand(command) {

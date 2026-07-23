@@ -40,6 +40,7 @@ const requiredFiles = [
   'docs/ubuntu-24.04-deploy.md',
   'src/dashboard.js',
   'src/json-store.js',
+  'src/process-lifecycle.js',
   'scripts/security-audit.js',
   'src/index.js',
   'public/index.html',

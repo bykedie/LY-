@@ -28,22 +28,22 @@
 
 ## 已完成事项
 
-- AI 续接体系已在本地里程碑 `f2a8840` 建立。
-- 第一轮配置一致性与维护守卫已保存为本地提交 `a40094c`。
-- 第二轮配置恢复与依赖安全审计已保存为本地提交 `761b802`。
-- 修复配置保存、重置、档案保存/切换/删除与在线控制快照不一致的问题。
-- Dashboard 请求体限制为 1 MiB，并覆盖分块超限和路径穿越测试。
-- 提取原子 JSON 存储；损坏索引与自动化库先备份到 `recovery/` 再安全恢复。
-- 档案 ID 增加格式约束和索引清洗，阻止运行文件中的路径穿越 ID。
-- 依赖安全审计阻断高危/严重漏洞；6 个 Mineflayer 上游中危告警持续监控。
-- Dashboard 与执行端增加 `SIGINT`、`SIGTERM` 退出清理；Dashboard 关闭服务、拒绝等待动作、通知子进程退出并设置 5 秒强制兜底。
-- 协议测试验证直接终止 Dashboard 后两个在线 Minecraft 客户端均断开，不残留重复机器人。
-- 交接守卫拒绝隐藏控制字符和字面量转义换行；协作协议要求当前状态只能整文件生成。
-- `docs/next-ai-prompt.md` 提供可直接复制给下一位 AI 的续接提示语。
+- AI 续接体系：本地提交 `f2a8840`。
+- 配置一致性与维护守卫：本地提交 `a40094c`。
+- 配置恢复与依赖安全：本地提交 `761b802`。
+- Dashboard 与执行端优雅退出：本地提交 `c484632`。
+- 修复配置保存、重置、档案操作与在线控制快照不一致。
+- 增加请求体限制、路径穿越测试、档案 ID 约束、原子 JSON 与损坏数据备份恢复。
+- 增加高危/严重依赖阻断与 Mineflayer 中危风险记录。
+- Dashboard/执行端支持 SIGINT、SIGTERM 清理，直接终止 Dashboard 后在线客户端全部断开。
+- 新增 `src/process-lifecycle.js`，统一普通停止和 Dashboard 退出的优雅信号与 5 秒强制清理。
+- 普通停止保持幂等；停止完成前的新启动请求会明确拒绝，避免返回成功但实际未启动。
+- 新增假子进程生命周期测试，覆盖优雅退出取消强杀、超时 SIGKILL 和空进程行为。
+- 交接、维护和安全守卫持续生效；下一位 AI 提示语位于 `docs/next-ai-prompt.md`。
 
 ## 正在进行事项
 
-无。第三轮进程生命周期修复已保存为本地提交 `c6f27d5`。
+无。第四轮普通启停状态机修复已保存为本地提交 `5289dd8`。
 
 ## 下一步明确动作
 
@@ -51,10 +51,11 @@
 
 ## 已修改文件
 
-- `AGENTS.md`
+- `package.json`
 - `src/dashboard.js`
-- `src/index.js`
-- `scripts/dashboard-protocol-test.js`
+- `src/process-lifecycle.js`
+- `scripts/handoff-check.js`
+- `scripts/process-lifecycle-test.js`
 - `scripts/smoke-test.js`
 - `docs/current-status.md`
 - `docs/project-architecture.md`
@@ -65,14 +66,13 @@
 - 现有 CSS 有 80 个完全重复选择器和 12 个 `!important`，已锁定为不得增长的基线。
 - 大型核心文件仍需按真实功能边界逐步拆分。
 - 依赖审计存在 6 个 Mineflayer 上游中危告警；当前无兼容自动修复，禁止破坏性降级。
-- Windows 信号测试由系统直接终止进程；Linux/PM2 信号回调通过代码和静态断言覆盖，客户端断开行为已跨平台验证。
 - 当前无外部阻塞，推送许可为否。
 
 ## 最近测试结果
 
-- `node scripts/dashboard-protocol-test.js`：通过，直接终止 Dashboard 后在线客户端全部断开。
-- `node scripts/smoke-test.js`：通过，Dashboard 与执行端均声明 `SIGINT/SIGTERM` 处理。
-- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
+- `node scripts/process-lifecycle-test.js`：通过。
+- `node scripts/smoke-test.js`：通过，停止中重复启动被拒绝。
+- `node scripts/dashboard-protocol-test.js`：通过。
 - `npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和 `npm.cmd test`：全部通过。
 
 ## 恢复开发命令
@@ -93,4 +93,4 @@ npm.cmd run security:audit
 
 ## 最后更新时间
 
-2026-07-23 15:58:13 +08:00
+2026-07-23 18:33:34 +08:00
