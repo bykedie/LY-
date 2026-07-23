@@ -2,13 +2,15 @@ export function createRuntimeRequestTracker() {
   const pending = new Map();
 
   function wait(requestId, timeoutMs, timeoutMessage) {
-    return new Promise((resolve, reject) => {
+    const result = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(requestId);
         reject(new Error(timeoutMessage));
       }, timeoutMs);
       pending.set(requestId, { resolve, reject, timer });
     });
+    result.catch(() => {});
+    return result;
   }
 
   function settle(event, failureMessage) {

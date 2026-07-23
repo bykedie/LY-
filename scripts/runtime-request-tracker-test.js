@@ -5,6 +5,7 @@ await expectFailureResult();
 await expectTimeout();
 await expectCancel();
 await expectRejectAll();
+await expectDelayedConsumptionNotUnhandled();
 console.log('runtime request tracker test ok');
 
 async function expectSuccessResult() {
@@ -45,6 +46,27 @@ async function expectRejectAll() {
   tracker.rejectAll(new Error('process exited'));
   const [firstError, secondError] = await Promise.all([capture(first), capture(second)]);
   assert(firstError.message === 'process exited' && secondError.message === 'process exited', '进程退出没有拒绝全部等待请求');
+}
+
+async function expectDelayedConsumptionNotUnhandled() {
+  const tracker = createRuntimeRequestTracker();
+  let unhandledReason = null;
+  const onUnhandledRejection = (reason) => {
+    unhandledReason = reason;
+  };
+  process.on('unhandledRejection', onUnhandledRejection);
+
+  try {
+    const result = tracker.wait('delayed', 100, 'timeout');
+    tracker.rejectAll(new Error('process exited before write completed'));
+    await new Promise((resolve) => setImmediate(resolve));
+    const error = await capture(result);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert(error.message === 'process exited before write completed', '延迟消费没有获得原始退出原因');
+    assert(!unhandledReason, `等待结果在调用方消费前触发未处理拒绝：${unhandledReason?.message}`);
+  } finally {
+    process.off('unhandledRejection', onUnhandledRejection);
+  }
 }
 
 async function capture(promise) {

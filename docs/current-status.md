@@ -43,27 +43,22 @@
 - 静态文件 TOCTOU 与流错误边界：`1afd387`。
 - 配置档案多文件事务与进程内回滚：`9f6235a`。
 - 配置事务崩溃后启动恢复：`a063d77`。
+- 运行配置应用确认与统一跨进程等待器：`f54bf29`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-运行配置应用确认协议已完成并通过完整本地验证：Dashboard 为配置命令生成 `requestId`，只有收到执行端匹配的成功回执才更新运行快照并返回 `liveApplied: true`；拒绝、超时、stdin 失败或进程退出均保留磁盘保存成功并返回 `liveApplied: false`。当前修改待创建本地里程碑提交。
+已复现并修复跨进程请求的 Promise 拒绝竞态：请求结果在调用方仍等待 stdin 写入时被进程退出拒绝，会触发 `unhandledRejection`；统一等待器现立即安装内部拒绝观察器，同时保留原始 Promise 供调用方获得真实错误。安全审计和完整测试已通过，当前修改待创建本地提交。
 
 ## 下一步明确动作
 
-创建运行配置确认协议的独立本地里程碑提交；提交后审计跨进程等待请求在写入期间遇到执行端退出时是否可能产生未处理拒绝。
+创建 Promise 拒绝时序修复的独立本地提交；提交后审计并发配置保存的回执乱序是否会使 Dashboard 运行快照回退到较旧配置。
 
 ## 已修改文件
 
 - `docs/current-status.md`
-- `docs/project-architecture.md`
 - `docs/work-log.md`
-- `package.json`
-- `scripts/handoff-check.js`
-- `scripts/runtime-config-protocol-test.js`
 - `scripts/runtime-request-tracker-test.js`
-- `src/dashboard.js`
-- `src/index.js`
 - `src/runtime-request-tracker.js`
 
 ## 未解决问题和阻塞项
@@ -76,6 +71,11 @@
 
 ## 最近测试结果
 
+- `node scripts/runtime-request-tracker-test.js`：修复前触发 `unhandledRejection` 和 `PromiseRejectionHandledWarning`，修复后通过并保留原始退出原因。
+- `node scripts/runtime-config-protocol-test.js`：通过，配置接受、拒绝、超时和进程退出语义未回归。
+- `node scripts/dashboard-protocol-test.js`：通过，真实配置和大厅动作跨进程链路未回归。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
+- `npm.cmd test`：全部通过，新增延迟消费拒绝回归及所有既有业务、协议和认证场景均通过。
 - `node scripts/runtime-config-protocol-test.js`：连续两次通过，覆盖执行端接受、拒绝、不回执和退出；修复前稳定失败于拒绝路径错误返回 `liveApplied: true`。
 - `node scripts/runtime-request-tracker-test.js`：通过，覆盖成功、失败、超时、取消、未知回执和批量拒绝。
 - `node scripts/dashboard-protocol-test.js`：通过，真实 Mineflayer 桥接中的保存、档案切换/删除和重置均收到配置应用确认。
@@ -109,4 +109,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 00:04:22 +08:00
+2026-07-24 00:11:36 +08:00
