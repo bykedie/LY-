@@ -10,6 +10,7 @@ import { writeJsonLine } from './process-ipc.js';
 import { serveStaticFile } from './static-server.js';
 import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
+import { createRuntimeRequestTracker } from './runtime-request-tracker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -34,7 +35,7 @@ let stopping = false;
 let logs = [];
 let shuttingDown = false;
 const runtimeSnapshots = new Map();
-const pendingLobbyActions = new Map();
+const runtimeRequests = createRuntimeRequestTracker();
 const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
 const requiredDependencyFiles = [
@@ -554,7 +555,7 @@ function startBot(startAccountNames = []) {
   botProcess.stdin.on('error', (error) => addLog(`执行进程通信失败：${error.message}`));
   botProcess.on('exit', (code) => {
     addLog(`挂机进程已退出，退出码：${code}`);
-    rejectPendingLobbyActions(new Error(`挂机进程已退出，退出码：${code}`));
+    runtimeRequests.rejectAll(new Error(`挂机进程已退出，退出码：${code}`));
     botProcess = null;
     runningConfig = null;
     stopping = false;
@@ -579,13 +580,10 @@ function handleBotEventLine(line) {
       });
     }
     if (event.type === 'lobbyActionResult' && event.requestId) {
-      const pending = pendingLobbyActions.get(event.requestId);
-      if (pending) {
-        clearTimeout(pending.timer);
-        pendingLobbyActions.delete(event.requestId);
-        if (event.ok) pending.resolve(event);
-        else pending.reject(new Error(event.message || '大厅动作执行失败。'));
-      }
+      runtimeRequests.settle(event, '大厅动作执行失败。');
+    }
+    if (event.type === 'configApplyResult' && event.requestId) {
+      runtimeRequests.settle(event, '实时配置应用失败。');
     }
   } catch (error) {
     addLog(`解析运行事件失败：${error.message}`);
@@ -621,7 +619,7 @@ function shutdownDashboard(signal) {
   shuttingDown = true;
   addLog(`管理面板收到 ${signal}，正在停止挂机进程并退出。`);
   server.close();
-  rejectPendingLobbyActions(new Error('管理面板正在退出。'));
+  runtimeRequests.rejectAll(new Error('管理面板正在退出。'));
 
   if (!botProcess) {
     process.exit(0);
@@ -681,6 +679,10 @@ function createLobbyActionRequestId() {
   return `lobby-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function createConfigRequestId() {
+  return `config-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 function getLobbyActionTimeout(action) {
   const movementEstimateMs = action?.type === 'relativeWalk'
     ? Math.max(0, Number(action.distance) || 0) * 3000
@@ -696,29 +698,11 @@ function getLobbyActionTimeout(action) {
 }
 
 function waitForLobbyActionResult(requestId, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingLobbyActions.delete(requestId);
-      reject(new Error('等待大厅动作执行结果超时。'));
-    }, timeoutMs);
-    pendingLobbyActions.set(requestId, { resolve, reject, timer });
-  });
+  return runtimeRequests.wait(requestId, timeoutMs, '等待大厅动作执行结果超时。');
 }
 
 function cancelPendingLobbyAction(requestId, error) {
-  const pending = pendingLobbyActions.get(requestId);
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  pendingLobbyActions.delete(requestId);
-  pending.reject(error);
-}
-
-function rejectPendingLobbyActions(error) {
-  for (const [requestId, pending] of pendingLobbyActions) {
-    clearTimeout(pending.timer);
-    pendingLobbyActions.delete(requestId);
-    pending.reject(error);
-  }
+  runtimeRequests.cancel(requestId, error);
 }
 
 async function sendRuntimeConfigUpdate(config) {
@@ -729,14 +713,19 @@ async function sendRuntimeConfigUpdate(config) {
     server: runningConfig.server,
     accounts: runningConfig.accounts
   };
+  const requestId = createConfigRequestId();
+  const applyResult = runtimeRequests.wait(requestId, 1500, '等待执行端确认实时配置超时。');
   try {
-    await writeJsonLine(botProcess.stdin, { type: 'config', config: nextRunningConfig });
+    await writeJsonLine(botProcess.stdin, { type: 'config', requestId, config: nextRunningConfig });
+    await applyResult;
   } catch (error) {
-    addLog(`运行中配置实时下发失败：${error.message}`);
+    runtimeRequests.cancel(requestId, error);
+    applyResult.catch(() => {});
+    addLog(`运行中配置实时应用失败：${error.message}`);
     return false;
   }
   runningConfig = nextRunningConfig;
-  addLog('运行中配置已实时下发，功能参数将立即生效；服务器地址和账号列表仍需下次启动生效。');
+  addLog('运行中配置已由执行端确认应用；服务器地址和账号列表仍需下次启动生效。');
   return true;
 }
 

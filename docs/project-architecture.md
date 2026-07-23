@@ -29,6 +29,7 @@ LY控制台
 │  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
+│  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
 │  ├─ static-server.js             # 静态路径约束、普通文件检查和流错误响应
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
@@ -71,7 +72,7 @@ public/app.js
   -> src/index.js 创建 Mineflayer 会话
 ```
 
-停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝等待中的动作、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
 
 ## 四、配置与持久化
 
@@ -85,9 +86,9 @@ accounts.json                   # 可选独立账号列表
 .env                            # Dashboard 端口、监听和 Basic Auth
 ```
 
-Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。磁盘保存成功但实时 IPC 下发失败时 API 保持保存成功并返回 `liveApplied: false`；聊天、窗口和即时动作命令写入失败时 API 必须失败。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。主配置、活动档案和档案索引使用多文件事务：修改目标前先在 `bot.config.profiles/recovery/` 写入 `pending` 日志，全部目标安装后才标记 `committed`。进程内失败按逆序回滚；回滚失败时保留日志与 `.bak`。Dashboard 在读取主配置前恢复遗留日志：`pending` 回滚旧状态，`committed` 校验新目标并清理工件。恢复是幂等的；损坏、越界、重复路径或目标缺失都会阻止启动并保留证据，禁止猜测和静默覆盖。主配置或具体档案损坏时返回明确错误且不覆盖原文件；可派生的 `profiles.json` 和自动化库损坏时先备份到 `bot.config.profiles/recovery/`，再重建安全索引或空方案库。自动化库读取时还会验证条目结构、ID、名称、大厅参数和动作列表，保留唯一合法方案并隔离非法或重复条目，避免损坏数据进入前端。
+Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。磁盘保存成功后，只有收到执行端匹配 `requestId` 的成功回执才返回 `liveApplied: true` 并更新 Dashboard 运行快照；stdin 写入失败、执行端拒绝、回执超时或进程退出均保持 API 保存成功但返回 `liveApplied: false`。聊天、窗口和即时动作命令写入失败时 API 必须失败。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。主配置、活动档案和档案索引使用多文件事务：修改目标前先在 `bot.config.profiles/recovery/` 写入 `pending` 日志，全部目标安装后才标记 `committed`。进程内失败按逆序回滚；回滚失败时保留日志与 `.bak`。Dashboard 在读取主配置前恢复遗留日志：`pending` 回滚旧状态，`committed` 校验新目标并清理工件。恢复是幂等的；损坏、越界、重复路径或目标缺失都会阻止启动并保留证据，禁止猜测和静默覆盖。主配置或具体档案损坏时返回明确错误且不覆盖原文件；可派生的 `profiles.json` 和自动化库损坏时先备份到 `bot.config.profiles/recovery/`，再重建安全索引或空方案库。自动化库读取时还会验证条目结构、ID、名称、大厅参数和动作列表，保留唯一合法方案并隔离非法或重复条目，避免损坏数据进入前端。
 
-保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接。
+保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发携带 `requestId` 的 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接，并用 `configApplyResult` 明确确认成功或返回拒绝原因。
 
 以上运行时数据均由 `.gitignore` 排除。部署脚本使用 Git 或压缩包更新时必须备份并恢复这些文件和目录。
 
@@ -120,7 +121,7 @@ Dashboard 通过 `src/process-ipc.js` 向 `src/index.js` 的 stdin 写入一行�
 
 ```text
 chat             # 发送聊天或命令
-config          # 下发运行时配置
+config           # 下发运行时配置并携带 requestId
 windowSnapshot   # 请求位置、实体、窗口和模组数据
 lobbyAction      # 立即执行单个大厅动作并携带 requestId
 ```
@@ -136,9 +137,10 @@ lobbyAction      # 立即执行单个大厅动作并携带 requestId
 ```text
 windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和协议菜单
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
+configApplyResult   # 按 requestId 确认或拒绝实时配置
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。即时动作有按动作类型计算的超时；进程退出时会拒绝全部等待中的动作。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理即时动作和配置应用的回执等待；即时动作按动作类型计算超时，配置应用使用固定有界超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。
 
 ## 七、Mineflayer 执行端
 

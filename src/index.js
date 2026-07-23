@@ -2188,12 +2188,32 @@ function listenDashboardCommands() {
       }
 
       if (command.type === 'config') {
-        applyRuntimeConfig(command.config);
+        applyRuntimeConfigCommand(command);
       }
     } catch (error) {
       log(null, `控制台指令解析失败：${error.message}`);
     }
   });
+}
+
+function applyRuntimeConfigCommand(command) {
+  try {
+    applyRuntimeConfig(command.config);
+    emitRuntimeEvent({
+      type: 'configApplyResult',
+      requestId: command.requestId,
+      ok: true,
+      message: '实时配置已应用。'
+    });
+  } catch (error) {
+    log(null, `实时配置应用失败：${error.message}`);
+    emitRuntimeEvent({
+      type: 'configApplyResult',
+      requestId: command.requestId,
+      ok: false,
+      message: error.message
+    });
+  }
 }
 
 async function runManualLobbyAction(username, action, requestId) {

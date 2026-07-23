@@ -47,16 +47,24 @@
 
 ## 正在进行事项
 
-无。配置事务崩溃恢复已保存为本地提交 `a063d77`；工作区仅有本次交接检查点文档待提交。
+运行配置应用确认协议已完成并通过完整本地验证：Dashboard 为配置命令生成 `requestId`，只有收到执行端匹配的成功回执才更新运行快照并返回 `liveApplied: true`；拒绝、超时、stdin 失败或进程退出均保留磁盘保存成功并返回 `liveApplied: false`。当前修改待创建本地里程碑提交。
 
 ## 下一步明确动作
 
-审计运行配置下发确认语义：验证 Dashboard 的 `liveApplied` 是否代表执行端真正应用，而不只是 stdin 写入成功。
+创建运行配置确认协议的独立本地里程碑提交；提交后审计跨进程等待请求在写入期间遇到执行端退出时是否可能产生未处理拒绝。
 
 ## 已修改文件
 
 - `docs/current-status.md`
+- `docs/project-architecture.md`
 - `docs/work-log.md`
+- `package.json`
+- `scripts/handoff-check.js`
+- `scripts/runtime-config-protocol-test.js`
+- `scripts/runtime-request-tracker-test.js`
+- `src/dashboard.js`
+- `src/index.js`
+- `src/runtime-request-tracker.js`
 
 ## 未解决问题和阻塞项
 
@@ -68,6 +76,13 @@
 
 ## 最近测试结果
 
+- `node scripts/runtime-config-protocol-test.js`：连续两次通过，覆盖执行端接受、拒绝、不回执和退出；修复前稳定失败于拒绝路径错误返回 `liveApplied: true`。
+- `node scripts/runtime-request-tracker-test.js`：通过，覆盖成功、失败、超时、取消、未知回执和批量拒绝。
+- `node scripts/dashboard-protocol-test.js`：通过，真实 Mineflayer 桥接中的保存、档案切换/删除和重置均收到配置应用确认。
+- `npm.cmd run maintenance:check`：通过，API 路由 13 个、CSS 重复 `80/80`、`!important` 为 `12/12`；Dashboard 降至 972 行。
+- `npm.cmd run handoff:check`：通过，新增运行请求模块和交接引用有效。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
+- `npm.cmd test`：全部通过，包含语法、交接、维护、存储、生命周期、IPC、配置回执、静态服务、前端及全部 Minecraft 协议集成场景。
 - `node scripts/json-transaction-test.js`：通过，覆盖 pending 回滚、committed 清理、幂等恢复、回滚失败后启动重试、越界/重复路径拒绝、损坏日志阻断和目标缺失保留证据。
 - `node scripts/smoke-test.js`：通过，Dashboard 在开放 API 前回滚未完成主配置事务并记录日志。
 - `npm.cmd run handoff:check`：通过，事务工件均被 Git 忽略。
@@ -94,4 +109,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 23:38:00 +08:00
+2026-07-24 00:04:22 +08:00
