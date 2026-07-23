@@ -73,6 +73,30 @@ async function expectDashboardToWaitForConfigResult() {
     await requestJson(baseUrl, '/api/config', { method: 'POST', body: JSON.stringify(initialConfig) });
     await requestJson(baseUrl, '/api/start', { method: 'POST' });
 
+    const rejectedChat = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: 'ConfigProtocolBot', message: '/chat-reject' }),
+      expectOk: false
+    });
+    assert(rejectedChat.ok === false && rejectedChat.message.includes('模拟执行端拒绝发送'), '执行端拒绝发送时 Dashboard 错误返回成功');
+
+    const acceptedChat = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: 'ConfigProtocolBot', message: '/chat-accept' })
+    });
+    assert(acceptedChat.queuedTargets?.join(',') === 'ConfigProtocolBot', '执行端确认发送后 Dashboard 没有返回成功入队目标');
+    assert(acceptedChat.failedTargets?.length === 0, '执行端确认发送后 Dashboard 错误返回失败目标');
+
+    const chatTimeoutAt = Date.now();
+    const timedOutChat = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: 'ConfigProtocolBot', message: '/chat-ignore' }),
+      expectOk: false
+    });
+    const chatTimeoutElapsed = Date.now() - chatTimeoutAt;
+    assert(timedOutChat.ok === false && timedOutChat.message.includes('确认发送命令超时'), '执行端不返回发送回执时 Dashboard 错误返回成功');
+    assert(chatTimeoutElapsed >= 1000 && chatTimeoutElapsed < 5000, `发送回执超时边界异常：${chatTimeoutElapsed}ms`);
+
     const emptySnapshot = await requestJson(baseUrl, '/api/window?target=ConfigProtocolBot');
     assert(emptySnapshot.ok === true && emptySnapshot.window === null, '执行端返回的合法空窗口快照不应被当成失败');
     const ignoredSnapshotAt = Date.now();
@@ -124,6 +148,22 @@ async function expectDashboardToWaitForConfigResult() {
     assert(Date.now() - exitAt < 1000, '执行端退出后 Dashboard 没有立即结束配置等待');
     const exitedStatus = await requestJson(baseUrl, '/api/status');
     assert(exitedStatus.running === false, '执行端退出后 Dashboard 仍报告运行中');
+
+    await requestJson(baseUrl, '/api/config', {
+      method: 'POST',
+      body: JSON.stringify(createConfig('/initial'))
+    });
+    await requestJson(baseUrl, '/api/start', { method: 'POST' });
+    const chatExitAt = Date.now();
+    const exitedChat = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: 'ConfigProtocolBot', message: '/chat-exit' }),
+      expectOk: false
+    });
+    assert(exitedChat.ok === false && exitedChat.message.includes('退出'), `执行端退出时发送失败原因不明确：${exitedChat.message}`);
+    assert(Date.now() - chatExitAt < 1000, '执行端退出后 Dashboard 没有立即结束发送等待');
+    const exitedChatStatus = await requestJson(baseUrl, '/api/status');
+    assert(exitedChatStatus.running === false, '发送等待期间执行端退出后 Dashboard 仍报告运行中');
   } finally {
     await stopProcess(dashboard);
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -225,6 +265,20 @@ input.on('line', (line) => {
       chatButtons: [],
       protocolDialogs: [],
       protocolMenu: null
+    }));
+    return;
+  }
+  if (command.type === 'chat') {
+    if (command.message === '/chat-ignore') return;
+    if (command.message === '/chat-exit') process.exit(8);
+    const ok = command.message === '/chat-accept';
+    console.log('::ly-event ' + JSON.stringify({
+      type: 'chatCommandResult',
+      requestId: command.requestId,
+      ok,
+      queuedTargets: ok ? [command.target] : [],
+      failedTargets: ok ? [] : [{ username: command.target, message: '模拟执行端拒绝发送。' }],
+      message: ok ? '模拟执行端已加入发送队列。' : '模拟执行端拒绝发送。'
     }));
     return;
   }

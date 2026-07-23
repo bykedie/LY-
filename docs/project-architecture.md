@@ -91,7 +91,7 @@ accounts.json                   # 可选独立账号列表
 
 Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。磁盘保存成功后，只有收到执行端匹配 `requestId` 的成功回执才返回 `liveApplied: true` 并更新 Dashboard 运行快照；stdin 写入失败、执行端拒绝、回执超时或进程退出均保持 API 保存成功但返回 `liveApplied: false`。聊天、窗口和即时动作命令写入失败时 API 必须失败。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。主配置、活动档案和档案索引使用多文件事务：修改目标前先在 `bot.config.profiles/recovery/` 写入 `pending` 日志，全部目标安装后才标记 `committed`。进程内失败按逆序回滚；回滚失败时保留日志与 `.bak`。Dashboard 在读取主配置前恢复遗留日志：`pending` 回滚旧状态，`committed` 校验新目标并清理工件。恢复是幂等的；损坏、越界、重复路径或目标缺失都会阻止启动并保留证据，禁止猜测和静默覆盖。主配置或具体档案损坏时返回明确错误且不覆盖原文件；可派生的 `profiles.json` 和自动化库损坏时先备份到 `bot.config.profiles/recovery/`，再重建安全索引或空方案库。自动化库读取时还会验证条目结构、ID、名称、大厅参数和动作列表，保留唯一合法方案并隔离非法或重复条目，避免损坏数据进入前端。
 
-保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发携带 `requestId` 的 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接，并用 `configApplyResult` 明确确认成功或返回拒绝原因。
+保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发携带 `requestId` 的 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接，并用 `configApplyResult` 明确确认成功或返回拒绝原因。网页聊天和命令同样携带请求 ID；执行端只把处于 play 状态的目标加入消息冷却队列，并在 `chatCommandResult` 中返回成功入队和失败账号。
 
 以上运行时数据均由 `.gitignore` 排除。部署脚本使用 Git 或压缩包更新时必须备份并恢复这些文件和目录。
 
@@ -123,7 +123,7 @@ POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
 Dashboard 通过 `src/process-ipc.js` 向 `src/index.js` 的 stdin 写入一行一个 JSON 命令，并等待写入回调；同步异常、异步回调错误和流 `error` 都必须返回调用方：
 
 ```text
-chat             # 发送聊天或命令
+chat             # 携带 requestId 发送聊天或命令
 config           # 下发运行时配置并携带 requestId
 windowSnapshot   # 携带 requestId 请求位置、实体、窗口和模组数据
 lobbyAction      # 立即执行单个大厅动作并携带 requestId
@@ -142,9 +142,10 @@ windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和�
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 configApplyResult   # 按 requestId 确认或拒绝实时配置
 executionReady      # 按启动 requestId 确认执行端关键初始化完成
+chatCommandResult   # 按 requestId 返回成功入队和失败账号
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、即时动作、配置应用和主动窗口快照的回执等待；启动就绪、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的快照回执才成功，因此合法空窗口与执行端无响应不会混淆。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用和主动窗口快照的回执等待；启动就绪、聊天、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的快照回执才成功，因此合法空窗口与执行端无响应不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
 
 ## 七、Mineflayer 执行端
 

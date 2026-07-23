@@ -171,10 +171,11 @@ try {
   await waitForMovementAfter(walkMovementStart);
   assert(relativeWalkResult.position?.x > walkPosition.x + 1, '按方向前进没有向东产生足够位移');
 
-  await requestJson('/api/send', {
+  const targetedSend = await requestJson('/api/send', {
     method: 'POST',
     body: JSON.stringify({ target: 'DashboardBotA', message: '/home-a' })
   });
+  assert(targetedSend.queuedTargets?.join(',') === 'DashboardBotA', '定向发送没有返回成功入队目标');
   await waitForMessageFrom('DashboardBotA', '/home-a');
   assert(!hasMessageFrom('DashboardBotB', '/home-a'), '定向发送不应该发到 DashboardBotB');
 
@@ -202,10 +203,12 @@ try {
   });
   assert(disabledTarget.ok === false && disabledTarget.message.includes('不存在或未启用'), '禁用账号目标没有被拒绝');
 
-  await requestJson('/api/send', {
+  const allSend = await requestJson('/api/send', {
     method: 'POST',
     body: JSON.stringify({ target: 'all', message: '/home-all' })
   });
+  assert(allSend.queuedTargets?.sort().join(',') === 'DashboardBotA,DashboardBotB', '全部账号发送没有返回成功入队目标');
+  assert(allSend.failedTargets?.length === 0, '全部在线时发送不应返回失败目标');
   await waitForMessageFrom('DashboardBotA', '/home-all');
   await waitForMessageFrom('DashboardBotB', '/home-all');
 
@@ -310,6 +313,21 @@ try {
   assert(disconnectedSnapshot.chatButtons.length === 0, '账号断线后快照仍返回旧连接聊天按钮');
   assert(disconnectedSnapshot.protocolDialogs.length === 0, '账号断线后快照仍返回旧连接协议对话');
   assert(disconnectedSnapshot.protocolMenu === null, '账号断线后快照仍返回旧连接 DragonCore 菜单');
+
+  const disconnectedSend = await requestJson('/api/send', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'DashboardBotA', message: '/offline-target' }),
+    expectOk: false
+  });
+  assert(disconnectedSend.ok === false && disconnectedSend.message.includes('不在线'), '断线账号发送失败仍被 Dashboard 报告为成功');
+
+  const partialSend = await requestJson('/api/send', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'all', message: '/partial-online' })
+  });
+  assert(partialSend.queuedTargets?.includes('DashboardBotB'), '全部账号发送没有返回成功目标');
+  assert(partialSend.failedTargets?.some((item) => item.username === 'DashboardBotA' && item.message.includes('不在线')), '全部账号发送没有返回断线失败目标');
+  await waitForMessageFrom('DashboardBotB', '/partial-online');
 
   dashboardProcess.kill('SIGINT');
   const dashboardExit = await waitForProcessExit(dashboardProcess, 8000);

@@ -22,7 +22,8 @@
 
 - 无需等待新需求，持续审计当前实现中的真实 bug，并先复现、后修复。
 - 修复必须覆盖根因，增加能在修复前失败、修复后通过的回归测试。
-- 执行子进程只有完成关键初始化并创建首个机器人会话后，`/api/start` 才能返回成功；初始化退出或超时必须失败并清理进程状态。
+- `/api/send` 必须等待执行端关联回执；单账号离线或不存在时失败，全部账号发送至少一个成功入队时返回成功并明确失败账号，全部失败时 API 失败。
+- 网页只提示消息已加入执行端发送队列，不把入队成功虚称为 Minecraft 服务器已收到。
 - 关键动作立即更新当前状态和工作日志；稳定阶段创建本地里程碑提交。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
 
@@ -48,27 +49,28 @@
 - 窗口快照关联回执与无响应失败语义：`4d0f694`。
 - 断线连接级快照清理与会话状态边界：`a50f29f`。
 - 执行子进程操作系统 spawn 确认：`66c72c8`。
+- 执行端应用级就绪握手、初始化失败和超时清理：`d924347`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-`executionReady` 应用级启动握手、初始化超时和超时后进程清理已完成全部验证，可创建独立本地里程碑提交。
+聊天命令关联回执、指定账号失败、全部账号部分成功、拒绝、无回执超时、执行端退出和前端准确提示均已完成全部验证，可创建独立本地里程碑提交。
 
 ## 下一步明确动作
 
-创建当前修复的本地提交；随后审计启动过程中并发 `/api/start` 请求是否可能在首个 ready 返回前创建两个执行子进程。
+创建当前修复的本地提交；随后审计 `/api/send` 在账号刚断线但 Mineflayer 尚未触发 `end` 的竞态，以及消息队列清理时未完成网页命令的可观测性。
 
 ## 已修改文件
 
-- `.env.example`
 - `docs/current-status.md`
 - `docs/project-architecture.md`
 - `docs/work-log.md`
-- `scripts/process-lifecycle-test.js`
+- `public/app.js`
+- `scripts/dashboard-protocol-test.js`
 - `scripts/runtime-config-protocol-test.js`
+- `scripts/smoke-test.js`
 - `src/dashboard.js`
 - `src/index.js`
-- `src/process-lifecycle.js`
 
 ## 未解决问题和阻塞项
 
@@ -81,10 +83,11 @@
 ## 最近测试结果
 
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含交接、维护、语法、存储事务、进程、前端、Minecraft 协议、认证及新增启动 ready 场景。
-- `node scripts/runtime-config-protocol-test.js`：覆盖初始化立即退出、ready 缺失超时并清理、正常 ready、配置回执与窗口快照回执。
-- 修复前同一运行协议测试稳定失败于“执行端初始化后立即退出时 Dashboard 错误返回启动成功”。
-- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2258 行、`public/app.js` 1719 行、`src/dashboard.js` 1042 行。
+- `npm.cmd test`：全部通过，包含交接、维护、语法、存储事务、进程、前端、Minecraft 协议、认证和新增聊天回执场景。
+- `node scripts/dashboard-protocol-test.js`：真实在线定向、全部在线、断线失败和全部账号部分成功发送语义正确。
+- `node scripts/runtime-config-protocol-test.js`：聊天回执接受、拒绝、无回执超时、执行端退出及既有 ready、配置和窗口回执全部受覆盖。
+- 修复前真实协议测试稳定失败于“断线账号发送失败仍被 Dashboard 报告为成功”。
+- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2274 行、`public/app.js` 1722 行、`src/dashboard.js` 1034 行。
 
 ## 恢复开发命令
 
@@ -105,4 +108,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 01:12:37 +08:00
+2026-07-24 01:38:47 +08:00

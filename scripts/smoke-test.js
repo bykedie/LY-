@@ -130,6 +130,7 @@ try {
   const appScript = await requestText('/app.js');
   const apiClientScript = await requestText('/api-client.js');
   assert(appScript.includes("from './api-client.js'"), '前端入口没有导入统一 API 客户端');
+  assert(appScript.includes('已加入执行端发送队列'), '前端发送成功提示没有准确表达队列接收语义');
   assert(apiClientScript.includes('export async function requestJson'), '统一 API 客户端静态资源不可用');
   assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
@@ -524,9 +525,10 @@ try {
 
   const manualSend = await requestJson('/api/send', {
     method: 'POST',
-    body: JSON.stringify({ target: 'all', message: '/spawn' })
+    body: JSON.stringify({ target: 'all', message: '/spawn' }),
+    expectOk: false
   });
-  assert(manualSend.ok === true, '运行控制手动发送在挂机运行时应该可用');
+  assert(manualSend.ok === false && manualSend.message.includes('不在线'), '离线账号手动发送没有返回明确失败');
 
   await requestJson('/api/config', {
     method: 'POST',
@@ -552,10 +554,12 @@ try {
   assert(duplicateStart.ok === false && duplicateStart.message.includes('已经运行'), '重复启动没有返回明确错误');
   await waitForLog('读取到 1 个启用账号');
 
-  await requestJson('/api/send', {
+  const restartedOfflineSend = await requestJson('/api/send', {
     method: 'POST',
-    body: JSON.stringify({ target: 'all', message: '/spawn' })
+    body: JSON.stringify({ target: 'all', message: '/spawn' }),
+    expectOk: false
   });
+  assert(restartedOfflineSend.message.includes('不在线'), '重启后离线账号发送没有返回明确失败');
   const sendStatus = await waitForLog('发送失败：账号不在线');
   assert(sendStatus.logs.join('\n').includes('发送失败：账号不在线'), '发送指令没有到达挂机进程');
 

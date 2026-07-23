@@ -109,6 +109,7 @@ let ACTIVE_FEATURES = mergeFeatures(FILE_CONFIG?.features || {});
 const sessions = new Map();
 const dashboardStartRequestId = String(process.env.DASHBOARD_START_REQUEST_ID || '').trim();
 let executionReadySent = false;
+let activeAccountNames = [];
 const FOOD_NAMES = new Set([
   'apple',
   'baked_potato',
@@ -2029,28 +2030,42 @@ function clearChatQueue(username) {
   session.chatQueue = [];
 }
 
-function sendChatCommand(target, message) {
-  if (!message) return;
+function sendChatCommand(target, message, requestId) {
+  const targetNames = target === 'all'
+    ? activeAccountNames
+    : activeAccountNames.filter((username) => username === target);
+  const queuedTargets = [];
+  const failedTargets = [];
 
-  let matchedTarget = false;
-  for (const [username, session] of sessions) {
-    if (target !== 'all' && target !== username) continue;
-    matchedTarget = true;
-    if (!isBotInPlay(session.bot)) {
+  if (targetNames.length === 0) {
+    failedTargets.push({ username: target, message: `找不到目标账号 ${target}。` });
+  }
+
+  for (const username of targetNames) {
+    const session = sessions.get(username);
+    if (!isBotInPlay(session?.bot)) {
       log(username, '发送失败：账号不在线。');
+      failedTargets.push({ username, message: '账号不在线。' });
       continue;
     }
 
     try {
-      enqueueChat(username, message, `网页发送：${message}`);
+      if (!enqueueChat(username, message, `网页发送：${message}`)) {
+        throw new Error('消息未加入发送队列。');
+      }
+      queuedTargets.push(username);
     } catch (error) {
       log(username, `发送失败：${error.message}`);
+      failedTargets.push({ username, message: error.message });
     }
   }
 
-  if (target !== 'all' && !matchedTarget) {
-    log(null, `发送失败：找不到目标账号 ${target}。`);
-  }
+  if (!requestId) return;
+  const ok = queuedTargets.length > 0;
+  const resultMessage = ok
+    ? `已加入 ${queuedTargets.length} 个账号发送队列${failedTargets.length ? `，${failedTargets.length} 个账号失败` : ''}。`
+    : failedTargets.map((item) => `${item.username}：${item.message}`).join('；') || '没有账号接收发送命令。';
+  emitRuntimeEvent({ type: 'chatCommandResult', requestId, ok, queuedTargets, failedTargets, message: resultMessage });
 }
 
 function isBotInPlay(bot) {
@@ -2096,6 +2111,7 @@ function formatReason(reason) {
 
 async function startAllAccounts() {
   const accounts = loadAccounts().filter((account) => account.enabled);
+  activeAccountNames = accounts.map((account) => account.username);
   const enabledFeatures = getEnabledFeatures();
 
   if (accounts.length === 0) {
@@ -2160,7 +2176,7 @@ function listenDashboardCommands() {
       const command = JSON.parse(line);
 
       if (command.type === 'chat') {
-        sendChatCommand(command.target || 'all', command.message || '');
+        sendChatCommand(command.target || 'all', command.message || '', command.requestId || '');
         return;
       }
 

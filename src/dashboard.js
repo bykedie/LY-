@@ -544,7 +544,7 @@ async function startBot(startAccountNames = []) {
   stopping = false;
   logs = [];
   runtimeSnapshots.clear();
-  const startRequestId = createExecutionReadyRequestId();
+  const startRequestId = createRequestId('start');
   const readyResult = runtimeRequests.wait(startRequestId, executionReadyTimeoutMs, '等待执行端初始化完成超时。');
   const child = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
@@ -644,6 +644,9 @@ function handleBotEventLine(line) {
     if (event.type === 'executionReady' && event.requestId) {
       runtimeRequests.settle(event, '执行端初始化失败。');
     }
+    if (event.type === 'chatCommandResult' && event.requestId) {
+      runtimeRequests.settle(event, '发送命令执行失败。');
+    }
   } catch (error) {
     addLog(`解析运行事件失败：${error.message}`);
   }
@@ -700,7 +703,7 @@ async function sendBotCommand(command) {
     throw new Error('挂机进程正在停止，不能发送新指令。');
   }
 
-  if (!String(command.message || '').trim()) {
+  if (command.type === 'chat' && !String(command.message || '').trim()) {
     throw new Error('发送内容不能为空。');
   }
 
@@ -709,7 +712,7 @@ async function sendBotCommand(command) {
     throw new Error('找不到当前运行配置，请重启挂机进程。');
   }
 
-  if (command.target !== 'all') {
+  if (command.target && command.target !== 'all') {
     const enabledAccountNames = new Set(
       config.accounts
         .filter((account) => account.enabled !== false)
@@ -724,33 +727,30 @@ async function sendBotCommand(command) {
 }
 
 async function requestWindowSnapshot(target) {
-  const requestId = createWindowSnapshotRequestId();
-  const snapshotResult = runtimeRequests.wait(requestId, 800, '等待执行端返回窗口快照超时。');
-  try {
-    await sendBotCommand({ type: 'windowSnapshot', requestId, target, message: '__window_snapshot__' });
-  } catch (error) {
-    runtimeRequests.cancel(requestId, error);
-    snapshotResult.catch(() => {});
-    throw error;
-  }
-  const result = await snapshotResult;
+  const result = await requestBotCommandResult(
+    'window',
+    { type: 'windowSnapshot', target, message: '__window_snapshot__' },
+    800,
+    '等待执行端返回窗口快照超时。'
+  );
   return result.snapshot;
 }
 
-function createLobbyActionRequestId() {
-  return `lobby-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+async function requestBotCommandResult(prefix, command, timeoutMs, timeoutMessage) {
+  const requestId = createRequestId(prefix);
+  const result = runtimeRequests.wait(requestId, timeoutMs, timeoutMessage);
+  try {
+    await sendBotCommand({ ...command, requestId });
+    return await result;
+  } catch (error) {
+    runtimeRequests.cancel(requestId, error);
+    result.catch(() => {});
+    throw error;
+  }
 }
 
-function createWindowSnapshotRequestId() {
-  return `window-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function createConfigRequestId() {
-  return `config-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function createExecutionReadyRequestId() {
-  return `start-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+function createRequestId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function getLobbyActionTimeout(action) {
@@ -767,14 +767,6 @@ function getLobbyActionTimeout(action) {
   return Math.min(300000, Math.max(15000, requestedMs + 10000));
 }
 
-function waitForLobbyActionResult(requestId, timeoutMs) {
-  return runtimeRequests.wait(requestId, timeoutMs, '等待大厅动作执行结果超时。');
-}
-
-function cancelPendingLobbyAction(requestId, error) {
-  runtimeRequests.cancel(requestId, error);
-}
-
 async function sendRuntimeConfigUpdate(config) {
   if (!botProcess?.stdin?.writable || !runningConfig || stopping) return false;
 
@@ -783,14 +775,14 @@ async function sendRuntimeConfigUpdate(config) {
     server: runningConfig.server,
     accounts: runningConfig.accounts
   };
-  const requestId = createConfigRequestId();
-  const applyResult = runtimeRequests.wait(requestId, 1500, '等待执行端确认实时配置超时。');
   try {
-    await writeJsonLine(botProcess.stdin, { type: 'config', requestId, config: nextRunningConfig });
-    await applyResult;
+    await requestBotCommandResult(
+      'config',
+      { type: 'config', config: nextRunningConfig },
+      1500,
+      '等待执行端确认实时配置超时。'
+    );
   } catch (error) {
-    runtimeRequests.cancel(requestId, error);
-    applyResult.catch(() => {});
     addLog(`运行中配置实时应用失败：${error.message}`);
     return false;
   }
@@ -994,22 +986,17 @@ const server = http.createServer(async (req, res) => {
       const action = structuredClone(body.action || {});
       action.enabled = true;
       validateLobbyActions([action]);
-      const requestId = createLobbyActionRequestId();
-      const actionResult = waitForLobbyActionResult(requestId, getLobbyActionTimeout(action));
-      try {
-        await sendBotCommand({
+      await requestBotCommandResult(
+        'lobby',
+        {
           type: 'lobbyAction',
-          requestId,
           target,
           action,
           message: '__lobby_action__'
-        });
-      } catch (error) {
-        cancelPendingLobbyAction(requestId, error);
-        actionResult.catch(() => {});
-        throw error;
-      }
-      await actionResult;
+        },
+        getLobbyActionTimeout(action),
+        '等待大厅动作执行结果超时。'
+      );
       const snapshot = runtimeSnapshots.get(target) || await requestWindowSnapshot(target);
       sendJson(res, 200, { ok: true, target, ...snapshot });
       return;
@@ -1017,12 +1004,17 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/send') {
       const body = JSON.parse(await readBody(req));
-      await sendBotCommand({
-        type: 'chat',
-        target: body.target || 'all',
-        message: body.message || ''
+      const result = await requestBotCommandResult(
+        'chat',
+        { type: 'chat', target: body.target || 'all', message: body.message || '' },
+        1500,
+        '等待执行端确认发送命令超时。'
+      );
+      sendJson(res, 200, {
+        ok: true,
+        queuedTargets: Array.isArray(result.queuedTargets) ? result.queuedTargets : [],
+        failedTargets: Array.isArray(result.failedTargets) ? result.failedTargets : []
       });
-      sendJson(res, 200, { ok: true });
       return;
     }
 

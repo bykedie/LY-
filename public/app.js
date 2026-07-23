@@ -354,7 +354,7 @@ async function sendGameMessage(message) {
   }
 
   try {
-    await requestJson('/api/send', {
+    const result = await requestJson('/api/send', {
       method: 'POST',
       body: JSON.stringify({
         target: $('#commandTarget').value,
@@ -362,7 +362,10 @@ async function sendGameMessage(message) {
       })
     });
     $('#commandMessage').value = '';
-    showToast('已发送到挂机进程');
+    const failedCount = result.failedTargets?.length || 0;
+    showToast(failedCount
+      ? `已加入 ${result.queuedTargets.length} 个账号发送队列，${failedCount} 个账号未接收`
+      : '已加入执行端发送队列');
   } catch (error) {
     showToast(error.message);
   }
