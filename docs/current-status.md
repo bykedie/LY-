@@ -37,20 +37,24 @@
 - 重复启停虚假成功修复：`90b00f7`。
 - 前端 API 错误边界拆分：`0808dbb`；检查点同步：`c521df4`。
 - 自动化库结构恢复与独立存储边界：`cee6f85`。
+- 防挂机重连后移动原点重置：`452d6f9`；持续审计检查点：`d8372a1`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-无。自动化库恢复已保存为 `cee6f85`，防挂机重连原点修复已保存为 `452d6f9`；工作区应保持干净。
+Dashboard 跨子进程 stdout 半行缓冲污染已修复；行读取器、重连测试竞态修正和全部本地验证通过，等待创建里程碑提交。
 
 ## 下一步明确动作
 
-继续审计下一批可复现缺陷，优先检查跨子进程状态、部分成功响应和持久化一致性；先写失败测试再修复。
+创建 stdout 行缓冲隔离的独立本地提交；之后继续部分成功响应和持久化一致性审计。
 
 ## 已修改文件
 
-- `src/index.js`
-- `scripts/anti-afk-movement-test.js`
+- `src/line-reader.js`
+- `src/dashboard.js`
+- `scripts/line-reader-test.js`
+- `scripts/handoff-check.js`
+- `package.json`
 - `docs/project-architecture.md`
 - `docs/current-status.md`
 - `docs/work-log.md`
@@ -65,13 +69,15 @@
 
 ## 最近测试结果
 
-- 新端到端回归在修复前按预期失败：第二次连接未重置随机走动原点，目标为 `x=3.6`。
-- `node --check src/index.js`：通过。
-- `node scripts/anti-afk-movement-test.js`：修复后通过，覆盖随机走动、命令保活和断线重连新出生点。
+- 代码审计确认旧 `botStdoutBuffer` 跨所有执行子进程共享，启动和退出均未清空。
+- `node scripts/line-reader-test.js`：通过，覆盖分块、尾行和新实例隔离。
+- `node scripts/smoke-test.js`：通过。
 - `npm.cmd run handoff:check`：通过。
-- `npm.cmd run maintenance:check`：通过，`src/index.js` 为 2251 行，未超过预算。
+- `npm.cmd run maintenance:check`：通过，Dashboard 为 1003 行。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
-- `npm.cmd test`：全部通过，包含防挂机断线重连场景。
+- 首次 `npm.cmd test`：在防挂机重连场景失败，定位为测试阶段判定竞态而非产品回归。
+- `node scripts/anti-afk-movement-test.js`：修正阶段边界后连续运行三次通过。
+- 重新 `npm.cmd test`：全部通过，包含行读取器和稳定后的防挂机重连测试。
 
 ## 恢复开发命令
 
@@ -92,4 +98,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 19:18:00 +08:00
+2026-07-23 19:28:00 +08:00

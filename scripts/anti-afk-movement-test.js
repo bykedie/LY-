@@ -79,11 +79,15 @@ async function runReconnectOriginScenario() {
   let botProcess = null;
   let server = null;
   let joinCount = 0;
+  let secondJoinOutputOffset = -1;
 
   try {
     server = createAntiAfkServer(serverPort, [], [], {
       spawnX: () => (++joinCount === 1 ? 1 : 10),
-      disconnectAfterFirstMove: true
+      disconnectAfterFirstMove: true,
+      onPlayerJoin: (spawnX) => {
+        if (spawnX === 10) secondJoinOutputOffset = botOutput.join('').length;
+      }
     });
     await once(server, 'listening');
     const config = createAntiAfkConfig({ port: serverPort, username: 'AntiAfkReconnectBot', antiAfkCommand: '' });
@@ -96,11 +100,12 @@ async function runReconnectOriginScenario() {
     botProcess.stdout.on('data', (data) => botOutput.push(data.toString()));
     botProcess.stderr.on('data', (data) => botOutput.push(data.toString()));
 
-    await waitForWalkTargets(botOutput, 2);
-    const targets = [...botOutput.join('').matchAll(/防挂机随机走动：前往 (-?\d+(?:\.\d+)?),/g)]
-      .map((match) => Number(match[1]));
-    assert(joinCount >= 2, '防挂机重连场景没有建立第二次连接');
-    assert(targets[1] > 6, `重连后随机走动仍围绕旧出生点：${targets[1]}`);
+    await waitForSecondJoinTarget(botOutput, () => secondJoinOutputOffset);
+    assert(joinCount >= 2 && secondJoinOutputOffset >= 0, '防挂机重连场景没有建立第二次连接');
+    const secondConnectionOutput = botOutput.join('').slice(secondJoinOutputOffset);
+    const targetMatch = secondConnectionOutput.match(/防挂机随机走动：前往 (-?\d+(?:\.\d+)?),/);
+    const secondTargetX = Number(targetMatch?.[1]);
+    assert(secondTargetX > 6, `重连后随机走动仍围绕旧出生点：${secondTargetX}`);
 
     const exitCode = await once(botProcess, 'exit', 12000);
     assert(exitCode[0] === 0, `重连防挂机进程退出码异常：${exitCode[0]}\n${botOutput.join('')}`);
@@ -200,6 +205,7 @@ function createAntiAfkServer(port, receivedMessages, receivedPackets, options = 
 
   server.on('playerJoin', (client) => {
     const spawnX = options.spawnX ? options.spawnX() : 1;
+    options.onPlayerJoin?.(spawnX);
     let disconnected = false;
     client.write('login', {
       ...mcData.loginPacket,
@@ -285,14 +291,14 @@ async function waitForOutput(botOutput, expected) {
   throw new Error(`等待机器人输出超时：${expected}\n机器人输出：${botOutput.join('')}`);
 }
 
-async function waitForWalkTargets(botOutput, count) {
+async function waitForSecondJoinTarget(botOutput, getOffset) {
   const deadline = Date.now() + 12000;
   while (Date.now() < deadline) {
-    const matches = botOutput.join('').match(/防挂机随机走动：前往/g) || [];
-    if (matches.length >= count) return;
+    const offset = getOffset();
+    if (offset >= 0 && botOutput.join('').slice(offset).includes('防挂机随机走动：前往')) return;
     await delay(100);
   }
-  throw new Error(`等待防挂机随机走动目标超时\n机器人输出：${botOutput.join('')}`);
+  throw new Error(`等待重连后的防挂机随机走动目标超时\n机器人输出：${botOutput.join('')}`);
 }
 
 async function waitForMessage(receivedMessages, expected) {

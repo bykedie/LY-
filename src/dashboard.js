@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, writeJson } from './json-store.js';
 import { requestProcessStop } from './process-lifecycle.js';
 import { createAutomationStore } from './automation-store.js';
+import { createLineReader } from './line-reader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -29,7 +30,6 @@ let botProcess = null;
 let runningConfig = null;
 let stopping = false;
 let logs = [];
-let botStdoutBuffer = '';
 let shuttingDown = false;
 const runtimeSnapshots = new Map();
 const pendingLobbyActions = new Map();
@@ -532,9 +532,14 @@ function startBot(startAccountNames = []) {
     env: { ...process.env, BOT_CONFIG_PATH: configPath, START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames) },
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  const stdoutReader = createLineReader((line) => {
+    if (!line) return;
+    if (!handleBotEventLine(line)) addLog(line);
+  });
 
   addLog('挂机进程已启动。');
-  botProcess.stdout.on('data', (data) => handleBotStdout(data.toString()));
+  botProcess.stdout.on('data', stdoutReader.push);
+  botProcess.stdout.once('end', stdoutReader.end);
   botProcess.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
   botProcess.on('exit', (code) => {
     addLog(`挂机进程已退出，退出码：${code}`);
@@ -543,18 +548,6 @@ function startBot(startAccountNames = []) {
     runningConfig = null;
     stopping = false;
   });
-}
-
-function handleBotStdout(chunk) {
-  botStdoutBuffer += chunk;
-  const lines = botStdoutBuffer.split(/\r?\n/);
-  botStdoutBuffer = lines.pop() || '';
-
-  for (const line of lines) {
-    if (!line) continue;
-    if (handleBotEventLine(line)) continue;
-    addLog(line);
-  }
 }
 
 function handleBotEventLine(line) {

@@ -26,6 +26,7 @@ LY控制台
 │  ├─ dashboard.js                # API、配置校验、档案、鉴权、进程、日志和协议事件
 │  ├─ automation-store.js          # 自动化方案校验、持久化、去重和损坏恢复
 │  ├─ json-store.js               # 运行时 JSON 的原子读取和写入
+│  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
@@ -135,7 +136,7 @@ windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和�
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 ```
 
-Dashboard 消费结构化事件，不把事件原文写入普通日志。即时动作有按动作类型计算的超时；进程退出时会拒绝全部等待中的动作。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。即时动作有按动作类型计算的超时；进程退出时会拒绝全部等待中的动作。
 
 ## 七、Mineflayer 执行端
 
