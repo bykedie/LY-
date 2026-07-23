@@ -69,6 +69,31 @@ async function expectDashboardToWaitForConfigResult() {
     const timedOutStartStatus = await requestJson(baseUrl, '/api/status');
     assert(timedOutStartStatus.running === false, '执行端初始化超时后仍有残留运行进程');
 
+    await requestJson(baseUrl, '/api/config', {
+      method: 'POST',
+      body: JSON.stringify(createConfig('/startup-delay'))
+    });
+    const delayedStartPromise = requestJson(baseUrl, '/api/start', { method: 'POST' });
+    delayedStartPromise.catch(() => {});
+    await sleep(50);
+    const initializingStatus = await requestJson(baseUrl, '/api/status');
+    assert(initializingStatus.starting === true, '执行端等待 ready 时状态没有标记为初始化中');
+    assert(initializingStatus.running === false, '执行端等待 ready 时错误报告为运行中');
+    assert(initializingStatus.control === null, '执行端等待 ready 时错误开放运行控制快照');
+    const duplicateInitializingStart = await requestJson(baseUrl, '/api/start', { method: 'POST', expectOk: false });
+    assert(duplicateInitializingStart.message.includes('正在初始化'), '执行端初始化中重复启动没有返回明确错误');
+    const initializingSend = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: 'ConfigProtocolBot', message: '/too-early' }),
+      expectOk: false
+    });
+    assert(initializingSend.message.includes('正在初始化'), '执行端初始化中发送命令没有被明确拒绝');
+    await delayedStartPromise;
+    const initializedStatus = await requestJson(baseUrl, '/api/status');
+    assert(initializedStatus.starting === false && initializedStatus.running === true, '执行端 ready 后没有从初始化中切换为运行中');
+    await requestJson(baseUrl, '/api/stop', { method: 'POST' });
+    await waitForStopped(baseUrl);
+
     const initialConfig = createConfig('/initial');
     await requestJson(baseUrl, '/api/config', { method: 'POST', body: JSON.stringify(initialConfig) });
     await requestJson(baseUrl, '/api/start', { method: 'POST' });
@@ -239,12 +264,14 @@ const startupMarker = startupConfig.features?.chat?.presetMessagesList?.[0];
 if (startupMarker === '/startup-exit') {
   setImmediate(() => process.exit(9));
 } else if (startupMarker !== '/startup-ignore') {
-  console.log('::ly-event ' + JSON.stringify({
-    type: 'executionReady',
-    requestId: process.env.DASHBOARD_START_REQUEST_ID,
-    ok: true,
-    message: '模拟执行端初始化完成。'
-  }));
+  const ready = () => console.log('::ly-event ' + JSON.stringify({
+      type: 'executionReady',
+      requestId: process.env.DASHBOARD_START_REQUEST_ID,
+      ok: true,
+      message: '模拟执行端初始化完成。'
+    }));
+  if (startupMarker === '/startup-delay') setTimeout(ready, 150);
+  else ready();
 }
 
 let snapshotRequests = 0;
@@ -310,6 +337,16 @@ async function waitForDashboard(baseUrl, getOutput) {
     }
   }
   throw new Error(`等待 Dashboard 启动超时：\n${getOutput()}`);
+}
+
+async function waitForStopped(baseUrl) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const status = await requestJson(baseUrl, '/api/status');
+    if (!status.running && !status.starting && !status.stopping) return;
+    await sleep(50);
+  }
+  throw new Error('等待执行端停止超时');
 }
 
 async function requestJson(baseUrl, pathname, options = {}) {

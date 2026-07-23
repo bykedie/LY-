@@ -22,8 +22,8 @@
 
 - 无需等待新需求，持续审计当前实现中的真实 bug，并先复现、后修复。
 - 修复必须覆盖根因，增加能在修复前失败、修复后通过的回归测试。
-- `/api/send` 必须等待执行端关联回执；单账号离线或不存在时失败，全部账号发送至少一个成功入队时返回成功并明确失败账号，全部失败时 API 失败。
-- 网页只提示消息已加入执行端发送队列，不把入队成功虚称为 Minecraft 服务器已收到。
+- 执行端等待 `executionReady` 时 `/api/status` 必须返回 `starting: true`、`running: false`；ready 后原子切换为 `starting: false`、`running: true`。
+- 初始化期间前端不得显示“挂机运行中”或开放运行命令；停止、失败和退出必须清理初始化状态。
 - 关键动作立即更新当前状态和工作日志；稳定阶段创建本地里程碑提交。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
 
@@ -50,15 +50,16 @@
 - 断线连接级快照清理与会话状态边界：`a50f29f`。
 - 执行子进程操作系统 spawn 确认：`66c72c8`。
 - 执行端应用级就绪握手、初始化失败和超时清理：`d924347`。
+- 网页发送命令执行端回执与部分成功语义：`754f03b`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-聊天命令关联回执、指定账号失败、全部账号部分成功、拒绝、无回执超时、执行端退出和前端准确提示均已完成全部验证，可创建独立本地里程碑提交。
+初始化与运行状态分离、ready 后存活复核、初始化期间命令边界、前端初始化提示和请求 ID 小范围拆分已完成全部验证，可创建独立本地里程碑提交。
 
 ## 下一步明确动作
 
-创建当前修复的本地提交；随后审计 `/api/send` 在账号刚断线但 Mineflayer 尚未触发 `end` 的竞态，以及消息队列清理时未完成网页命令的可观测性。
+创建当前修复的本地提交；随后审计 Dashboard HTTP 服务器监听失败（端口占用或权限错误）是否会产生未处理 `error` 并缺少可恢复诊断。
 
 ## 已修改文件
 
@@ -66,11 +67,11 @@
 - `docs/project-architecture.md`
 - `docs/work-log.md`
 - `public/app.js`
-- `scripts/dashboard-protocol-test.js`
 - `scripts/runtime-config-protocol-test.js`
+- `scripts/runtime-request-tracker-test.js`
 - `scripts/smoke-test.js`
 - `src/dashboard.js`
-- `src/index.js`
+- `src/runtime-request-tracker.js`
 
 ## 未解决问题和阻塞项
 
@@ -83,11 +84,10 @@
 ## 最近测试结果
 
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含交接、维护、语法、存储事务、进程、前端、Minecraft 协议、认证和新增聊天回执场景。
-- `node scripts/dashboard-protocol-test.js`：真实在线定向、全部在线、断线失败和全部账号部分成功发送语义正确。
-- `node scripts/runtime-config-protocol-test.js`：聊天回执接受、拒绝、无回执超时、执行端退出及既有 ready、配置和窗口回执全部受覆盖。
-- 修复前真实协议测试稳定失败于“断线账号发送失败仍被 Dashboard 报告为成功”。
-- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2274 行、`public/app.js` 1722 行、`src/dashboard.js` 1034 行。
+- `npm.cmd test`：全部通过，包含交接、维护、语法、存储事务、进程、前端、Minecraft 协议、认证和新增初始化状态场景。
+- `node scripts/runtime-config-protocol-test.js`：延迟 ready 时为初始化中，ready 后切换运行；初始化中重复启动、命令和控制快照均正确拒绝。
+- 修复前状态协议测试稳定失败于“执行端等待 ready 时状态没有标记为初始化中”。
+- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2274 行、`public/app.js` 1728 行、`src/dashboard.js` 1047 行。
 
 ## 恢复开发命令
 
@@ -108,4 +108,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 01:38:47 +08:00
+2026-07-24 01:56:41 +08:00

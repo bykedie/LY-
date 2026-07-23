@@ -75,7 +75,7 @@ public/app.js
   -> executionReady 关联回执
 ```
 
-启动 API 先等待操作系统发出 ChildProcess `spawn`，再等待执行端返回匹配请求 ID 的 `executionReady`；执行端只有完成配置和账号校验、并成功创建首个 Mineflayer 会话后才发送该事件，不等待其他账号按连接间隔全部创建。无法创建进程、初始化提前退出或默认 10 秒内无回执时均返回明确失败；ready 超时会先请求优雅停止，并以强制终止兜底，禁止 API 失败后遗留后台进程。等待上限可通过 `DASHBOARD_START_READY_TIMEOUT_MS` 调整。停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+启动 API 先等待操作系统发出 ChildProcess `spawn`，再等待执行端返回匹配请求 ID 的 `executionReady`；执行端只有完成配置和账号校验、并成功创建首个 Mineflayer 会话后才发送该事件，不等待其他账号按连接间隔全部创建。此阶段 `/api/status` 返回 `starting: true`、`running: false` 且不开放控制快照；ready 后原子切换为 `starting: false`、`running: true`。初始化期间重复启动和运行命令均明确拒绝，前端显示“挂机初始化中”并禁用相关控件。无法创建进程、初始化提前退出或默认 10 秒内无回执时均返回明确失败并清理初始化状态；ready 超时会先请求优雅停止，并以强制终止兜底，禁止 API 失败后遗留后台进程。等待上限可通过 `DASHBOARD_START_READY_TIMEOUT_MS` 调整。停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回 `starting`、`running`、`stopping`、控制状态和日志。
 
 ## 四、配置与持久化
 

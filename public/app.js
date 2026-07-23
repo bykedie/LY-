@@ -5,6 +5,7 @@ const state = {
   config: null,
   statusTimer: null,
   running: false,
+  starting: false,
   stopping: false,
   control: null,
   uiSettings: null,
@@ -1140,7 +1141,7 @@ function renderStartAccounts(accounts = []) {
     input.type = 'checkbox';
     input.value = account.username;
     input.checked = hasPreviousSelection ? previousSelection.has(account.username) : true;
-    input.disabled = Boolean(state.running || state.stopping);
+    input.disabled = Boolean(state.running || state.starting || state.stopping);
     label.classList.toggle('selected', input.checked);
     input.addEventListener('change', () => label.classList.toggle('selected', input.checked));
 
@@ -1548,10 +1549,15 @@ async function confirmResetConfig() {
 async function refreshStatus() {
   const data = await requestJson('/api/status');
   state.running = Boolean(data.running);
+  state.starting = Boolean(data.starting);
   state.stopping = Boolean(data.stopping);
   state.control = data.control || null;
   $('#statusDot').classList.toggle('running', data.running);
-  $('#statusText').textContent = data.stopping ? '挂机停止中' : (data.running ? '挂机运行中' : '挂机未启动');
+  $('#statusText').textContent = data.stopping
+    ? '挂机停止中'
+    : (data.starting ? '挂机初始化中' : (data.running ? '挂机运行中' : '挂机未启动'));
+  $('#startBtn').disabled = Boolean(data.running || data.starting || data.stopping);
+  $('#stopBtn').disabled = Boolean(data.stopping || (!data.running && !data.starting));
   updateRuntimeControlState();
   if (isSelectingLogText()) return;
   if (data.logs.length) {

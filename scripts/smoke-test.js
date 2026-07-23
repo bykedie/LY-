@@ -131,6 +131,7 @@ try {
   const apiClientScript = await requestText('/api-client.js');
   assert(appScript.includes("from './api-client.js'"), '前端入口没有导入统一 API 客户端');
   assert(appScript.includes('已加入执行端发送队列'), '前端发送成功提示没有准确表达队列接收语义');
+  assert(appScript.includes('挂机初始化中'), '前端缺少执行端初始化状态提示');
   assert(apiClientScript.includes('export async function requestJson'), '统一 API 客户端静态资源不可用');
   assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');

@@ -10,7 +10,7 @@ import { writeJsonLine } from './process-ipc.js';
 import { serveStaticFile } from './static-server.js';
 import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
-import { createRuntimeRequestTracker } from './runtime-request-tracker.js';
+import { createRuntimeRequestId, createRuntimeRequestTracker } from './runtime-request-tracker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -32,6 +32,7 @@ const executionReadyTimeoutMs = positiveNumber(process.env.DASHBOARD_START_READY
 
 let botProcess = null;
 let runningConfig = null;
+let starting = false;
 let stopping = false;
 let logs = [];
 let shuttingDown = false;
@@ -529,6 +530,7 @@ function ensureProjectDependencies() {
 
 async function startBot(startAccountNames = []) {
   if (stopping) throw new Error('挂机进程正在停止，请等待停止完成后再启动。');
+  if (starting) throw new Error('挂机进程正在初始化，请等待完成后再启动。');
   if (botProcess) throw new Error('挂机进程已经运行。');
 
   ensureProjectDependencies();
@@ -544,7 +546,7 @@ async function startBot(startAccountNames = []) {
   stopping = false;
   logs = [];
   runtimeSnapshots.clear();
-  const startRequestId = createRequestId('start');
+  const startRequestId = createRuntimeRequestId('start');
   const readyResult = runtimeRequests.wait(startRequestId, executionReadyTimeoutMs, '等待执行端初始化完成超时。');
   const child = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
@@ -556,6 +558,7 @@ async function startBot(startAccountNames = []) {
     },
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  starting = true;
   botProcess = child;
   const stdoutReader = createLineReader((line) => {
     if (!line) return;
@@ -573,6 +576,7 @@ async function startBot(startAccountNames = []) {
     if (botProcess === child) {
       botProcess = null;
       runningConfig = null;
+      starting = false;
       stopping = false;
     }
   });
@@ -585,6 +589,7 @@ async function startBot(startAccountNames = []) {
     if (botProcess === child) {
       botProcess = null;
       runningConfig = null;
+      starting = false;
       stopping = false;
     }
     throw new Error(`挂机进程启动失败：${error.message}`);
@@ -592,6 +597,9 @@ async function startBot(startAccountNames = []) {
 
   try {
     await readyResult;
+    if (botProcess !== child || child.exitCode !== null || child.signalCode !== null) {
+      throw new Error('执行进程在初始化完成后已退出。');
+    }
   } catch (error) {
     runtimeRequests.cancel(startRequestId, error);
     if (child.exitCode === null && child.signalCode === null) {
@@ -607,10 +615,12 @@ async function startBot(startAccountNames = []) {
     if (botProcess === child && (child.exitCode !== null || child.signalCode !== null)) {
       botProcess = null;
       runningConfig = null;
+      starting = false;
       stopping = false;
     }
     throw new Error(`挂机进程初始化失败：${error.message}`);
   }
+  starting = false;
   addLog('挂机进程初始化完成。');
 }
 
@@ -702,6 +712,9 @@ async function sendBotCommand(command) {
   if (stopping) {
     throw new Error('挂机进程正在停止，不能发送新指令。');
   }
+  if (starting) {
+    throw new Error('挂机进程正在初始化，不能发送新指令。');
+  }
 
   if (command.type === 'chat' && !String(command.message || '').trim()) {
     throw new Error('发送内容不能为空。');
@@ -737,7 +750,7 @@ async function requestWindowSnapshot(target) {
 }
 
 async function requestBotCommandResult(prefix, command, timeoutMs, timeoutMessage) {
-  const requestId = createRequestId(prefix);
+  const requestId = createRuntimeRequestId(prefix);
   const result = runtimeRequests.wait(requestId, timeoutMs, timeoutMessage);
   try {
     await sendBotCommand({ ...command, requestId });
@@ -747,10 +760,6 @@ async function requestBotCommandResult(prefix, command, timeoutMs, timeoutMessag
     result.catch(() => {});
     throw error;
   }
-}
-
-function createRequestId(prefix) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function getLobbyActionTimeout(action) {
@@ -768,7 +777,7 @@ function getLobbyActionTimeout(action) {
 }
 
 async function sendRuntimeConfigUpdate(config) {
-  if (!botProcess?.stdin?.writable || !runningConfig || stopping) return false;
+  if (!botProcess?.stdin?.writable || !runningConfig || starting || stopping) return false;
 
   const nextRunningConfig = {
     ...structuredClone(config),
@@ -805,6 +814,10 @@ function getRunningControlState() {
           .map((account) => ({ username: account.username }))
       : []
   };
+}
+
+function getBotProcessStatus() {
+  return { running: Boolean(botProcess) && !starting, starting: Boolean(botProcess) && starting, stopping };
 }
 
 function sendJson(res, statusCode, data) {
@@ -948,11 +961,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/status') {
+      const processStatus = getBotProcessStatus();
       sendJson(res, 200, {
         ok: true,
-        running: Boolean(botProcess),
-        stopping,
-        control: getRunningControlState(),
+        ...processStatus,
+        control: processStatus.running ? getRunningControlState() : null,
         logs
       });
       return;
@@ -961,13 +974,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/start') {
       const body = JSON.parse(await readBody(req) || '{}');
       await startBot(body.accounts || []);
-      sendJson(res, 200, { ok: true, running: Boolean(botProcess), stopping });
+      sendJson(res, 200, { ok: true, ...getBotProcessStatus() });
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/api/stop') {
       stopBot();
-      sendJson(res, 200, { ok: true, running: Boolean(botProcess), stopping });
+      sendJson(res, 200, { ok: true, ...getBotProcessStatus() });
       return;
     }
 

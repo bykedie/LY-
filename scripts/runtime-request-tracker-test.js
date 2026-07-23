@@ -1,4 +1,4 @@
-import { createRuntimeRequestTracker } from '../src/runtime-request-tracker.js';
+import { createRuntimeRequestId, createRuntimeRequestTracker } from '../src/runtime-request-tracker.js';
 
 await expectSuccessResult();
 await expectFailureResult();
@@ -9,7 +9,10 @@ await expectDelayedConsumptionNotUnhandled();
 console.log('runtime request tracker test ok');
 
 async function expectSuccessResult() {
-  const tracker = createRuntimeRequestTracker();
+const tracker = createRuntimeRequestTracker();
+const firstRequestId = createRuntimeRequestId('test');
+const secondRequestId = createRuntimeRequestId('test');
+assert(firstRequestId.startsWith('test-') && firstRequestId !== secondRequestId, '运行请求 ID 前缀或唯一性不正确');
   const result = tracker.wait('success', 100, 'timeout');
   assert(tracker.settle({ requestId: 'success', ok: true, value: 42 }, 'failed'), '成功回执没有匹配等待请求');
   assert((await result).value === 42, '成功回执内容没有返回调用方');
