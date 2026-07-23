@@ -22,8 +22,6 @@
 
 - 无需等待新需求，持续审计当前实现中的真实 bug，并先复现、后修复。
 - 修复必须覆盖根因，增加能在修复前失败、修复后通过的回归测试。
-- 多账号启动时，尚未创建会话的后续账号请求窗口快照必须明确失败，不得伪装成合法空快照；已创建后恢复正常。
-- 断线但曾创建过的账号继续返回已清空的合法快照，不能与“尚未初始化”混淆。
 - 关键动作立即更新当前状态和工作日志；稳定阶段创建本地里程碑提交。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
 
@@ -52,29 +50,21 @@
 - 执行端应用级就绪握手、初始化失败和超时清理：`d924347`。
 - 网页发送命令执行端回执与部分成功语义：`754f03b`。
 - 初始化与运行状态分离及前端初始化提示：`5d94897`。
+- 后续账号未初始化快照失败语义与快照规范化模块：`8a4a3e9`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-后续账号尚未初始化的快照失败语义、断线合法空快照边界、Dashboard 失败保留和快照规范化模块拆分已完成全部验证，可创建独立本地里程碑提交。
+上一修复已保存为本地提交 `8a4a3e9`，工作区曾恢复干净。当前下一轮审计目标为 Dashboard HTTP 服务器监听失败：端口占用、无权限或无效监听地址时必须有明确诊断、确定退出码且不留下子进程或未处理事件。
 
 ## 下一步明确动作
 
-创建当前修复的本地提交；随后审计 Dashboard HTTP 服务器监听失败（端口占用或权限错误）是否有明确诊断和可验证退出行为。
+先用真实占用端口启动第二个 Dashboard，记录当前 `EADDRINUSE` 行为；若只有未处理事件堆栈或诊断不稳定，则增加服务器监听生命周期测试并做最小根因修复。
 
 ## 已修改文件
 
 - `docs/current-status.md`
-- `docs/project-architecture.md`
 - `docs/work-log.md`
-- `package.json`
-- `scripts/dashboard-protocol-test.js`
-- `scripts/handoff-check.js`
-- `scripts/runtime-config-protocol-test.js`
-- `scripts/runtime-snapshot-test.js`
-- `src/dashboard.js`
-- `src/index.js`
-- `src/runtime-snapshot.js`
 
 ## 未解决问题和阻塞项
 
@@ -87,8 +77,7 @@
 ## 最近测试结果
 
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含新增快照模块、未初始化后续账号、断线清理和全部既有业务、协议与认证场景。
-- 修复前真实协议测试稳定失败于“尚未创建的后续账号快照被错误返回为空快照成功”。
+- `npm.cmd test`：全部通过，包含快照模块、初始化/运行状态、聊天回执及全部既有业务、协议与认证场景。
 - 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1044 行。
 
 ## 恢复开发命令
@@ -100,8 +89,6 @@ git status --short --branch
 git log --oneline -5
 npm.cmd run handoff:check
 npm.cmd run maintenance:check
-npm.cmd run security:audit
-npm.cmd test
 ```
 
 ## 是否允许推送
@@ -110,4 +97,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 02:13:58 +08:00
+2026-07-24 02:16:54 +08:00
