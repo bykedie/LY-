@@ -45,6 +45,15 @@ async function expectDashboardToWaitForConfigResult() {
     await requestJson(baseUrl, '/api/config', { method: 'POST', body: JSON.stringify(initialConfig) });
     await requestJson(baseUrl, '/api/start', { method: 'POST' });
 
+    const emptySnapshot = await requestJson(baseUrl, '/api/window?target=ConfigProtocolBot');
+    assert(emptySnapshot.ok === true && emptySnapshot.window === null, '执行端返回的合法空窗口快照不应被当成失败');
+    const ignoredSnapshotAt = Date.now();
+    const ignoredSnapshot = await requestJson(baseUrl, '/api/window?target=ConfigProtocolBot', { expectOk: false });
+    const ignoredSnapshotElapsed = Date.now() - ignoredSnapshotAt;
+    assert(ignoredSnapshot.ok === false, '执行端忽略窗口快照命令时 Dashboard 错误返回成功');
+    assert(ignoredSnapshot.message.includes('等待执行端返回窗口快照超时'), `窗口快照超时原因不明确：${ignoredSnapshot.message}`);
+    assert(ignoredSnapshotElapsed >= 500 && ignoredSnapshotElapsed < 3000, `窗口快照超时边界异常：${ignoredSnapshotElapsed}ms`);
+
     const rejectedConfig = createConfig('/reject');
     const rejectedAt = Date.now();
     const rejected = await requestJson(baseUrl, '/api/config', {
@@ -154,9 +163,27 @@ function fakeExecutorSource() {
   return `
 import readline from 'node:readline';
 
+let snapshotRequests = 0;
 const input = readline.createInterface({ input: process.stdin });
 input.on('line', (line) => {
   const command = JSON.parse(line);
+  if (command.type === 'windowSnapshot') {
+    snapshotRequests += 1;
+    if (snapshotRequests > 1) return;
+    console.log('::ly-event ' + JSON.stringify({
+      type: 'windowSnapshot',
+      requestId: command.requestId,
+      username: command.target,
+      window: null,
+      position: null,
+      entities: [],
+      messages: [],
+      chatButtons: [],
+      protocolDialogs: [],
+      protocolMenu: null
+    }));
+    return;
+  }
   if (command.type !== 'config') return;
   const marker = command.config?.features?.chat?.presetMessagesList?.[0];
   if (marker === '/ignore') return;
@@ -188,12 +215,13 @@ async function waitForDashboard(baseUrl, getOutput) {
 }
 
 async function requestJson(baseUrl, pathname, options = {}) {
+  const { expectOk = true, ...requestOptions } = options;
   const response = await fetch(`${baseUrl}${pathname}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+    ...requestOptions,
+    headers: { 'Content-Type': 'application/json', ...(requestOptions.headers || {}) }
   });
   const data = await response.json();
-  if (!response.ok || data.ok === false) throw new Error(data.message || `HTTP ${response.status}`);
+  if (expectOk && (!response.ok || data.ok === false)) throw new Error(data.message || `HTTP ${response.status}`);
   return data;
 }
 

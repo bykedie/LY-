@@ -1436,10 +1436,11 @@ function emitRuntimeEvent(event) {
   console.log(`::ly-event ${JSON.stringify(event)}`);
 }
 
-function emitWindowSnapshot(username) {
+function emitWindowSnapshot(username, requestId = '') {
   const session = sessions.get(username);
   emitRuntimeEvent({
     type: 'windowSnapshot',
+    ...(requestId ? { requestId } : {}),
     username,
     window: getWindowSnapshot(session),
     position: getPositionSnapshot(session),
@@ -2178,7 +2179,7 @@ function listenDashboardCommands() {
       }
 
       if (command.type === 'windowSnapshot') {
-        emitWindowSnapshot(command.target || '');
+        emitWindowSnapshot(command.target || '', command.requestId || '');
         return;
       }
 

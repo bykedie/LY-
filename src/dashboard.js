@@ -569,7 +569,7 @@ function handleBotEventLine(line) {
   try {
     const event = JSON.parse(line.slice(prefix.length));
     if (event.type === 'windowSnapshot' && event.username) {
-      runtimeSnapshots.set(event.username, {
+      const snapshot = {
         window: event.window || null,
         position: event.position || null,
         entities: Array.isArray(event.entities) ? event.entities : [],
@@ -577,7 +577,11 @@ function handleBotEventLine(line) {
         chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : [],
         protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : [],
         protocolMenu: event.protocolMenu || null
-      });
+      };
+      runtimeSnapshots.set(event.username, snapshot);
+      if (event.requestId) {
+        runtimeRequests.settle({ ...event, ok: true, snapshot }, '窗口快照读取失败。');
+      }
     }
     if (event.type === 'lobbyActionResult' && event.requestId) {
       runtimeRequests.settle(event, '大厅动作执行失败。');
@@ -665,18 +669,25 @@ async function sendBotCommand(command) {
 }
 
 async function requestWindowSnapshot(target) {
-  runtimeSnapshots.delete(target);
-  await sendBotCommand({ type: 'windowSnapshot', target, message: '__window_snapshot__' });
-  const deadline = Date.now() + 800;
-  while (Date.now() < deadline) {
-    if (runtimeSnapshots.has(target)) return runtimeSnapshots.get(target) || { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [], protocolMenu: null };
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  const requestId = createWindowSnapshotRequestId();
+  const snapshotResult = runtimeRequests.wait(requestId, 800, '等待执行端返回窗口快照超时。');
+  try {
+    await sendBotCommand({ type: 'windowSnapshot', requestId, target, message: '__window_snapshot__' });
+  } catch (error) {
+    runtimeRequests.cancel(requestId, error);
+    snapshotResult.catch(() => {});
+    throw error;
   }
-  return { window: null, position: null, entities: [], messages: [], chatButtons: [], protocolDialogs: [], protocolMenu: null };
+  const result = await snapshotResult;
+  return result.snapshot;
 }
 
 function createLobbyActionRequestId() {
   return `lobby-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createWindowSnapshotRequestId() {
+  return `window-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function createConfigRequestId() {

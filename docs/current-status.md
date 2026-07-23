@@ -44,22 +44,25 @@
 - 配置档案多文件事务与进程内回滚：`9f6235a`。
 - 配置事务崩溃后启动恢复：`a063d77`。
 - 运行配置应用确认与统一跨进程等待器：`f54bf29`。
+- 跨进程等待未处理拒绝竞态：`0ecb92b`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-已复现并修复跨进程请求的 Promise 拒绝竞态：请求结果在调用方仍等待 stdin 写入时被进程退出拒绝，会触发 `unhandledRejection`；统一等待器现立即安装内部拒绝观察器，同时保留原始 Promise 供调用方获得真实错误。安全审计和完整测试已通过，当前修改待创建本地提交。
+窗口快照虚假成功已修复并通过完整验证：主动请求携带 `requestId`，只有匹配回执才能完成 `/api/window`；合法空窗口仍成功，无回执在 800ms 后明确失败；不带请求 ID 的异步窗口事件继续刷新缓存。当前修改待创建本地里程碑提交。
 
 ## 下一步明确动作
 
-创建 Promise 拒绝时序修复的独立本地提交；提交后审计并发配置保存的回执乱序是否会使 Dashboard 运行快照回退到较旧配置。
+创建窗口快照关联回执的独立本地提交；提交后审计账号断线或重连期间 `runtimeSnapshots` 是否可能继续提供旧连接的窗口和协议数据。
 
 ## 已修改文件
 
 - `docs/current-status.md`
+- `docs/project-architecture.md`
 - `docs/work-log.md`
-- `scripts/runtime-request-tracker-test.js`
-- `src/runtime-request-tracker.js`
+- `scripts/runtime-config-protocol-test.js`
+- `src/dashboard.js`
+- `src/index.js`
 
 ## 未解决问题和阻塞项
 
@@ -71,24 +74,13 @@
 
 ## 最近测试结果
 
-- `node scripts/runtime-request-tracker-test.js`：修复前触发 `unhandledRejection` 和 `PromiseRejectionHandledWarning`，修复后通过并保留原始退出原因。
-- `node scripts/runtime-config-protocol-test.js`：通过，配置接受、拒绝、超时和进程退出语义未回归。
-- `node scripts/dashboard-protocol-test.js`：通过，真实配置和大厅动作跨进程链路未回归。
+- `node scripts/runtime-config-protocol-test.js`：通过；修复前无回执错误返回空快照成功，修复后合法空快照成功、第二次无回执在有界时间内明确失败，同时配置接受/拒绝/超时/退出场景未回归。
+- `node scripts/dashboard-protocol-test.js`：通过，真实 Mineflayer 位置、窗口、协议菜单和大厅动作快照均正常。
+- `node scripts/runtime-request-tracker-test.js`：通过，成功、失败、超时、取消、退出批量拒绝和延迟消费均受覆盖。
+- `npm.cmd run handoff:check`：通过，分支、版本、提交引用、关键文件和推送边界一致。
+- `npm.cmd run maintenance:check`：通过，API 13 个、CSS 重复 `80/80`、`!important` 为 `12/12`；`src/dashboard.js` 983 行。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，新增延迟消费拒绝回归及所有既有业务、协议和认证场景均通过。
-- `node scripts/runtime-config-protocol-test.js`：连续两次通过，覆盖执行端接受、拒绝、不回执和退出；修复前稳定失败于拒绝路径错误返回 `liveApplied: true`。
-- `node scripts/runtime-request-tracker-test.js`：通过，覆盖成功、失败、超时、取消、未知回执和批量拒绝。
-- `node scripts/dashboard-protocol-test.js`：通过，真实 Mineflayer 桥接中的保存、档案切换/删除和重置均收到配置应用确认。
-- `npm.cmd run maintenance:check`：通过，API 路由 13 个、CSS 重复 `80/80`、`!important` 为 `12/12`；Dashboard 降至 972 行。
-- `npm.cmd run handoff:check`：通过，新增运行请求模块和交接引用有效。
-- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含语法、交接、维护、存储、生命周期、IPC、配置回执、静态服务、前端及全部 Minecraft 协议集成场景。
-- `node scripts/json-transaction-test.js`：通过，覆盖 pending 回滚、committed 清理、幂等恢复、回滚失败后启动重试、越界/重复路径拒绝、损坏日志阻断和目标缺失保留证据。
-- `node scripts/smoke-test.js`：通过，Dashboard 在开放 API 前回滚未完成主配置事务并记录日志。
-- `npm.cmd run handoff:check`：通过，事务工件均被 Git 忽略。
-- `npm.cmd run maintenance:check`：通过，Dashboard 为 983 行。
-- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
-- `npm.cmd test`：全部通过，包含事务恢复及所有既有业务和协议场景。
+- `npm.cmd test`：全部通过，包含新增快照回执场景及全部存储、进程、前端、Minecraft 协议和认证测试。
 
 ## 恢复开发命令
 
@@ -109,4 +101,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 00:11:36 +08:00
+2026-07-24 00:21:24 +08:00

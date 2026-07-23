@@ -122,7 +122,7 @@ Dashboard 通过 `src/process-ipc.js` 向 `src/index.js` 的 stdin 写入一行�
 ```text
 chat             # 发送聊天或命令
 config           # 下发运行时配置并携带 requestId
-windowSnapshot   # 请求位置、实体、窗口和模组数据
+windowSnapshot   # 携带 requestId 请求位置、实体、窗口和模组数据
 lobbyAction      # 立即执行单个大厅动作并携带 requestId
 ```
 
@@ -135,12 +135,12 @@ lobbyAction      # 立即执行单个大厅动作并携带 requestId
 当前事件类型：
 
 ```text
-windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和协议菜单
+windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和协议菜单；主动回执携带 requestId
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 configApplyResult   # 按 requestId 确认或拒绝实时配置
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理即时动作和配置应用的回执等待；即时动作按动作类型计算超时，配置应用使用固定有界超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理即时动作、配置应用和主动窗口快照的回执等待；即时动作按动作类型计算超时，配置应用和窗口快照使用固定有界超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的快照回执才成功，因此合法空窗口与执行端无响应不会混淆。
 
 ## 七、Mineflayer 执行端
 
