@@ -283,12 +283,32 @@ try {
     body: JSON.stringify({ id: namedProfile.activeProfileId })
   });
   const automationPath = path.join(tempDir, 'bot.config.automations.json');
+  const validStoredAutomation = {
+    id: 'automation-valid',
+    name: 'Valid Stored Automation',
+    lobby: testConfig.features.lobby,
+    updatedAt: new Date().toISOString()
+  };
+  fs.writeFileSync(
+    automationPath,
+    JSON.stringify({ version: 1, automations: [null, validStoredAutomation, { id: '../invalid' }, validStoredAutomation] }),
+    'utf8'
+  );
+  const malformedAutomations = await requestJson('/api/automations');
+  assert(malformedAutomations.automations.length === 1, '清理结构错误条目时没有保留唯一合法自动化方案');
+  assert(malformedAutomations.automations[0].id === validStoredAutomation.id, '清理后保留的自动化方案不正确');
+  const invalidAutomationId = await requestJson('/api/automations', {
+    method: 'POST',
+    body: JSON.stringify({ id: '../invalid', name: 'Invalid ID', lobby: testConfig.features.lobby }),
+    expectOk: false
+  });
+  assert(invalidAutomationId.message.includes('ID 无效'), '保存接口没有拒绝非法自动化方案 ID');
   fs.writeFileSync(automationPath, '{broken-automations', 'utf8');
   const recoveredAutomations = await requestJson('/api/automations');
   assert(recoveredAutomations.automations.length === 0, '损坏自动化库没有恢复为空方案库');
   assert(
-    fs.readdirSync(recoveryDir).some((name) => name.startsWith('bot.config.automations.json.') && name.endsWith('.corrupt.bak')),
-    '损坏自动化库没有保留恢复备份'
+    fs.readdirSync(recoveryDir).filter((name) => name.startsWith('bot.config.automations.json.') && name.endsWith('.corrupt.bak')).length >= 2,
+    '结构错误和语法损坏的自动化库没有分别保留恢复备份'
   );
   const savedAutomation = await requestJson('/api/automations', {
     method: 'POST',

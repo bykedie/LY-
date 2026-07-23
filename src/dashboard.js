@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, writeJson } from './json-store.js';
 import { requestProcessStop } from './process-lifecycle.js';
+import { createAutomationStore } from './automation-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -207,46 +208,22 @@ function deleteProfile(id) {
   return useProfile(activeProfileId);
 }
 
-function readAutomations() {
-  if (!fs.existsSync(automationsPath)) return [];
-  try {
-    const data = readJson(automationsPath);
-    return Array.isArray(data.automations) ? data.automations : [];
-  } catch (error) {
-    if (!error.message.startsWith('JSON 文件损坏：')) throw error;
-    const backupPath = backupCorruptJson(automationsPath, recoveryDir);
-    addLog(`自动化方案库损坏，原文件已备份到 ${backupPath}，正在恢复为空方案库。`);
-    writeJson(automationsPath, { version: 1, automations: [] });
-    return [];
-  }
+function validateAutomationLobby(lobby) {
+  requirePlainObject(lobby, '自动化方案');
+  requireBoolean(lobby.useItem, '大厅自动使用物品开关');
+  requireBoolean(lobby.actionSequence, '大厅动作序列开关');
+  requireNumber(lobby.delayMs, '大厅执行延迟', { min: 0 });
+  requireNumber(lobby.heldSlot, '大厅快捷栏槽位', { min: 0, max: 8, integer: true });
+  requireNumber(lobby.useCount, '大厅使用次数', { min: 1, integer: true });
+  validateLobbyActions(lobby.actions);
 }
 
-function saveAutomation({ id, name, lobby }) {
-  const automationId = typeof id === 'string' && id.trim() ? id.trim() : createProfileId().replace('profile-', 'automation-');
-  const automationName = normalizeProfileName(name || '未命名自动化');
-  const normalizedLobby = structuredClone(lobby);
-  requirePlainObject(normalizedLobby, '自动化方案');
-  requireBoolean(normalizedLobby.useItem, '大厅自动使用物品开关');
-  requireBoolean(normalizedLobby.actionSequence, '大厅动作序列开关');
-  requireNumber(normalizedLobby.delayMs, '大厅执行延迟', { min: 0 });
-  requireNumber(normalizedLobby.heldSlot, '大厅快捷栏槽位', { min: 0, max: 8, integer: true });
-  requireNumber(normalizedLobby.useCount, '大厅使用次数', { min: 1, integer: true });
-  validateLobbyActions(normalizedLobby.actions);
-
-  const automations = readAutomations().filter((item) => item.id !== automationId);
-  automations.push({ id: automationId, name: automationName, lobby: normalizedLobby, updatedAt: nowIso() });
-  writeJson(automationsPath, { version: 1, automations });
-  return { automations, activeAutomationId: automationId };
-}
-
-function deleteAutomation(id) {
-  if (typeof id !== 'string' || !id.trim()) throw new Error('请选择要删除的自动化方案。');
-  const automations = readAutomations();
-  if (!automations.some((item) => item.id === id)) throw new Error('找不到这个自动化方案。');
-  const nextAutomations = automations.filter((item) => item.id !== id);
-  writeJson(automationsPath, { version: 1, automations: nextAutomations });
-  return { automations: nextAutomations };
-}
+const { readAutomations, saveAutomation, deleteAutomation } = createAutomationStore({
+  filePath: automationsPath,
+  recoveryDir,
+  validateLobby: validateAutomationLobby,
+  addLog
+});
 
 function mergeDefaults(defaultValue, value) {
   if (value === undefined) return defaultValue;
