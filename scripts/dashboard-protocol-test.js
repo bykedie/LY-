@@ -22,6 +22,7 @@ const receivedMovementPackets = [];
 const receivedWindowClicks = [];
 const receivedEntityInteractions = [];
 const joinedUsers = [];
+const disconnectedUsers = [];
 const dashboardOutput = [];
 
 let dashboardProcess = null;
@@ -295,12 +296,13 @@ try {
   assert(!runningLogs.includes('TypeError'), 'dashboard 日志包含 TypeError');
   assert(!runningLogs.includes('ReferenceError'), 'dashboard 日志包含 ReferenceError');
 
-  const stopResponse = await requestJson('/api/stop', { method: 'POST' });
-  assert(stopResponse.stopping === true || stopResponse.running === false, '停止响应没有表达停止中或已停止状态');
-  const stoppedStatus = await waitForStopped();
-  assert(stoppedStatus.running === false, 'dashboard 停止后执行端仍在运行');
-  assert(stoppedStatus.stopping === false, 'dashboard 停止后仍处于停止中状态');
-  assert(stoppedStatus.control === null, '停止后不应该保留运行控制快照');
+  dashboardProcess.kill('SIGINT');
+  const dashboardExit = await waitForProcessExit(dashboardProcess, 8000);
+  await waitForDisconnectedUsers(['DashboardBotA', 'DashboardBotB']);
+  assert(
+    dashboardExit.code === 0 || dashboardExit.signal === 'SIGINT',
+    `Dashboard 退出结果不正确：code=${dashboardExit.code}, signal=${dashboardExit.signal}`
+  );
 
   console.log('dashboard protocol test ok');
 } finally {
@@ -412,6 +414,7 @@ function createMinecraftServer(port) {
     let inviteMenuQueued = false;
     let selectMenuQueued = false;
     joinedUsers.push(username);
+    client.on('end', () => disconnectedUsers.push(username));
 
     client.write('login', {
       ...mcData.loginPacket,
@@ -664,6 +667,28 @@ async function waitForJoinedUsers(expectedUsers) {
     await delay(100);
   }
   throw new Error(`等待批量账号进入服务器超时：${expectedUsers.join(', ')}\n已进入：${joinedUsers.join(', ')}\ndashboard 输出：${dashboardOutput.join('')}`);
+}
+
+async function waitForDisconnectedUsers(expectedUsers) {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    if (expectedUsers.every((username) => disconnectedUsers.includes(username))) return;
+    await delay(100);
+  }
+  throw new Error(`Dashboard 退出后账号未全部断开：${disconnectedUsers.join(', ')}\n输出：${dashboardOutput.join('')}`);
+}
+
+function waitForProcessExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`等待 Dashboard 退出超时\n${dashboardOutput.join('')}`)), timeoutMs);
+    child.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
+    });
+  });
 }
 
 async function waitForMessageFrom(username, expected) {

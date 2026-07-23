@@ -2228,10 +2228,18 @@ async function runManualLobbyAction(username, action, requestId) {
   }
 }
 
-process.on('SIGINT', () => {
+let shuttingDown = false;
+
+function shutdownExecution(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log(null, `收到 ${signal}，准备退出。`);
   stopAllAccounts();
-  process.exit(0);
-});
+  setTimeout(() => process.exit(0), 250);
+}
+
+process.once('SIGINT', () => shutdownExecution('SIGINT'));
+process.once('SIGTERM', () => shutdownExecution('SIGTERM'));
 
 listenDashboardCommands();
 startAllAccounts().catch((error) => {

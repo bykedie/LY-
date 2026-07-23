@@ -65,7 +65,7 @@ public/app.js
   -> src/index.js 创建 Mineflayer 会话
 ```
 
-停止机器人由 `/api/stop` 结束子进程。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+停止机器人由 `/api/stop` 结束子进程。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝等待中的动作、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
 
 ## 四、配置与持久化
 

@@ -28,6 +28,7 @@ let runningConfig = null;
 let stopping = false;
 let logs = [];
 let botStdoutBuffer = '';
+let shuttingDown = false;
 const runtimeSnapshots = new Map();
 const pendingLobbyActions = new Map();
 const defaultProfileId = 'default';
@@ -631,6 +632,30 @@ function stopBot() {
   addLog('已发送停止指令。');
 }
 
+function shutdownDashboard(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  addLog(`管理面板收到 ${signal}，正在停止挂机进程并退出。`);
+  server.close();
+  rejectPendingLobbyActions(new Error('管理面板正在退出。'));
+
+  if (!botProcess) {
+    process.exit(0);
+    return;
+  }
+
+  stopping = true;
+  const child = botProcess;
+  const forceTimer = setTimeout(() => {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  }, 5000);
+  child.once('exit', () => {
+    clearTimeout(forceTimer);
+    process.exit(0);
+  });
+  child.kill('SIGINT');
+}
+
 function sendBotCommand(command) {
   if (!botProcess?.stdin?.writable) {
     throw new Error('挂机进程未启动。');
@@ -1005,3 +1030,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, host, () => {
   console.log(`管理面板已启动：http://${host}:${port}`);
 });
+
+process.once('SIGINT', () => shutdownDashboard('SIGINT'));
+process.once('SIGTERM', () => shutdownDashboard('SIGTERM'));

@@ -129,6 +129,12 @@ try {
   assert(appScript.includes('block.after(createLobbyAction(defaultLobbyAction()))'), '步骤后的添加动作按钮没有按当前位置插入');
   assert(appScript.includes('配置已保存并实时应用；服务器和账号下次启动生效'), '运行中保存提示没有区分实时配置与下次启动配置');
   assert(appScript.includes('已重置为默认配置并实时应用'), '运行中重置提示没有表达实时应用结果');
+  const dashboardSource = fs.readFileSync(path.join(projectRoot, 'src', 'dashboard.js'), 'utf8');
+  const executionSource = fs.readFileSync(path.join(projectRoot, 'src', 'index.js'), 'utf8');
+  assert(dashboardSource.includes("process.once('SIGINT'"), 'Dashboard 缺少 SIGINT 优雅退出处理');
+  assert(dashboardSource.includes("process.once('SIGTERM'"), 'Dashboard 缺少 SIGTERM 优雅退出处理');
+  assert(executionSource.includes("process.once('SIGINT'"), '执行端缺少 SIGINT 优雅退出处理');
+  assert(executionSource.includes("process.once('SIGTERM'"), '执行端缺少 SIGTERM 优雅退出处理');
 
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');

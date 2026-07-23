@@ -91,6 +91,8 @@ const developmentVersion = section(status, '当前本地开发版本').match(/`(
 const documentedBranch = section(status, '当前本地分支').match(/`([^`]+)`/)?.[1];
 const gitBranchResult = spawnSync('git', ['branch', '--show-current'], { cwd: projectRoot, encoding: 'utf8' });
 const actualBranch = gitBranchResult.stdout.trim();
+const diffCheckResult = spawnSync('git', ['diff', '--check'], { cwd: projectRoot, encoding: 'utf8' });
+requireCondition(diffCheckResult.status === 0, `Git 差异包含格式错误：${diffCheckResult.stdout.trim() || diffCheckResult.stderr.trim()}`);
 
 function parseVersion(version) {
   const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(version || '');
