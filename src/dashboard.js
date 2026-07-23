@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, recoverJsonTransactions, writeJsonTransaction } from './json-store.js';
-import { requestProcessStop } from './process-lifecycle.js';
+import { requestProcessStop, waitForProcessSpawn } from './process-lifecycle.js';
 import { writeJsonLine } from './process-ipc.js';
 import { serveStaticFile } from './static-server.js';
 import { createAutomationStore } from './automation-store.js';
@@ -521,7 +521,7 @@ function ensureProjectDependencies() {
   addLog('项目依赖安装完成，继续启动挂机进程。');
 }
 
-function startBot(startAccountNames = []) {
+async function startBot(startAccountNames = []) {
   if (stopping) throw new Error('挂机进程正在停止，请等待停止完成后再启动。');
   if (botProcess) throw new Error('挂机进程已经运行。');
 
@@ -538,28 +538,43 @@ function startBot(startAccountNames = []) {
   stopping = false;
   logs = [];
   runtimeSnapshots.clear();
-  botProcess = spawn(process.execPath, ['src/index.js'], {
+  const child = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
     env: { ...process.env, BOT_CONFIG_PATH: configPath, START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames) },
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  botProcess = child;
   const stdoutReader = createLineReader((line) => {
     if (!line) return;
     if (!handleBotEventLine(line)) addLog(line);
   });
 
-  addLog('挂机进程已启动。');
-  botProcess.stdout.on('data', stdoutReader.push);
-  botProcess.stdout.once('end', stdoutReader.end);
-  botProcess.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
-  botProcess.stdin.on('error', (error) => addLog(`执行进程通信失败：${error.message}`));
-  botProcess.on('exit', (code) => {
+  child.stdout.on('data', stdoutReader.push);
+  child.stdout.once('end', stdoutReader.end);
+  child.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
+  child.stdin.on('error', (error) => addLog(`执行进程通信失败：${error.message}`));
+  child.on('error', (error) => addLog(`执行进程错误：${error.message}`));
+  child.on('exit', (code) => {
     addLog(`挂机进程已退出，退出码：${code}`);
     runtimeRequests.rejectAll(new Error(`挂机进程已退出，退出码：${code}`));
-    botProcess = null;
-    runningConfig = null;
-    stopping = false;
+    if (botProcess === child) {
+      botProcess = null;
+      runningConfig = null;
+      stopping = false;
+    }
   });
+
+  try {
+    await waitForProcessSpawn(child);
+  } catch (error) {
+    if (botProcess === child) {
+      botProcess = null;
+      runningConfig = null;
+      stopping = false;
+    }
+    throw new Error(`挂机进程启动失败：${error.message}`);
+  }
+  addLog('挂机进程已启动。');
 }
 
 function handleBotEventLine(line) {
@@ -909,7 +924,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/start') {
       const body = JSON.parse(await readBody(req) || '{}');
-      startBot(body.accounts || []);
+      await startBot(body.accounts || []);
       sendJson(res, 200, { ok: true, running: Boolean(botProcess), stopping });
       return;
     }

@@ -46,27 +46,25 @@
 - 运行配置应用确认与统一跨进程等待器：`f54bf29`。
 - 跨进程等待未处理拒绝竞态：`0ecb92b`。
 - 窗口快照关联回执与无响应失败语义：`4d0f694`。
+- 断线连接级快照清理与会话状态边界：`a50f29f`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-断线陈旧快照已复现并修复：真实协议测试中账号断线后旧实现仍返回旧坐标；现在断线会清除机器人引用、位置/实体、窗口、消息、按钮和模组协议状态并发送空异步快照，旧连接迟到事件由实例身份校验隔离。会话状态创建与连接级清理已提取到 `src/session-state.js`，专项、安全和完整测试均通过，当前修改待本地提交。
+执行子进程启动失败边界已修复并通过完整验证：新增真实缺失可执行文件回归和 `waitForProcessSpawn()`；Dashboard 监听 ChildProcess `error`，等待 `spawn` 成功后才记录并返回启动成功，失败时清理进程引用、运行配置和停止状态。当前修改待本地里程碑提交。
 
 ## 下一步明确动作
 
-创建断线快照清理与会话状态边界的独立本地提交；提交后审计执行子进程 `spawn` 失败时 Dashboard 是否因未监听 `error` 事件而崩溃或残留虚假运行状态。
+创建子进程启动失败边界的独立本地提交；提交后审计执行脚本成功 spawn 但初始化后立即退出时 `/api/start` 是否仍短暂返回成功，以及是否需要执行端 ready 握手。
 
 ## 已修改文件
 
 - `docs/current-status.md`
 - `docs/project-architecture.md`
 - `docs/work-log.md`
-- `package.json`
-- `scripts/dashboard-protocol-test.js`
-- `scripts/handoff-check.js`
-- `scripts/session-state-test.js`
-- `src/index.js`
-- `src/session-state.js`
+- `scripts/process-lifecycle-test.js`
+- `src/dashboard.js`
+- `src/process-lifecycle.js`
 
 ## 未解决问题和阻塞项
 
@@ -78,6 +76,12 @@
 
 ## 最近测试结果
 
+- `node scripts/process-lifecycle-test.js`：通过，新增真实 ChildProcess `spawn` 成功与缺失可执行文件 `ENOENT` 失败场景。
+- `node scripts/smoke-test.js`：通过，启动 API 改为异步等待后既有状态机未回归。
+- `node scripts/dashboard-protocol-test.js`：通过，真实 Dashboard/Mineflayer 启停与协议链路未回归。
+- `npm.cmd run maintenance:check`：通过，Dashboard 为 998 行，其他大型文件与 CSS 基线未增长。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
+- `npm.cmd test`：全部通过，包含真实 spawn 成功/失败及全部既有业务、协议和认证场景。
 - `node scripts/dashboard-protocol-test.js`：修复前断线后仍返回旧坐标，修复后位置、窗口、实体、消息、按钮、协议对话和 DragonCore 菜单全部清空。
 - `node scripts/session-state-test.js`：通过，覆盖会话默认状态、连接级快照字段和两个延迟日志定时器清理。
 - `node scripts/anti-afk-movement-test.js`：通过，断线重连仍以新出生点重建移动状态。
@@ -111,4 +115,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 00:38:00 +08:00
+2026-07-24 00:46:56 +08:00

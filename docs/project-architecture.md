@@ -69,11 +69,12 @@ public/app.js
   -> POST /api/start（可带本次启动账号）
   -> src/dashboard.js 校验配置并确保 npm 依赖存在
   -> spawn node src/index.js
+  -> 等待 ChildProcess spawn 成功；error 时清理状态并返回启动失败
   -> START_ACCOUNT_NAMES + BOT_CONFIG_PATH 环境变量
   -> src/index.js 创建 Mineflayer 会话
 ```
 
-停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+启动 API 只有在操作系统发出 ChildProcess `spawn` 事件后才返回成功；无法创建进程时捕获 `error`，清理运行配置和进程引用并返回明确失败，禁止未处理事件终止 Dashboard。停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
 
 ## 四、配置与持久化
 
