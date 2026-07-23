@@ -60,6 +60,15 @@ for (const relativePath of handoffDocuments) {
   requireCondition(!content.includes(escapedLineBreak), `交接文档包含字面量转义换行：${relativePath}`);
 }
 
+const documentedCommitRefs = new Set();
+for (const relativePath of handoffDocuments) {
+  for (const match of read(relativePath).matchAll(/`([0-9a-f]{7})`/g)) documentedCommitRefs.add(match[1]);
+}
+for (const commitRef of documentedCommitRefs) {
+  const result = spawnSync('git', ['cat-file', '-e', `${commitRef}^{commit}`], { cwd: projectRoot });
+  requireCondition(result.status === 0, `交接文档引用了不存在的 Git 提交：${commitRef}`);
+}
+
 const status = read('docs/current-status.md');
 const decisions = read('docs/decisions.md');
 const ideas = read('docs/ideas.md');
