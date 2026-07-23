@@ -1425,6 +1425,16 @@ function emitExecutionReady(username) {
 
 function emitWindowSnapshot(username, requestId = '') {
   const session = sessions.get(username);
+  if (!session && requestId) {
+    emitRuntimeEvent({
+      type: 'windowSnapshot',
+      requestId,
+      username,
+      ok: false,
+      message: `账号 ${username} 尚未初始化。`
+    });
+    return;
+  }
   emitRuntimeEvent({
     type: 'windowSnapshot',
     ...(requestId ? { requestId } : {}),

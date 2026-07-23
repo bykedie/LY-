@@ -48,7 +48,11 @@ try {
   });
 
   await requestJson('/api/start', { method: 'POST' });
+  const pendingAccountSnapshot = await requestJson('/api/window?target=DashboardBotB', { expectOk: false });
+  assert(pendingAccountSnapshot.ok === false && pendingAccountSnapshot.message.includes('尚未初始化'), '尚未创建的后续账号快照被错误返回为空快照成功');
   await waitForJoinedUsers(['DashboardBotA', 'DashboardBotB']);
+  const initializedAccountSnapshot = await requestJson('/api/window?target=DashboardBotB');
+  assert(initializedAccountSnapshot.ok === true, '后续账号创建后窗口快照没有恢复成功');
   const initialRunningStatus = await requestJson('/api/status');
   assert(initialRunningStatus.control?.remoteCommand === true, '运行控制快照缺少远程发送开关');
   assert(

@@ -11,6 +11,7 @@ import { serveStaticFile } from './static-server.js';
 import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
 import { createRuntimeRequestId, createRuntimeRequestTracker } from './runtime-request-tracker.js';
+import { createRuntimeSnapshot } from './runtime-snapshot.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -631,18 +632,14 @@ function handleBotEventLine(line) {
   try {
     const event = JSON.parse(line.slice(prefix.length));
     if (event.type === 'windowSnapshot' && event.username) {
-      const snapshot = {
-        window: event.window || null,
-        position: event.position || null,
-        entities: Array.isArray(event.entities) ? event.entities : [],
-        messages: Array.isArray(event.messages) ? event.messages : [],
-        chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : [],
-        protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : [],
-        protocolMenu: event.protocolMenu || null
-      };
-      runtimeSnapshots.set(event.username, snapshot);
-      if (event.requestId) {
-        runtimeRequests.settle({ ...event, ok: true, snapshot }, '窗口快照读取失败。');
+      if (event.requestId && event.ok === false) {
+        runtimeRequests.settle(event, '窗口快照读取失败。');
+      } else {
+        const snapshot = createRuntimeSnapshot(event);
+        runtimeSnapshots.set(event.username, snapshot);
+        if (event.requestId) {
+          runtimeRequests.settle({ ...event, ok: true, snapshot }, '窗口快照读取失败。');
+        }
       }
     }
     if (event.type === 'lobbyActionResult' && event.requestId) {

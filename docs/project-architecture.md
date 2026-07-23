@@ -30,6 +30,7 @@ LY控制台
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
 │  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
+│  ├─ runtime-snapshot.js         # Dashboard 运行快照字段规范化
 │  ├─ session-state.js            # 账号会话状态创建与连接级快照清理
 │  ├─ static-server.js             # 静态路径约束、普通文件检查和流错误响应
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
@@ -145,7 +146,7 @@ executionReady      # 按启动 requestId 确认执行端关键初始化完成
 chatCommandResult   # 按 requestId 返回成功入队和失败账号
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用和主动窗口快照的回执等待；启动就绪、聊天、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的快照回执才成功，因此合法空窗口与执行端无响应不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用和主动窗口快照的回执等待，`src/runtime-snapshot.js` 统一规范化成功快照；启动就绪、聊天、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的成功快照才返回。启动时尚未创建 session 的后续账号明确返回“尚未初始化”，创建后恢复成功；曾创建但已断线的账号保留 session，并返回已清空的合法快照，因此未初始化、合法空窗口和无响应三种状态不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
 
 ## 七、Mineflayer 执行端
 

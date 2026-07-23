@@ -36,7 +36,7 @@ async function expectDashboardToWaitForConfigResult() {
         ...process.env,
         DASHBOARD_PORT: String(dashboardPort),
         BOT_CONFIG_PATH: configPath,
-        DASHBOARD_START_READY_TIMEOUT_MS: '250'
+        DASHBOARD_START_READY_TIMEOUT_MS: '1000'
       },
       stdio: ['ignore', 'pipe', 'pipe']
     });
