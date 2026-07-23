@@ -1,3 +1,4 @@
+import { requestJson } from './api-client.js';
 import { renderLogLines } from './log-renderer.js';
 
 const state = {
@@ -83,15 +84,6 @@ function showToast(message) {
   setTimeout(() => toast.classList.remove('show'), 2400);
 }
 
-async function requestJson(url, options = {}) {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  });
-  const data = await response.json();
-  if (!data.ok) throw new Error(data.message || '请求失败');
-  return data;
-}
 
 function loadUiSettings() {
   try {

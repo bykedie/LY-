@@ -41,6 +41,7 @@ const requiredFiles = [
   'src/dashboard.js',
   'src/json-store.js',
   'src/process-lifecycle.js',
+  'public/api-client.js',
   'scripts/security-audit.js',
   'src/index.js',
   'public/index.html',

@@ -31,6 +31,7 @@ LY控制台
 │  ├─ index.html                  # 业务 DOM 和页面区域
 │  ├─ styles.css                  # 基础组件、表单和业务样式
 │  ├─ workbench.css               # v1.0.40 三层工作台和响应式视觉覆盖
+│  ├─ api-client.js               # 前端 HTTP 请求与网络/协议错误边界
 │  ├─ app.js                      # 配置、档案、自动化、运行控制、窗口快照和即时动作
 │  └─ log-renderer.js             # Minecraft 颜色日志渲染
 ├─ deploy/
@@ -151,7 +152,7 @@ Dashboard 消费结构化事件，不把事件原文写入普通日志。即时�
 
 ## 八、前端结构
 
-前端无构建步骤，浏览器直接加载静态文件。`public/index.html` 保留业务 DOM ID；`public/app.js` 绑定事件并维护：
+前端无构建步骤，浏览器直接加载静态文件。`public/index.html` 保留业务 DOM ID；`public/api-client.js` 统一处理 JSON 请求、业务错误、登录失效、代理 HTML、损坏 JSON 和网络连接失败；`public/app.js` 绑定事件并维护：
 
 ```text
 state.config / state.control          # 配置和运行控制
@@ -194,7 +195,7 @@ npm.cmd test              # 完整测试
 常见修改位置：
 
 ```text
-前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/app.js
+前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
 Dashboard/API     src/dashboard.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
 Minecraft 功能    src/index.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md

@@ -122,6 +122,9 @@ try {
   assert(page.includes('aria-label="在此步骤后添加动作"'), '加号动作按钮缺少用途说明');
 
   const appScript = await requestText('/app.js');
+  const apiClientScript = await requestText('/api-client.js');
+  assert(appScript.includes("from './api-client.js'"), '?????????? API ???');
+  assert(apiClientScript.includes('export async function requestJson'), '?? API ??????????');
   assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
   assert(appScript.includes('最近模组界面：'), '前端没有显示最近检测到的模组界面协议');
