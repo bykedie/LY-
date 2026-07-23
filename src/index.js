@@ -4,6 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
+import { clearConnectionSnapshot, createSessionState } from './session-state.js';
 
 const { pathfinder, Movements, goals } = pathfinderPackage;
 
@@ -418,59 +419,13 @@ function createBot(account) {
   let session = sessions.get(account.username);
 
   if (!session) {
-    session = {
-      bot: null,
-      idleTimer: null,
-      antiAfkOrigin: null,
-      attackTimer: null,
-      eatTimer: null,
-      schedulerTimers: [],
-      lobbyTimer: null,
-      lastWindow: null,
-      lastWindowOpenedAt: 0,
-      windowLogTimer: null,
-      lastWindowLogSignature: '',
-      recentMessages: [],
-      chatButtons: [],
-      protocolDialogs: [],
-      protocolMenu: null,
-      protocolMenuLogTimer: null,
-      lastProtocolMenuLogSignature: '',
-      lastProtocolDialogSignature: '',
-      lastProtocolDialogAt: 0,
-      chatQueue: [],
-      chatQueueTimer: null,
-      lastChatAt: 0,
-      fishing: false,
-      loginCommandSent: false,
-      loginSuccessDetected: false,
-      registerSingleCommandSent: false,
-      registerConfirmCommandSent: false,
-      manualLobbyActionRunning: false,
-      reconnectTimer: null,
-      reconnecting: false,
-      stopped: false
-    };
+    session = createSessionState();
     sessions.set(account.username, session);
   }
 
   clearTimeout(session.reconnectTimer);
   session.reconnecting = false;
-  session.antiAfkOrigin = null;
-  session.lastWindow = null;
-  session.lastWindowOpenedAt = 0;
-  clearTimeout(session.windowLogTimer);
-  session.windowLogTimer = null;
-  session.lastWindowLogSignature = '';
-  session.recentMessages = [];
-  session.chatButtons = [];
-  session.protocolDialogs = [];
-  session.protocolMenu = null;
-  clearTimeout(session.protocolMenuLogTimer);
-  session.protocolMenuLogTimer = null;
-  session.lastProtocolMenuLogSignature = '';
-  session.lastProtocolDialogSignature = '';
-  session.lastProtocolDialogAt = 0;
+  clearConnectionSnapshot(session);
 
   const options = {
     host: ACTIVE_CONFIG.host,
@@ -485,10 +440,12 @@ function createBot(account) {
   }
 
   log(account.username, `正在连接 ${ACTIVE_CONFIG.host}:${ACTIVE_CONFIG.port}...`);
-  session.bot = mineflayer.createBot(options);
-  session.bot.loadPlugin(pathfinder);
+  const bot = mineflayer.createBot(options);
+  session.bot = bot;
+  bot.loadPlugin(pathfinder);
 
-  session.bot.once('spawn', () => {
+  bot.once('spawn', () => {
+    if (session.bot !== bot) return;
     log(account.username, '已进入服务器。');
     session.loginCommandSent = false;
     session.loginSuccessDetected = false;
@@ -506,21 +463,25 @@ function createBot(account) {
     }
   });
 
-  session.bot.on('chat', (playerName, message) => {
+  bot.on('chat', (playerName, message) => {
+    if (session.bot !== bot) return;
     handleChat(account, playerName, message);
   });
 
-  session.bot.on('message', (message) => {
+  bot.on('message', (message) => {
+    if (session.bot !== bot) return;
     const text = logGameMessage(account.username, message);
     recordInteractiveMessage(session, message, text);
     handleServerMessage(account, text);
   });
 
-  session.bot._client.on('custom_payload', (packet) => {
+  bot._client.on('custom_payload', (packet) => {
+    if (session.bot !== bot) return;
     recordProtocolPayload(account.username, session, packet);
   });
 
-  session.bot.on('windowOpen', (window) => {
+  bot.on('windowOpen', (window) => {
+    if (session.bot !== bot) return;
     session.lastWindow = window;
     session.lastWindowOpenedAt = Date.now();
     session.lastWindowLogSignature = '';
@@ -529,7 +490,8 @@ function createBot(account) {
     emitWindowSnapshot(account.username);
   });
 
-  session.bot.on('windowClose', () => {
+  bot.on('windowClose', () => {
+    if (session.bot !== bot) return;
     clearTimeout(session.windowLogTimer);
     session.windowLogTimer = null;
     session.lastWindow = null;
@@ -537,25 +499,33 @@ function createBot(account) {
     emitWindowSnapshot(account.username);
   });
 
-  session.bot.on('death', () => {
+  bot.on('death', () => {
+    if (session.bot !== bot) return;
     log(account.username, ACTIVE_FEATURES.combat.autoRespawn ? '已死亡，正在自动重生。' : '已死亡，自动重生未启用。');
   });
 
-  session.bot.on('respawn', () => {
+  bot.on('respawn', () => {
+    if (session.bot !== bot) return;
     log(account.username, '已重生。');
   });
 
-  session.bot.on('kicked', (reason) => {
+  bot.on('kicked', (reason) => {
+    if (session.bot !== bot) return;
     log(account.username, `被踢出：${formatReason(reason)}`);
   });
 
-  session.bot.on('error', (error) => {
+  bot.on('error', (error) => {
+    if (session.bot !== bot) return;
     log(account.username, `错误：${error.message}`);
   });
 
-  session.bot.on('end', () => {
+  bot.on('end', () => {
+    if (session.bot !== bot) return;
     log(account.username, '连接已断开。');
     stopFeatureWorkers(account.username);
+    clearConnectionSnapshot(session);
+    session.bot = null;
+    emitWindowSnapshot(account.username);
     scheduleReconnect(account);
   });
 }

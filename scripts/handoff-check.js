@@ -45,6 +45,7 @@ const requiredFiles = [
   'src/process-ipc.js',
   'src/process-lifecycle.js',
   'src/runtime-request-tracker.js',
+  'src/session-state.js',
   'src/static-server.js',
   'public/api-client.js',
   'scripts/security-audit.js',

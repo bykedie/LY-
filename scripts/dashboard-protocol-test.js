@@ -23,6 +23,7 @@ const receivedWindowClicks = [];
 const receivedEntityInteractions = [];
 const joinedUsers = [];
 const disconnectedUsers = [];
+const connectedClients = new Map();
 const dashboardOutput = [];
 
 let dashboardProcess = null;
@@ -296,6 +297,20 @@ try {
   assert(!runningLogs.includes('TypeError'), 'dashboard 日志包含 TypeError');
   assert(!runningLogs.includes('ReferenceError'), 'dashboard 日志包含 ReferenceError');
 
+  const disconnectedClient = connectedClients.get('DashboardBotA');
+  assert(disconnectedClient, '找不到用于断线快照回归的 DashboardBotA 连接');
+  disconnectedClient.end('snapshot disconnect test');
+  await waitForDisconnectedUsers(['DashboardBotA']);
+  await waitForDashboardLog('[DashboardBotA] 连接已断开。');
+  const disconnectedSnapshot = await requestJson('/api/window?target=DashboardBotA');
+  assert(disconnectedSnapshot.position === null, '账号断线后快照仍返回旧连接坐标');
+  assert(disconnectedSnapshot.window === null, '账号断线后快照仍返回旧连接窗口');
+  assert(disconnectedSnapshot.entities.length === 0, '账号断线后快照仍返回旧连接实体');
+  assert(disconnectedSnapshot.messages.length === 0, '账号断线后快照仍返回旧连接消息');
+  assert(disconnectedSnapshot.chatButtons.length === 0, '账号断线后快照仍返回旧连接聊天按钮');
+  assert(disconnectedSnapshot.protocolDialogs.length === 0, '账号断线后快照仍返回旧连接协议对话');
+  assert(disconnectedSnapshot.protocolMenu === null, '账号断线后快照仍返回旧连接 DragonCore 菜单');
+
   dashboardProcess.kill('SIGINT');
   const dashboardExit = await waitForProcessExit(dashboardProcess, 8000);
   await waitForDisconnectedUsers(['DashboardBotA', 'DashboardBotB']);
@@ -414,7 +429,11 @@ function createMinecraftServer(port) {
     let inviteMenuQueued = false;
     let selectMenuQueued = false;
     joinedUsers.push(username);
-    client.on('end', () => disconnectedUsers.push(username));
+    connectedClients.set(username, client);
+    client.on('end', () => {
+      disconnectedUsers.push(username);
+      if (connectedClients.get(username) === client) connectedClients.delete(username);
+    });
 
     client.write('login', {
       ...mcData.loginPacket,

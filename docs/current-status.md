@@ -45,24 +45,28 @@
 - 配置事务崩溃后启动恢复：`a063d77`。
 - 运行配置应用确认与统一跨进程等待器：`f54bf29`。
 - 跨进程等待未处理拒绝竞态：`0ecb92b`。
+- 窗口快照关联回执与无响应失败语义：`4d0f694`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-窗口快照虚假成功已修复并通过完整验证：主动请求携带 `requestId`，只有匹配回执才能完成 `/api/window`；合法空窗口仍成功，无回执在 800ms 后明确失败；不带请求 ID 的异步窗口事件继续刷新缓存。当前修改待创建本地里程碑提交。
+断线陈旧快照已复现并修复：真实协议测试中账号断线后旧实现仍返回旧坐标；现在断线会清除机器人引用、位置/实体、窗口、消息、按钮和模组协议状态并发送空异步快照，旧连接迟到事件由实例身份校验隔离。会话状态创建与连接级清理已提取到 `src/session-state.js`，专项、安全和完整测试均通过，当前修改待本地提交。
 
 ## 下一步明确动作
 
-创建窗口快照关联回执的独立本地提交；提交后审计账号断线或重连期间 `runtimeSnapshots` 是否可能继续提供旧连接的窗口和协议数据。
+创建断线快照清理与会话状态边界的独立本地提交；提交后审计执行子进程 `spawn` 失败时 Dashboard 是否因未监听 `error` 事件而崩溃或残留虚假运行状态。
 
 ## 已修改文件
 
 - `docs/current-status.md`
 - `docs/project-architecture.md`
 - `docs/work-log.md`
-- `scripts/runtime-config-protocol-test.js`
-- `src/dashboard.js`
+- `package.json`
+- `scripts/dashboard-protocol-test.js`
+- `scripts/handoff-check.js`
+- `scripts/session-state-test.js`
 - `src/index.js`
+- `src/session-state.js`
 
 ## 未解决问题和阻塞项
 
@@ -74,6 +78,12 @@
 
 ## 最近测试结果
 
+- `node scripts/dashboard-protocol-test.js`：修复前断线后仍返回旧坐标，修复后位置、窗口、实体、消息、按钮、协议对话和 DragonCore 菜单全部清空。
+- `node scripts/session-state-test.js`：通过，覆盖会话默认状态、连接级快照字段和两个延迟日志定时器清理。
+- `node scripts/anti-afk-movement-test.js`：通过，断线重连仍以新出生点重建移动状态。
+- `npm.cmd run maintenance:check`：通过，`src/index.js` 从 2284 行降至 2235 行；CSS 和其他大型文件预算未增长。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
+- `npm.cmd test`：全部通过，会话状态单测、断线清理、重连和旧连接事件守卫及所有既有场景均通过；最终 `src/index.js` 为 2242 行。
 - `node scripts/runtime-config-protocol-test.js`：通过；修复前无回执错误返回空快照成功，修复后合法空快照成功、第二次无回执在有界时间内明确失败，同时配置接受/拒绝/超时/退出场景未回归。
 - `node scripts/dashboard-protocol-test.js`：通过，真实 Mineflayer 位置、窗口、协议菜单和大厅动作快照均正常。
 - `node scripts/runtime-request-tracker-test.js`：通过，成功、失败、超时、取消、退出批量拒绝和延迟消费均受覆盖。
@@ -101,4 +111,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 00:21:24 +08:00
+2026-07-24 00:38:00 +08:00
