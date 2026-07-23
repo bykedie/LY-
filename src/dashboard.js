@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { readJson, writeJson } from './json-store.js';
+import { backupCorruptJson, readJson, writeJson } from './json-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -15,6 +15,7 @@ const configPath = process.env.BOT_CONFIG_PATH
 const configBaseName = path.basename(configPath, path.extname(configPath));
 const profilesDir = path.join(path.dirname(configPath), `${configBaseName}.profiles`);
 const profilesIndexPath = path.join(profilesDir, 'profiles.json');
+const recoveryDir = path.join(profilesDir, 'recovery');
 const automationsPath = path.join(path.dirname(configPath), `${configBaseName}.automations.json`);
 const exampleConfigPath = path.join(projectRoot, 'bot.config.example.json');
 const port = Number(process.env.DASHBOARD_PORT || 30123);
@@ -63,8 +64,14 @@ function ensureProfilesDir() {
   fs.mkdirSync(profilesDir, { recursive: true });
 }
 
+function normalizeProfileId(profileId) {
+  const normalized = String(profileId || '').trim();
+  if (normalized === defaultProfileId || /^profile-[a-z0-9-]+$/.test(normalized)) return normalized;
+  throw new Error('配置档案 ID 无效。');
+}
+
 function profileConfigPath(profileId) {
-  return path.join(profilesDir, `${profileId}.json`);
+  return path.join(profilesDir, `${normalizeProfileId(profileId)}.json`);
 }
 
 function nowIso() {
@@ -87,11 +94,34 @@ function readProfileIndex() {
     return { activeProfileId: defaultProfileId, profiles: [] };
   }
 
-  const index = readJson(profilesIndexPath);
-  return {
-    activeProfileId: typeof index.activeProfileId === 'string' ? index.activeProfileId : defaultProfileId,
-    profiles: Array.isArray(index.profiles) ? index.profiles : []
-  };
+  let index;
+  try {
+    index = readJson(profilesIndexPath);
+  } catch (error) {
+    if (!error.message.startsWith('JSON 文件损坏：')) throw error;
+    const backupPath = backupCorruptJson(profilesIndexPath, recoveryDir);
+    addLog(`配置档案索引损坏，原文件已备份到 ${backupPath}，正在重建索引。`);
+    index = { activeProfileId: defaultProfileId, profiles: [] };
+  }
+  const profiles = [];
+  const seenIds = new Set();
+  for (const profile of Array.isArray(index.profiles) ? index.profiles : []) {
+    if (!profile || typeof profile !== 'object') continue;
+    try {
+      const id = normalizeProfileId(profile.id);
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      profiles.push({
+        id,
+        name: normalizeProfileName(profile.name || (id === defaultProfileId ? '当前配置' : '未命名配置')),
+        updatedAt: typeof profile.updatedAt === 'string' ? profile.updatedAt : nowIso()
+      });
+    } catch {}
+  }
+  const activeProfileId = profiles.some((profile) => profile.id === index.activeProfileId)
+    ? index.activeProfileId
+    : defaultProfileId;
+  return { activeProfileId, profiles };
 }
 
 function writeProfileIndex(index) {
@@ -177,8 +207,16 @@ function deleteProfile(id) {
 
 function readAutomations() {
   if (!fs.existsSync(automationsPath)) return [];
-  const data = readJson(automationsPath);
-  return Array.isArray(data.automations) ? data.automations : [];
+  try {
+    const data = readJson(automationsPath);
+    return Array.isArray(data.automations) ? data.automations : [];
+  } catch (error) {
+    if (!error.message.startsWith('JSON 文件损坏：')) throw error;
+    const backupPath = backupCorruptJson(automationsPath, recoveryDir);
+    addLog(`自动化方案库损坏，原文件已备份到 ${backupPath}，正在恢复为空方案库。`);
+    writeJson(automationsPath, { version: 1, automations: [] });
+    return [];
+  }
 }
 
 function saveAutomation({ id, name, lobby }) {

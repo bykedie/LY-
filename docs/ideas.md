@@ -41,3 +41,14 @@
 - 影响范围：部署脚本、测试、文档、发布流程。
 - 状态：延后
 - 关联任务或决策：下次真实发生版本同步遗漏或发布流程改造时重新评估。
+
+## IDEA-004：Mineflayer 依赖链中危安全告警
+
+- 提出时间：2026-07-23
+- 来源/背景：`npm audit --omit=dev` 报告 6 个中危告警，来源为 Mineflayer 的 `minecraft-protocol`、`prismarine-auth`、`@azure/msal-node`、`uuid` 和 `yggdrasil` 依赖链。
+- 想法摘要：持续跟踪上游安全更新；高危或严重漏洞阻断本地验收，中危告警保留清单并评估真实暴露面。
+- 预期价值：避免依赖风险只存在聊天记忆，也避免为了“清零”而破坏 Minecraft 协议兼容性。
+- 不确定因素：当前 `npm audit fix` 建议降级到 `mineflayer 1.4.0`，属于破坏性且不合理的修复；上游何时升级 `uuid` 尚不确定。
+- 影响范围：Microsoft 登录、Minecraft 协议、依赖更新和发布验收。
+- 状态：延后
+- 关联任务或决策：使用 `npm run security:audit` 持续监控；出现高危/严重告警或 Mineflayer 上游提供兼容升级时重新评估。

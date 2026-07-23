@@ -209,6 +209,35 @@ try {
   assert(saved.config.features.scheduler.enabled === true, '配置保存后缺少 scheduler.enabled');
   const profilesBeforeSave = await requestJson('/api/profiles');
   assert(profilesBeforeSave.profiles.some((profile) => profile.id === 'default'), '配置档案缺少默认档案');
+  const profilesDir = path.join(tempDir, 'bot.config.profiles');
+  const outsideProfilePath = path.join(tempDir, 'outside.json');
+  fs.writeFileSync(outsideProfilePath, JSON.stringify(testConfig), 'utf8');
+  fs.writeFileSync(
+    path.join(profilesDir, 'profiles.json'),
+    JSON.stringify({
+      activeProfileId: '../outside',
+      profiles: [{ id: '../outside', name: 'Outside', updatedAt: new Date().toISOString() }]
+    }),
+    'utf8'
+  );
+  const sanitizedProfiles = await requestJson('/api/profiles');
+  assert(!sanitizedProfiles.profiles.some((profile) => profile.id === '../outside'), '恶意档案 ID 没有从索引中过滤');
+  assert(sanitizedProfiles.activeProfileId === 'default', '恶意当前档案 ID 没有回退到默认档案');
+  const maliciousProfileUse = await requestJson('/api/profiles/use', {
+    method: 'POST',
+    body: JSON.stringify({ id: '../outside' }),
+    expectOk: false
+  });
+  assert(maliciousProfileUse.ok === false && maliciousProfileUse.message.includes('找不到'), '恶意档案 ID 可以被载入');
+  assert(fs.existsSync(outsideProfilePath), '恶意档案索引影响了档案目录外文件');
+  fs.writeFileSync(path.join(profilesDir, 'profiles.json'), '{broken-index', 'utf8');
+  const recoveredProfiles = await requestJson('/api/profiles');
+  assert(recoveredProfiles.profiles.some((profile) => profile.id === 'default'), '损坏档案索引没有恢复默认档案');
+  const recoveryDir = path.join(profilesDir, 'recovery');
+  assert(
+    fs.readdirSync(recoveryDir).some((name) => name.startsWith('profiles.json.') && name.endsWith('.corrupt.bak')),
+    '损坏档案索引没有保留恢复备份'
+  );
   const namedProfile = await requestJson('/api/profiles', {
     method: 'POST',
     body: JSON.stringify({ name: 'Smoke Profile', config: testConfig })
@@ -242,6 +271,14 @@ try {
     method: 'POST',
     body: JSON.stringify({ id: namedProfile.activeProfileId })
   });
+  const automationPath = path.join(tempDir, 'bot.config.automations.json');
+  fs.writeFileSync(automationPath, '{broken-automations', 'utf8');
+  const recoveredAutomations = await requestJson('/api/automations');
+  assert(recoveredAutomations.automations.length === 0, '损坏自动化库没有恢复为空方案库');
+  assert(
+    fs.readdirSync(recoveryDir).some((name) => name.startsWith('bot.config.automations.json.') && name.endsWith('.corrupt.bak')),
+    '损坏自动化库没有保留恢复备份'
+  );
   const savedAutomation = await requestJson('/api/automations', {
     method: 'POST',
     body: JSON.stringify({
@@ -259,7 +296,7 @@ try {
   assert(savedAutomation.automations.some((item) => item.name === 'Smoke Automation'), '自动化方案保存后没有出现在列表中');
   const automationList = await requestJson('/api/automations');
   assert(automationList.automations[0].lobby.actions[1].type === 'clickChat', '自动化方案重新读取后动作内容不正确');
-  assert(fs.existsSync(path.join(tempDir, 'bot.config.automations.json')), '自动化方案没有写入独立持久化文件');
+  assert(fs.existsSync(automationPath), '自动化方案没有写入独立持久化文件');
   const deletedAutomation = await requestJson('/api/automations/delete', {
     method: 'POST',
     body: JSON.stringify({ id: savedAutomation.activeAutomationId })

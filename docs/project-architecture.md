@@ -79,7 +79,7 @@ accounts.json                   # 可选独立账号列表
 .env                            # Dashboard 端口、监听和 Basic Auth
 ```
 
-Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。
+Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。主配置或具体档案损坏时返回明确错误且不覆盖原文件；可派生的 `profiles.json` 和自动化库损坏时先备份到 `bot.config.profiles/recovery/`，再重建安全索引或空方案库。
 
 保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接。
 
@@ -185,6 +185,7 @@ curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh | sudo
 ```powershell
 npm.cmd run handoff:check     # 交接体系一致性
 npm.cmd run maintenance:check # API、CSS 和大型文件维护预算
+npm.cmd run security:audit   # 依赖漏洞；高危或严重将失败
 npm.cmd run check         # JavaScript 语法检查
 npm.cmd test              # 完整测试
 ```
