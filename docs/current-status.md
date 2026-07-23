@@ -42,25 +42,19 @@
 - 执行子进程 IPC 写入结果与部分成功语义：`413e88f`。
 - 静态文件 TOCTOU 与流错误边界：`1afd387`。
 - 配置档案多文件事务与进程内回滚：`9f6235a`。
+- 配置事务崩溃后启动恢复：`a063d77`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-配置事务崩溃后启动恢复已完成。`pending` 回滚、`committed` 清理、运行中回滚失败后的下次启动重试、越界/损坏日志阻断、目标缺失保留证据、真实 Dashboard 启动恢复和 Git 忽略保护均已通过完整验证，等待创建本地里程碑提交。
+无。配置事务崩溃恢复已保存为本地提交 `a063d77`；工作区仅有本次交接检查点文档待提交。
 
 ## 下一步明确动作
 
-创建配置事务崩溃恢复的独立本地提交；之后继续运行配置快照与磁盘配置偏差审计。
+审计运行配置下发确认语义：验证 Dashboard 的 `liveApplied` 是否代表执行端真正应用，而不只是 stdin 写入成功。
 
 ## 已修改文件
 
-- `.gitignore`
-- `src/json-store.js`
-- `src/dashboard.js`
-- `scripts/json-transaction-test.js`
-- `scripts/smoke-test.js`
-- `scripts/handoff-check.js`
-- `docs/project-architecture.md`
 - `docs/current-status.md`
 - `docs/work-log.md`
 
@@ -100,4 +94,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 23:35:00 +08:00
+2026-07-23 23:38:00 +08:00
