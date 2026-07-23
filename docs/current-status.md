@@ -28,34 +28,28 @@
 
 ## 已完成事项
 
-- AI 续接体系：本地提交 `f2a8840`。
-- 配置一致性与维护守卫：本地提交 `a40094c`。
-- 配置恢复与依赖安全：本地提交 `761b802`。
-- Dashboard 与执行端优雅退出：本地提交 `c484632`。
-- 修复配置保存、重置、档案操作与在线控制快照不一致。
-- 增加请求体限制、路径穿越测试、档案 ID 约束、原子 JSON 与损坏数据备份恢复。
-- 增加高危/严重依赖阻断与 Mineflayer 中危风险记录。
-- Dashboard/执行端支持 SIGINT、SIGTERM 清理，直接终止 Dashboard 后在线客户端全部断开。
-- 新增 `src/process-lifecycle.js`，统一普通停止和 Dashboard 退出的优雅信号与 5 秒强制清理。
-- 普通停止保持幂等；停止完成前的新启动请求会明确拒绝，避免返回成功但实际未启动。
-- 新增假子进程生命周期测试，覆盖优雅退出取消强杀、超时 SIGKILL 和空进程行为。
-- 交接、维护和安全守卫持续生效；下一位 AI 提示语位于 `docs/next-ai-prompt.md`。
+- AI 续接体系：`f2a8840`。
+- 配置一致性与维护守卫：`a40094c`。
+- 配置恢复与依赖安全：`761b802`。
+- Dashboard/执行端优雅退出：`c484632`。
+- 普通启停与超时清理：`0d805a1`。
+- 交接 Git 提交引用真实性校验：`63adaca`。
+- 修复配置实时应用、请求体限制、路径穿越、档案 ID、原子 JSON、损坏数据恢复和依赖安全监控。
+- Dashboard 与执行端支持信号清理，普通停止有 5 秒强制兜底，停止中启动明确拒绝。
+- 修复未运行时停止和运行中重复启动仍返回成功的问题，避免 UI 显示虚假操作结果。
+- 交接、维护、安全和完整测试持续通过；下一位 AI 提示语位于 `docs/next-ai-prompt.md`。
 
 ## 正在进行事项
 
-无。第四轮普通启停状态机修复已保存；实际最新提交以 `git log --oneline -5` 为准。
+无。最新启停状态语义修复已通过全套验证，等待独立本地提交。
 
 ## 下一步明确动作
 
-继续下一批可复现问题审计，或执行项目所有者的新需求；所有成果仍先本地验证并等待审阅。
+独立提交本次启停状态语义修复；之后继续审计 API 错误语义与前端网络故障处理。
 
 ## 已修改文件
 
-- `package.json`
 - `src/dashboard.js`
-- `src/process-lifecycle.js`
-- `scripts/handoff-check.js`
-- `scripts/process-lifecycle-test.js`
 - `scripts/smoke-test.js`
 - `docs/current-status.md`
 - `docs/project-architecture.md`
@@ -70,10 +64,10 @@
 
 ## 最近测试结果
 
-- `node scripts/process-lifecycle-test.js`：通过。
-- `node scripts/smoke-test.js`：通过，停止中重复启动被拒绝。
-- `node scripts/dashboard-protocol-test.js`：通过。
-- `npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和 `npm.cmd test`：全部通过。
+- `npm.cmd run handoff:check`：通过。
+- `npm.cmd run maintenance:check`：通过。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
+- `npm.cmd test`：全部通过，包括启停状态回归测试。
 
 ## 恢复开发命令
 
@@ -93,4 +87,4 @@ npm.cmd run security:audit
 
 ## 最后更新时间
 
-2026-07-23 18:33:34 +08:00
+2026-07-23 18:42:34 +08:00

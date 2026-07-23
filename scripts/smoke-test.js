@@ -31,6 +31,8 @@ try {
   const initialStatus = await requestJson('/api/status');
   assert(initialStatus.control === null, '未启动时不应该返回运行控制快照');
   assert(initialStatus.stopping === false, '未启动时不应该处于停止中状态');
+  const stopWhileStopped = await requestJson('/api/stop', { method: 'POST', expectOk: false });
+  assert(stopWhileStopped.ok === false && stopWhileStopped.message.includes('未启动'), '未运行时停止没有返回明确错误');
   const oversizedResponse = await request('/api/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -517,6 +519,8 @@ try {
   assert(restartedFromSavedConfig.stopping === false, '旧进程停止后仍处于停止中状态');
 
   await requestJson('/api/start', { method: 'POST' });
+  const duplicateStart = await requestJson('/api/start', { method: 'POST', expectOk: false });
+  assert(duplicateStart.ok === false && duplicateStart.message.includes('已经运行'), '重复启动没有返回明确错误');
   await waitForLog('读取到 1 个启用账号');
 
   await requestJson('/api/send', {

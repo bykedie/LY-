@@ -535,7 +535,7 @@ function ensureProjectDependencies() {
 
 function startBot(startAccountNames = []) {
   if (stopping) throw new Error('挂机进程正在停止，请等待停止完成后再启动。');
-  if (botProcess) return;
+  if (botProcess) throw new Error('挂机进程已经运行。');
 
   ensureProjectDependencies();
 
@@ -628,7 +628,8 @@ function normalizeStartAccountNames(startAccountNames, accounts) {
 }
 
 function stopBot() {
-  if (!botProcess || stopping) return;
+  if (!botProcess) throw new Error('挂机进程未启动。');
+  if (stopping) return;
   stopping = true;
   requestProcessStop(botProcess);
   addLog('已发送停止指令；若 5 秒内未退出将强制停止。');
