@@ -111,13 +111,22 @@ try {
   const rendererScript = await requestText('/log-renderer.js');
   assert(rendererScript.includes('renderMinecraftText'), '缺少 MC 日志渲染模块');
 
+  const workbenchStyles = await requestText('/workbench.css');
+  assert(page.includes('/workbench.css'), '首页没有加载全新工作台视觉层');
+  assert(page.includes('command-bar'), '全新工作台缺少顶部命令栏');
+  assert(page.includes('sidebar-rail-label'), '全新工作台缺少品牌导航轨道');
+  assert(workbenchStyles.includes('--wb-lime: #c8f135'), '工作台缺少荧光黄主操作色');
+  assert(workbenchStyles.includes('grid-template-columns: 304px minmax(0, 1fr)'), '桌面端缺少双层导航工作台布局');
+  assert(workbenchStyles.includes('grid-template-columns: 68px minmax(0,1fr)'), '手机端侧栏没有固定在左侧');
+  assert(workbenchStyles.includes('@keyframes wb-page-in'), '工作台缺少页面进入动效');
+
   const styles = await requestText('/styles.css');
   const managerScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'ly-afk-manager.sh'), 'utf8');
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
   assert(styles.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), '大厅步骤没有按每排五张卡片布局');
   assert(styles.includes('.lobby-action-step-block:nth-child(5n) .lobby-action-connector'), '每排第五张步骤卡缺少换行连接节点');
-  assert(managerScript.includes('v1.0.39'), '管理脚本版本没有更新到 v1.0.39');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.39"'), '启动脚本期望版本没有更新到 v1.0.39');
+  assert(managerScript.includes('v1.0.40'), '管理脚本版本没有更新到 v1.0.40');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.40"'), '启动脚本期望版本没有更新到 v1.0.40');
   assert(styles.includes('--accent: #ed6a5a'), '新视觉系统缺少珊瑚强调色');
   assert(styles.includes('grid-template-columns: 68px minmax(0, 1fr)'), '手机端侧栏没有固定在左侧');
   assert(styles.includes('@keyframes status-pulse'), '控制台在线状态缺少呼吸动效');

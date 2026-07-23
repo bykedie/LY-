@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LY挂机控制台</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/workbench.css">
 </head>
 <body>
   <main class="app-shell" id="appShell">
     <aside class="sidebar" id="sidebar">
+      <div class="sidebar-rail-label">LY</div>
       <div class="sidebar-head">
         <div class="brand">
           <div class="brand-mark">LY</div>
@@ -18,45 +20,44 @@
           </div>
         </div>
         <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-expanded="true" title="收起侧边栏">
-          <span class="toggle-open">收</span>
-          <span class="toggle-close">展</span>
+          <span class="toggle-open">‹</span>
+          <span class="toggle-close">›</span>
         </button>
       </div>
 
       <nav class="nav-list" aria-label="功能目录">
+        <span class="nav-group-label">工作台</span>
         <button class="nav-item active" data-section="overview" title="平台概览"><span class="nav-icon">概</span><span class="nav-text">平台概览</span></button>
         <button class="nav-item" data-section="combat" title="功能综合区"><span class="nav-icon">综</span><span class="nav-text">功能综合区</span></button>
+        <span class="nav-group-label">自动化</span>
         <button class="nav-item" data-section="lobby" title="大厅功能"><span class="nav-icon">厅</span><span class="nav-text">大厅功能</span></button>
         <button class="nav-item" data-section="scheduler" title="定时任务"><span class="nav-icon">时</span><span class="nav-text">定时任务</span></button>
+        <span class="nav-group-label">资源与系统</span>
         <button class="nav-item" data-section="config" title="服务器配置"><span class="nav-icon">服</span><span class="nav-text">服务器配置</span></button>
         <button class="nav-item" data-section="accounts" title="批量账号"><span class="nav-icon">号</span><span class="nav-text">批量账号</span></button>
         <button class="nav-item" data-section="runtime" title="运行控制"><span class="nav-icon">启</span><span class="nav-text">运行控制</span></button>
         <button class="nav-item" data-section="settings" title="界面设置"><span class="nav-icon">设</span><span class="nav-text">设置</span></button>
       </nav>
 
-      <div class="sidebar-actions">
-        <button class="side-action" id="reloadBtn" title="重新读取"><span class="nav-icon">读</span><span class="nav-text">重新读取</span></button>
-        <button class="side-action primary-action" id="saveBtn" title="保存配置"><span class="nav-icon">存</span><span class="nav-text">保存配置</span></button>
-        <button class="side-action" id="resetBtn" title="重置默认"><span class="nav-icon">重</span><span class="nav-text">重置默认</span></button>
-        <button class="side-action danger-action hidden" id="confirmResetBtn" type="button" disabled><span class="nav-icon">确</span><span class="nav-text">确认重置 5s</span></button>
-      </div>
-
-      <div class="health">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">读取状态中</span>
-      </div>
     </aside>
 
     <section class="workspace">
       <header class="topbar">
         <div>
-          <p class="workspace-kicker">LY / &#25511;&#21046;&#24037;&#20316;&#21306;</p>
+          <p class="workspace-kicker"><span>LY</span> Minecraft 自动化工作台</p>
           <h2 id="pageTitle">平台概览</h2>
           <p id="pageSub">云端自动挂机平台的信息、功能和配置集中在这里。</p>
         </div>
-        <div class="topbar-status" aria-label="&#25511;&#21046;&#21488;&#36830;&#25509;&#29366;&#24577;">
-          <span class="topbar-pulse"></span>
-          <span>&#25511;&#21046;&#21488;&#22312;&#32447;</span>
+        <div class="command-bar">
+          <div class="health" aria-label="挂机运行状态">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">读取状态中</span>
+          </div>
+          <span class="command-divider"></span>
+          <button class="side-action command-button" id="reloadBtn" title="重新读取"><span class="command-symbol">↻</span><span class="nav-text">重新读取</span></button>
+          <button class="side-action command-button" id="resetBtn" title="重置默认"><span class="command-symbol">⌫</span><span class="nav-text">重置</span></button>
+          <button class="side-action danger-action command-button hidden" id="confirmResetBtn" type="button" disabled><span class="command-symbol">!</span><span class="nav-text">确认重置 5s</span></button>
+          <button class="side-action primary-action command-button" id="saveBtn" title="保存配置"><span class="command-symbol">✓</span><span class="nav-text">保存配置</span></button>
         </div>
       </header>
 
