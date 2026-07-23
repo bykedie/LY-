@@ -421,6 +421,7 @@ function createBot(account) {
     session = {
       bot: null,
       idleTimer: null,
+      antiAfkOrigin: null,
       attackTimer: null,
       eatTimer: null,
       schedulerTimers: [],
@@ -455,6 +456,7 @@ function createBot(account) {
 
   clearTimeout(session.reconnectTimer);
   session.reconnecting = false;
+  session.antiAfkOrigin = null;
   session.lastWindow = null;
   session.lastWindowOpenedAt = 0;
   clearTimeout(session.windowLogTimer);

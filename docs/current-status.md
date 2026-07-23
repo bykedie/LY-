@@ -36,27 +36,24 @@
 - 交接 Git 提交引用真实性校验：`63adaca`。
 - 重复启停虚假成功修复：`90b00f7`。
 - 前端 API 错误边界拆分：`0808dbb`；检查点同步：`c521df4`。
+- 自动化库结构恢复与独立存储边界：`cee6f85`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-自动化方案库损坏条目修复与存储边界拆分已完成；全部本地验证通过，等待创建里程碑提交。
+防挂机随机走动原点跨重连泄漏已修复；端到端重连场景及全部本地验证通过，等待创建里程碑提交。
 
 ## 下一步明确动作
 
-创建自动化数据恢复与存储边界的独立本地提交；之后继续审计下一批可复现缺陷。
+创建防挂机重连修复的独立本地提交；之后继续审计下一批可复现缺陷。
 
 ## 已修改文件
 
-- `src/dashboard.js`
-- `src/automation-store.js`
-- `scripts/smoke-test.js`
-- `scripts/handoff-check.js`
-- `package.json`
+- `src/index.js`
+- `scripts/anti-afk-movement-test.js`
 - `docs/project-architecture.md`
 - `docs/current-status.md`
 - `docs/work-log.md`
-- `docs/next-ai-prompt.md`
 
 ## 未解决问题和阻塞项
 
@@ -68,13 +65,13 @@
 
 ## 最近测试结果
 
-- 新回归测试在修复前按预期失败：结构错误自动化条目未被清理。
-- `node --check src/dashboard.js`：修复后通过。
-- `node scripts/smoke-test.js`：修复、增强断言和模块提取后通过。
-- `npm.cmd run maintenance:check`：提取前因 Dashboard 超过 1050 行预算而失败；提取后通过，Dashboard 为 1010 行。
+- 新端到端回归在修复前按预期失败：第二次连接未重置随机走动原点，目标为 `x=3.6`。
+- `node --check src/index.js`：通过。
+- `node scripts/anti-afk-movement-test.js`：修复后通过，覆盖随机走动、命令保活和断线重连新出生点。
 - `npm.cmd run handoff:check`：通过。
+- `npm.cmd run maintenance:check`：通过，`src/index.js` 为 2251 行，未超过预算。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
-- `npm.cmd test`：全部通过，包含自动化库结构恢复回归。
+- `npm.cmd test`：全部通过，包含防挂机断线重连场景。
 
 ## 恢复开发命令
 
@@ -95,4 +92,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 19:10:00 +08:00
+2026-07-23 19:15:00 +08:00

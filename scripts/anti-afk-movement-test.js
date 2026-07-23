@@ -22,6 +22,7 @@ await runAntiAfkScenario({
   antiAfkCommand: '/ping',
   expectRandomWalk: false
 });
+await runReconnectOriginScenario();
 
 console.log('anti-afk movement test ok');
 
@@ -68,6 +69,49 @@ async function runAntiAfkScenario({ username, antiAfkCommand, expectRandomWalk }
     if (botProcess && botProcess.exitCode === null) botProcess.kill('SIGINT');
     if (server) server.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function runReconnectOriginScenario() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-anti-afk-reconnect-'));
+  const serverPort = 48000 + Math.floor(Math.random() * 1000);
+  const botOutput = [];
+  let botProcess = null;
+  let server = null;
+  let joinCount = 0;
+
+  try {
+    server = createAntiAfkServer(serverPort, [], [], {
+      spawnX: () => (++joinCount === 1 ? 1 : 10),
+      disconnectAfterFirstMove: true
+    });
+    await once(server, 'listening');
+    const config = createAntiAfkConfig({ port: serverPort, username: 'AntiAfkReconnectBot', antiAfkCommand: '' });
+    config.runtime.reconnect = true;
+    config.runtime.reconnectDelayMs = 250;
+    config.runtime.testExitAfterMs = 7500;
+    fs.writeFileSync(path.join(tempDir, 'bot.config.json'), JSON.stringify(config, null, 2), 'utf8');
+
+    botProcess = spawn(process.execPath, [botScript], { cwd: tempDir, stdio: ['ignore', 'pipe', 'pipe'] });
+    botProcess.stdout.on('data', (data) => botOutput.push(data.toString()));
+    botProcess.stderr.on('data', (data) => botOutput.push(data.toString()));
+
+    await waitForWalkTargets(botOutput, 2);
+    const targets = [...botOutput.join('').matchAll(/防挂机随机走动：前往 (-?\d+(?:\.\d+)?),/g)]
+      .map((match) => Number(match[1]));
+    assert(joinCount >= 2, '防挂机重连场景没有建立第二次连接');
+    assert(targets[1] > 6, `重连后随机走动仍围绕旧出生点：${targets[1]}`);
+
+    const exitCode = await once(botProcess, 'exit', 12000);
+    assert(exitCode[0] === 0, `重连防挂机进程退出码异常：${exitCode[0]}\n${botOutput.join('')}`);
+  } finally {
+    if (botProcess && botProcess.exitCode === null) {
+      const exited = once(botProcess, 'exit', 5000).catch(() => null);
+      botProcess.kill('SIGINT');
+      await exited;
+    }
+    if (server) server.close();
+    fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 
@@ -144,7 +188,7 @@ function createAntiAfkConfig({ port, username, antiAfkCommand }) {
   };
 }
 
-function createAntiAfkServer(port, receivedMessages, receivedPackets) {
+function createAntiAfkServer(port, receivedMessages, receivedPackets, options = {}) {
   const chunk = createFlatChunk();
   const server = mc.createServer({
     'online-mode': false,
@@ -155,6 +199,8 @@ function createAntiAfkServer(port, receivedMessages, receivedPackets) {
   });
 
   server.on('playerJoin', (client) => {
+    const spawnX = options.spawnX ? options.spawnX() : 1;
+    let disconnected = false;
     client.write('login', {
       ...mcData.loginPacket,
       entityId: client.id,
@@ -186,7 +232,7 @@ function createAntiAfkServer(port, receivedMessages, receivedPackets) {
     });
 
     client.write('position', {
-      x: 1,
+      x: spawnX,
       y: 64,
       z: 1,
       yaw: 0,
@@ -203,12 +249,15 @@ function createAntiAfkServer(port, receivedMessages, receivedPackets) {
     client.on('chat', (packet) => {
       receivedMessages.push(packet.message);
     });
-    client.on('position', (packet) => {
-      receivedPackets.push({ name: 'position', packet });
-    });
-    client.on('position_look', (packet) => {
-      receivedPackets.push({ name: 'position_look', packet });
-    });
+    const recordMovement = (name, packet) => {
+      receivedPackets.push({ name, packet });
+      if (options.disconnectAfterFirstMove && spawnX === 1 && !disconnected && Math.abs(Number(packet.x) - spawnX) >= 0.5) {
+        disconnected = true;
+        client.end('reconnect test');
+      }
+    };
+    client.on('position', (packet) => recordMovement('position', packet));
+    client.on('position_look', (packet) => recordMovement('position_look', packet));
   });
 
   return server;
@@ -234,6 +283,16 @@ async function waitForOutput(botOutput, expected) {
     await delay(100);
   }
   throw new Error(`等待机器人输出超时：${expected}\n机器人输出：${botOutput.join('')}`);
+}
+
+async function waitForWalkTargets(botOutput, count) {
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline) {
+    const matches = botOutput.join('').match(/防挂机随机走动：前往/g) || [];
+    if (matches.length >= count) return;
+    await delay(100);
+  }
+  throw new Error(`等待防挂机随机走动目标超时\n机器人输出：${botOutput.join('')}`);
 }
 
 async function waitForMessage(receivedMessages, expected) {
