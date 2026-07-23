@@ -45,18 +45,17 @@
 
 ## 正在进行事项
 
-无。静态文件流错误修复已保存为本地提交 `1afd387`；工作区应保持干净。
+配置档案多文件部分提交已修复；事务专项、交接、维护、安全和完整项目测试全部通过，等待创建里程碑提交。
 
 ## 下一步明确动作
 
-继续审计配置档案多文件持久化部分失败，明确主配置、档案文件和索引之间的提交顺序与恢复策略。
+创建配置档案事务修复的独立本地提交；之后继续持久化与运行状态审计。
 
 ## 已修改文件
 
-- `src/static-server.js`
+- `src/json-store.js`
 - `src/dashboard.js`
-- `scripts/static-server-test.js`
-- `scripts/handoff-check.js`
+- `scripts/json-transaction-test.js`
 - `package.json`
 - `docs/project-architecture.md`
 - `docs/current-status.md`
@@ -72,13 +71,14 @@
 
 ## 最近测试结果
 
-- 失败测试先确认旧静态服务没有独立错误边界，读取流错误未监听。
-- `node scripts/static-server-test.js`：通过，覆盖成功、文件消失、权限失败、同步打开异常、流中途失败、目录和路径穿越。
-- `node scripts/smoke-test.js`：通过。
+- 失败测试先确认 `writeJsonTransaction` 不存在，旧档案操作只能逐文件提交。
+- `node scripts/json-transaction-test.js`：通过，覆盖第二次提交失败的全量回滚、成功提交清理、回滚失败错误提示和恢复备份保留。
+- `node scripts/json-store-test.js`：通过。
+- `node scripts/smoke-test.js`：通过，覆盖配置档案保存、切换、删除和恢复。
+- `npm.cmd run maintenance:check`：通过，Dashboard 为 972 行。
 - `npm.cmd run handoff:check`：通过。
-- `npm.cmd run maintenance:check`：通过，Dashboard 为 975 行。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危。
-- `npm.cmd test`：全部通过，包含静态服务专项和所有既有场景。
+- `npm.cmd test`：全部通过，包含事务专项和所有档案 API 场景。
 
 ## 恢复开发命令
 
@@ -99,4 +99,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-23 19:40:00 +08:00
+2026-07-23 19:47:00 +08:00

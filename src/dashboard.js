@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { backupCorruptJson, readJson, writeJson } from './json-store.js';
+import { backupCorruptJson, readJson, writeJsonTransaction } from './json-store.js';
 import { requestProcessStop } from './process-lifecycle.js';
 import { writeJsonLine } from './process-ipc.js';
 import { serveStaticFile } from './static-server.js';
@@ -56,8 +56,14 @@ function readConfig() {
 function saveConfig(config) {
   const normalizedConfig = mergeDefaults(defaultConfig, config);
   validateConfig(normalizedConfig);
-  writeJson(configPath, normalizedConfig);
-  saveActiveProfileConfig(normalizedConfig);
+  const index = ensureDefaultProfile(readProfileIndex());
+  const activeId = index.activeProfileId || defaultProfileId;
+  const profiles = index.profiles.map((profile) => profile.id === activeId ? { ...profile, updatedAt: nowIso() } : profile);
+  writeJsonTransaction([
+    { filePath: configPath, data: normalizedConfig },
+    { filePath: profileConfigPath(activeId), data: normalizedConfig },
+    { filePath: profilesIndexPath, data: { activeProfileId: activeId, profiles } }
+  ]);
   return normalizedConfig;
 }
 
@@ -129,14 +135,6 @@ function readProfileIndex() {
   return { activeProfileId, profiles };
 }
 
-function writeProfileIndex(index) {
-  ensureProfilesDir();
-  writeJson(profilesIndexPath, {
-    activeProfileId: index.activeProfileId || defaultProfileId,
-    profiles: index.profiles
-  });
-}
-
 function ensureDefaultProfile(index = readProfileIndex()) {
   const profiles = [...index.profiles];
   const existing = profiles.find((profile) => profile.id === defaultProfileId);
@@ -147,28 +145,18 @@ function ensureDefaultProfile(index = readProfileIndex()) {
   }
 
   const defaultPath = profileConfigPath(defaultProfileId);
-  if (!fs.existsSync(defaultPath)) {
-    writeJson(defaultPath, readConfig());
-  }
-
   const activeProfileId = profiles.some((profile) => profile.id === index.activeProfileId)
     ? index.activeProfileId
     : defaultProfileId;
   const nextIndex = { activeProfileId, profiles };
-  writeProfileIndex(nextIndex);
+  const entries = [{ filePath: profilesIndexPath, data: nextIndex }];
+  if (!fs.existsSync(defaultPath)) entries.unshift({ filePath: defaultPath, data: readConfig() });
+  writeJsonTransaction(entries);
   return nextIndex;
 }
 
 function listProfiles() {
   return ensureDefaultProfile(readProfileIndex());
-}
-
-function saveActiveProfileConfig(config) {
-  const index = ensureDefaultProfile(readProfileIndex());
-  const activeId = index.activeProfileId || defaultProfileId;
-  writeJson(profileConfigPath(activeId), config);
-  const profiles = index.profiles.map((profile) => profile.id === activeId ? { ...profile, updatedAt: nowIso() } : profile);
-  writeProfileIndex({ ...index, profiles });
 }
 
 function saveProfile({ id, name, config }) {
@@ -181,9 +169,11 @@ function saveProfile({ id, name, config }) {
   const updatedAt = nowIso();
   const profiles = index.profiles.filter((profile) => profile.id !== profileId);
   profiles.push({ id: profileId, name: profileName, updatedAt });
-  writeJson(profileConfigPath(profileId), normalizedConfig);
-  writeJson(configPath, normalizedConfig);
-  writeProfileIndex({ activeProfileId: profileId, profiles });
+  writeJsonTransaction([
+    { filePath: profileConfigPath(profileId), data: normalizedConfig },
+    { filePath: configPath, data: normalizedConfig },
+    { filePath: profilesIndexPath, data: { activeProfileId: profileId, profiles } }
+  ]);
   return { activeProfileId: profileId, profiles, config: normalizedConfig };
 }
 
@@ -194,8 +184,10 @@ function useProfile(id) {
 
   const config = mergeDefaults(defaultConfig, readJson(profileConfigPath(profile.id)));
   validateConfig(config);
-  writeJson(configPath, config);
-  writeProfileIndex({ ...index, activeProfileId: profile.id });
+  writeJsonTransaction([
+    { filePath: configPath, data: config },
+    { filePath: profilesIndexPath, data: { ...index, activeProfileId: profile.id } }
+  ]);
   return { activeProfileId: profile.id, profiles: index.profiles, config };
 }
 
@@ -203,11 +195,16 @@ function deleteProfile(id) {
   if (!id || id === defaultProfileId) throw new Error('默认配置档案不能删除。');
   const index = ensureDefaultProfile(readProfileIndex());
   if (!index.profiles.some((profile) => profile.id === id)) throw new Error('找不到这个配置档案。');
-  fs.rmSync(profileConfigPath(id), { force: true });
   const profiles = index.profiles.filter((profile) => profile.id !== id);
   const activeProfileId = index.activeProfileId === id ? defaultProfileId : index.activeProfileId;
-  writeProfileIndex({ activeProfileId, profiles });
-  return useProfile(activeProfileId);
+  const config = mergeDefaults(defaultConfig, readJson(profileConfigPath(activeProfileId)));
+  validateConfig(config);
+  writeJsonTransaction([
+    { filePath: profileConfigPath(id), delete: true },
+    { filePath: configPath, data: config },
+    { filePath: profilesIndexPath, data: { activeProfileId, profiles } }
+  ]);
+  return { activeProfileId, profiles, config };
 }
 
 function validateAutomationLobby(lobby) {
