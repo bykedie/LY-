@@ -1,378 +1,210 @@
-# LY控制台项目结构与交接文档
+# LY 控制台当前架构
 
-这份文档用于交接、二次开发和线上排查。项目主要由两部分组成：
+> 权威范围：当前代码结构、API、运行时通信、配置和部署数据保护。
+> 当前状态请读 `docs/current-status.md`；长期决策请读 `docs/decisions.md`；历史需求和故障请读 `docs/conversation-handoff.md`。
+
+## 一、系统边界
+
+当前稳定架构基线为 `v1.0.40`（提交 `87be1a8`），由三层组成：
 
 ```text
-网页控制台：src/dashboard.js + public/*
-Minecraft 执行端：src/index.js
+浏览器静态层：public/*
+  -> HTTP / JSON API
+Dashboard 编排层：src/dashboard.js
+  -> 子进程 stdin JSON + stdout ::ly-event JSON
+Mineflayer 执行层：src/index.js
+  -> Minecraft 服务器与模组协议
 ```
 
-用户在浏览器里修改配置，控制台保存到 `bot.config.json`，再由控制台启动 `src/index.js` 执行挂机逻辑。
+浏览器负责编辑配置和发起控制请求；Dashboard 持久化配置、管理执行端进程并聚合协议事件；Mineflayer 执行端负责账号会话和游戏内自动化。
 
-## 一、目录结构
+## 二、目录与职责
 
 ```text
 LY控制台
 ├─ src/
-│  ├─ dashboard.js                # Web 控制台后端：静态页面、配置 API、启动/停止机器人、日志转发、Basic Auth
-│  └─ index.js                    # Minecraft 执行端：读取配置、批量登录、自动功能逻辑
+│  ├─ dashboard.js                # API、配置校验、档案/自动化、鉴权、进程、日志和协议事件
+│  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
-│  ├─ index.html                  # 控制台页面结构
-│  ├─ app.js                      # 控制台前端交互：导航、表单、保存配置、启动/停止、设置中心
-│  ├─ styles.css                  # 控制台样式：侧边栏、布局、响应式、主题细节
-│  └─ log-renderer.js             # Minecraft 颜色代码日志渲染
+│  ├─ index.html                  # 业务 DOM 和页面区域
+│  ├─ styles.css                  # 基础组件、表单和业务样式
+│  ├─ workbench.css               # v1.0.40 三层工作台和响应式视觉覆盖
+│  ├─ app.js                      # 配置、档案、自动化、运行控制、窗口快照和即时动作
+│  └─ log-renderer.js             # Minecraft 颜色日志渲染
 ├─ deploy/
-│  ├─ bootstrap.sh                # 首次部署脚本：安装基础工具、拉取仓库、打开管理菜单
-│  └─ ly-afk-manager.sh           # Ubuntu 菜单脚本：安装、配置、启动、Nginx、HTTPS、日志、更新
-├─ docs/
-│  ├─ ubuntu-24.04-deploy.md      # Ubuntu 24.04 轻量云部署教程
-│  └─ project-architecture.md     # 当前交接文档
-├─ scripts/
-│  ├─ smoke-test.js               # 控制台核心 API 和页面流程测试
-│  ├─ dashboard-auth-test.js      # 控制台 Basic Auth 测试
-│  ├─ dashboard-protocol-test.js  # 控制台启动执行端后的协议通路测试
-│  └─ *-integration-test.js       # 自动登录、钓鱼、重生、移动等集成测试
-├─ bot.config.example.json        # 控制台默认配置模板
+│  ├─ bootstrap.sh                # 首次部署、下载回退和进入管理菜单
+│  └─ ly-afk-manager.sh           # Ubuntu、PM2、Nginx、HTTPS、日志和更新
+├─ scripts/                       # 语法、smoke、协议、鉴权和功能集成测试
+├─ docs/                          # 当前状态、架构、决策、想法、日志、历史交接和部署文档
+├─ bot.config.example.json        # 默认配置和配置结构来源
 ├─ accounts.example.json          # 独立账号文件示例
-├─ .env.example                   # 线上环境变量示例
-├─ package.json                   # npm 脚本和依赖
-└─ README.md                      # 项目入口说明
+├─ .env.example                   # Dashboard 环境变量示例
+├─ AGENTS.md                      # AI 协作、检查点和 Git 边界
+└─ package.json                   # npm 命令与依赖
 ```
 
-不会提交到 GitHub 的运行时文件：
+## 三、启动与进程链路
 
-```text
-.env                 # 面板账号、密码、端口等环境变量
-bot.config.json      # 控制台保存的真实配置
-accounts.json        # 可选的真实账号列表
-node_modules/        # npm 依赖
+本地启动 Dashboard：
+
+```powershell
+npm.cmd run dashboard
 ```
 
-这些文件已在 `.gitignore` 中排除。
+默认监听 `http://127.0.0.1:30123`。线上由 Nginx 反向代理到该地址；需要直接端口访问时按部署文档设置监听地址和安全组。
 
-## 二、启动链路
-
-本地开发：
-
-```bash
-npm run dashboard
-```
-
-后端入口：
-
-```text
-src/dashboard.js
-```
-
-默认监听：
-
-```text
-http://127.0.0.1:30123
-```
-
-线上推荐用 Nginx 反向代理：
-
-```text
-浏览器
-  -> https://bot.你的域名.com
-  -> Nginx
-  -> http://127.0.0.1:30123
-  -> src/dashboard.js
-```
-
-当用户在网页点击“启动”时：
+启动机器人：
 
 ```text
 public/app.js
-  -> POST /api/start
-  -> src/dashboard.js
+  -> POST /api/start（可带本次启动账号）
+  -> src/dashboard.js 校验配置并确保 npm 依赖存在
   -> spawn node src/index.js
-  -> src/index.js 连接 Minecraft 服务器
+  -> START_ACCOUNT_NAMES + BOT_CONFIG_PATH 环境变量
+  -> src/index.js 创建 Mineflayer 会话
 ```
 
-停止流程：
+停止机器人由 `/api/stop` 结束子进程。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+
+## 四、配置与持久化
+
+默认配置来自 `bot.config.example.json`，真实主配置默认保存为 `bot.config.json`。设置 `BOT_CONFIG_PATH` 时，档案和自动化文件会跟随该路径生成。
 
 ```text
-public/app.js
-  -> POST /api/stop
-  -> src/dashboard.js
-  -> 结束当前机器人进程
+bot.config.json                 # 当前主配置
+bot.config.profiles/            # profiles.json 和各配置档案
+bot.config.automations.json     # 可复用大厅自动化方案
+accounts.json                   # 可选独立账号列表
+.env                            # Dashboard 端口、监听和 Basic Auth
 ```
 
-日志流程：
+Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。当前档案保存时同步主配置；切换档案会替换当前主配置。
+
+保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发 `runtimeConfig` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接。
+
+以上运行时数据均由 `.gitignore` 排除。部署脚本使用 Git 或压缩包更新时必须备份并恢复这些文件和目录。
+
+## 五、Dashboard API
 
 ```text
-src/index.js stdout/stderr
-  -> src/dashboard.js 收集
-  -> GET /api/status
-  -> public/app.js
-  -> public/log-renderer.js 渲染 MC 颜色日志
+GET  /api/config                 # 当前配置
+POST /api/config                 # 校验并保存；运行时下发配置
+POST /api/reset                  # 重置默认配置
+GET  /api/profiles               # 配置档案列表
+POST /api/profiles               # 保存档案
+POST /api/profiles/use           # 使用档案
+POST /api/profiles/delete        # 删除档案
+GET  /api/automations            # 自动化方案列表
+POST /api/automations            # 保存自动化方案
+POST /api/automations/delete     # 删除自动化方案
+GET  /api/status                 # 运行状态、控制状态和日志
+POST /api/start                  # 启动执行端
+POST /api/stop                   # 停止执行端
+POST /api/send                   # 向全部或指定账号发送聊天/命令
+GET  /api/window                 # 请求指定账号窗口和协议快照
+POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
 ```
 
-## 三、配置流转
+所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。
 
-默认配置：
+## 六、运行时通信协议
+
+Dashboard 向 `src/index.js` 的 stdin 写入一行一个 JSON 命令：
 
 ```text
-bot.config.example.json
+chat             # 发送聊天或命令
+runtimeConfig    # 下发运行时配置
+windowSnapshot   # 请求位置、实体、窗口和模组数据
+lobbyAction      # 立即执行单个大厅动作并携带 requestId
 ```
 
-真实配置：
+执行端用 stdout 输出带前缀的结构化事件：
 
 ```text
-bot.config.json
+::ly-event { ...JSON... }
 ```
 
-控制台后端逻辑：
+当前事件类型：
 
 ```text
-src/dashboard.js
-  readConfig()      # 不存在真实配置时读取 example
-  saveConfig()      # 保存前合并默认值并校验
-  resetConfig()     # 重置为默认配置
-  validateConfig()  # 校验服务器、账号和功能配置
+windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和协议菜单
+lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 ```
 
-执行端逻辑：
+Dashboard 消费结构化事件，不把事件原文写入普通日志。即时动作有按动作类型计算的超时；进程退出时会拒绝全部等待中的动作。
+
+## 七、Mineflayer 执行端
+
+`src/index.js` 负责：
+
+- 批量账号加载、启动前账号筛选、连接间隔和断线重连；
+- 自动注册/登录、关键词回复、预设消息和远程命令；
+- 战斗、钓鱼、进食、重生、自动走路和防挂机移动；
+- 定时任务和大厅动作序列；
+- 使用物品、相对移动、寻找实体/NPC、按键、移动槽位和点击窗口；
+- 采集位置、客户端已知实体、标准容器窗口和聊天按钮；
+- 解析 CustomNPCs 对话与 DragonCore 按钮/槽位映射。
+
+标准窗口动作走 Minecraft 容器协议。纯客户端 DragonCore 控件如果没有真实槽位映射或已采集点击协议，不得伪造执行成功。
+
+## 八、前端结构
+
+前端无构建步骤，浏览器直接加载静态文件。`public/index.html` 保留业务 DOM ID；`public/app.js` 绑定事件并维护：
 
 ```text
-src/index.js
-  loadRuntimeConfig()
-  loadAccounts()
-  createBot()
-  attachAutoLogin()
-  attachCombat()
-  attachFishing()
-  attachMovement()
-  attachChat()
-  attachLobby()
-  attachScheduler()
+state.config / state.control          # 配置和运行控制
+state.profiles / state.activeProfileId # 配置档案
+state.automations                     # 自动化方案
+state.nearbyEntities / state.windowItems # 运行时快照
+state.uiSettings                      # 浏览器 localStorage 界面偏好
 ```
 
-环境变量：
+`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查两者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
 
-```text
-DASHBOARD_PORT       # 面板端口，默认 30123
-DASHBOARD_HOST       # 监听地址，线上反代推荐 127.0.0.1
-DASHBOARD_USER       # Basic Auth 用户名，默认 admin
-DASHBOARD_PASSWORD   # Basic Auth 密码，公网部署必须填写
-BOT_CONFIG_PATH      # 可选，指定真实配置文件路径
-```
+## 九、部署架构
 
-## 四、前端结构
-
-前端没有使用构建工具，浏览器直接加载静态文件：
-
-```text
-public/index.html
-public/styles.css
-public/app.js
-public/log-renderer.js
-```
-
-主要 UI 区域在 `public/app.js` 中维护：
-
-```text
-sections             # 左侧导航分区
-state.config         # 当前配置
-state.status         # 后端运行状态
-state.uiSettings     # 设置中心保存的界面偏好
-render()             # 页面总渲染入口
-renderConfig()       # 服务器配置页
-renderAccounts()     # 批量账号页
-renderSettings()     # 设置中心
-```
-
-设置中心数据保存在浏览器 `localStorage`，只影响当前浏览器看到的 UI 名称、导航位置、提示文案等，不会改变服务器端运行配置。
-
-## 五、部署脚本结构
-
-首次部署命令：
+首次部署入口：
 
 ```bash
 curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh | sudo bash
 ```
 
-`deploy/bootstrap.sh` 负责：
+`bootstrap.sh` 安装基础工具，优先使用 Git，失败时依次回退 GitHub 压缩包和 jsDelivr，然后通过 `bash` 打开管理菜单。`ly-afk-manager.sh` 管理 Node.js、npm、PM2、Nginx、UFW、HTTPS、日志和项目更新；快捷入口为 `/usr/local/bin/j`。
+
+线上推荐：
 
 ```text
-1. 打印状态和日志路径
-2. 安装 git / curl / ca-certificates
-3. 检查 GitHub 仓库和分支是否可访问
-4. 克隆或更新项目到 /opt/ly-console
-5. 打开 deploy/ly-afk-manager.sh 菜单
+浏览器 -> HTTPS/Nginx -> 127.0.0.1:30123 -> src/dashboard.js
 ```
 
-安装日志：
+更新时必须保留 `.env`、`bot.config.json`、`accounts.json`、`bot.config.profiles/` 和 `bot.config.automations.json`。
+
+## 十、测试与开发入口
+
+```powershell
+npm.cmd run handoff:check # 交接体系一致性
+npm.cmd run check         # JavaScript 语法检查
+npm.cmd test              # 完整测试
+```
+
+常见修改位置：
 
 ```text
-/tmp/ly-console-bootstrap.log
+前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/app.js
+Dashboard/API     src/dashboard.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
+Minecraft 功能    src/index.js, scripts/*-integration-test.js
+部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
+交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md
 ```
 
-菜单脚本：
+## 十一、线上排查顺序
 
 ```text
-deploy/ly-afk-manager.sh
-```
-
-它负责：
-
-```text
-安装 Node.js / npm / nginx / ufw / pm2
-安装或修复快捷命令 j
-生成 .env
-安装 npm 依赖
-pm2 后台启动控制台
-配置 Nginx 域名反向代理
-申请 HTTPS 证书
-查看状态和日志
-带进度更新项目并重启
-```
-
-快捷命令安装后位于：
-
-```text
-/usr/local/bin/j
-```
-
-以后 SSH 登录服务器后，直接输入 `j` 即可进入 `deploy/ly-afk-manager.sh` 管理菜单。
-
-更新逻辑：
-
-```text
-Git 安装：菜单 13 使用 git fetch --progress + ff-only merge 更新。
-压缩包安装：菜单 13 下载 GitHub 分支压缩包更新，并保留 .env / bot.config.json / accounts.json。
-```
-
-## 六、常见开发位置
-
-修改侧边栏导航：
-
-```text
-public/app.js
-public/styles.css
-```
-
-修改服务器配置字段说明：
-
-```text
-public/app.js
-bot.config.example.json
-```
-
-修改后端 API：
-
-```text
-src/dashboard.js
-scripts/smoke-test.js
-scripts/dashboard-auth-test.js
-```
-
-修改 Minecraft 自动功能：
-
-```text
-src/index.js
-scripts/*-integration-test.js
-```
-
-修改部署流程：
-
-```text
-deploy/bootstrap.sh
-deploy/ly-afk-manager.sh
-docs/ubuntu-24.04-deploy.md
-README.md
-```
-
-## 七、测试
-
-快速语法检查：
-
-```bash
-npm run check
-```
-
-完整测试：
-
-```bash
-npm test
-```
-
-当前测试覆盖：
-
-```text
-前端页面 smoke
-控制台配置保存/重置
-启动/停止流程
-Basic Auth
-本地 Minecraft 协议模拟
-自动登录
-关键词回复
-定时任务
-自动钓鱼
-自动重生
-防挂机移动
-批量账号校验
-```
-
-## 八、线上排查顺序
-
-网页打不开：
-
-```bash
-pm2 status ly-afk-dashboard
-pm2 logs ly-afk-dashboard
-curl -i http://127.0.0.1:30123/api/status
-sudo nginx -t
-sudo systemctl status nginx
-```
-
-一键部署卡住：
-
-```bash
-tail -n 120 /tmp/ly-console-bootstrap.log
-ps aux | grep -E "apt|git|npm|node|pm2"
-```
-
-域名打不开：
-
-```bash
-nslookup bot.你的域名.com
-sudo ufw status
-sudo nginx -t
-```
-
-机器人进不了 Minecraft：
-
-```text
-1. 确认控制台域名和 Minecraft 服务器地址没有填反
-2. 确认 Minecraft 服务器端口是否正确
-3. 确认版本、登录模式和服务器规则
-4. 查看网页控制台实时日志
-```
-
-## 九、交接备注
-
-当前仓库地址：
-
-```text
-https://github.com/bykedie/LY-.git
-```
-
-线上推荐安装目录：
-
-```text
-/opt/ly-console
-```
-
-默认控制台端口：
-
-```text
-30123
-```
-
-推荐公网访问方式：
-
-```text
-Nginx + HTTPS + DASHBOARD_HOST=127.0.0.1
+1. 阅读 docs/current-status.md，确认远端稳定版与本地研发版。
+2. pm2 status ly-afk-dashboard / pm2 logs ly-afk-dashboard。
+3. curl -i http://127.0.0.1:30123/api/status。
+4. sudo nginx -t，并检查 Nginx、UFW 和云安全组。
+5. 部署失败查看 /tmp/ly-console-bootstrap.log。
+6. Minecraft 问题查看网页实时日志、服务端版本、登录模式和模组协议。
+7. 更新前后核对运行时配置文件和备份目录。
 ```

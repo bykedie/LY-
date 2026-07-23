@@ -1,0 +1,127 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const failures = [];
+
+function read(relativePath) {
+  const filePath = path.join(projectRoot, relativePath);
+  if (!fs.existsSync(filePath)) {
+    failures.push(`缺少关键文件：${relativePath}`);
+    return '';
+  }
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+function section(document, heading) {
+  const marker = `## ${heading}`;
+  const start = document.indexOf(marker);
+  if (start < 0) return '';
+  const contentStart = start + marker.length;
+  const next = document.indexOf('\n## ', contentStart);
+  return document.slice(contentStart, next < 0 ? undefined : next).trim();
+}
+
+function requireCondition(condition, message) {
+  if (!condition) failures.push(message);
+}
+
+const requiredFiles = [
+  'AGENTS.md',
+  'docs/current-status.md',
+  'docs/project-architecture.md',
+  'docs/decisions.md',
+  'docs/ideas.md',
+  'docs/work-log.md',
+  'docs/conversation-handoff.md',
+  'docs/ubuntu-24.04-deploy.md',
+  'src/dashboard.js',
+  'src/index.js',
+  'public/index.html',
+  'public/styles.css',
+  'public/workbench.css',
+  'public/app.js',
+  'public/log-renderer.js'
+];
+
+for (const relativePath of requiredFiles) read(relativePath);
+
+const status = read('docs/current-status.md');
+const decisions = read('docs/decisions.md');
+const ideas = read('docs/ideas.md');
+const agents = read('AGENTS.md');
+const architecture = read('docs/project-architecture.md');
+
+const requiredStatusSections = [
+  '当前稳定版本',
+  '当前本地开发版本',
+  '当前本地分支',
+  '当前目标',
+  '本轮需求和验收标准',
+  '已完成事项',
+  '正在进行事项',
+  '下一步明确动作',
+  '已修改文件',
+  '未解决问题和阻塞项',
+  '最近测试结果',
+  '恢复开发命令',
+  '是否允许推送',
+  '最后更新时间'
+];
+
+for (const heading of requiredStatusSections) {
+  requireCondition(Boolean(section(status, heading)), `当前状态缺少内容：${heading}`);
+}
+
+const stableVersion = section(status, '当前稳定版本').match(/`(v\d+\.\d+\.\d+)`/)?.[1];
+const developmentVersion = section(status, '当前本地开发版本').match(/`(v\d+\.\d+\.\d+)`/)?.[1];
+const documentedBranch = section(status, '当前本地分支').match(/`([^`]+)`/)?.[1];
+const gitBranchResult = spawnSync('git', ['branch', '--show-current'], { cwd: projectRoot, encoding: 'utf8' });
+const actualBranch = gitBranchResult.stdout.trim();
+
+requireCondition(stableVersion === 'v1.0.40', '当前稳定版本必须为 v1.0.40。');
+requireCondition(developmentVersion === 'v1.0.42', '当前本地开发版本必须为 v1.0.42。');
+requireCondition(documentedBranch === 'local/v1.0.42', '当前状态中的本地分支必须为 local/v1.0.42。');
+requireCondition(actualBranch === documentedBranch, `Git 当前分支 ${actualBranch || '(未知)'} 与交接记录 ${documentedBranch || '(缺失)'} 不一致。`);
+requireCondition(decisions.includes('`v1.0.40`') && decisions.includes('`v1.0.42`'), '决策记录缺少稳定版或开发版约定。');
+requireCondition(architecture.includes('`v1.0.40`'), '架构文档缺少当前稳定架构基线。');
+
+const pushPermission = section(status, '是否允许推送');
+requireCondition(/^否[。\s]/.test(pushPermission), '推送许可必须存在并默认明确为“否”。');
+requireCondition(agents.includes('禁止执行 `git push`'), 'AGENTS.md 缺少未经许可禁止推送规则。');
+
+const nextAction = section(status, '下一步明确动作');
+requireCondition(nextAction.length >= 10 && !/^(无|暂无|待定)[。\s]*$/.test(nextAction), '当前状态必须提供具体的下一步明确动作。');
+
+function checkUniqueHeadings(document, prefix, label) {
+  const ids = [...document.matchAll(new RegExp(`^## ${prefix}-(\\d{3})：`, 'gm'))].map((match) => match[1]);
+  requireCondition(ids.length > 0, `${label}没有有效编号记录。`);
+  const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+  requireCondition(duplicates.length === 0, `${label}存在重复编号：${[...new Set(duplicates)].join(', ')}`);
+}
+
+checkUniqueHeadings(ideas, 'IDEA', '想法台账');
+checkUniqueHeadings(decisions, 'DEC', '决策记录');
+
+const runtimePaths = [
+  '.env',
+  'bot.config.json',
+  'accounts.json',
+  'bot.config.profiles/profiles.json',
+  'bot.config.automations.json'
+];
+
+for (const runtimePath of runtimePaths) {
+  const result = spawnSync('git', ['check-ignore', '-q', runtimePath], { cwd: projectRoot });
+  requireCondition(result.status === 0, `运行时文件未被 .gitignore 排除：${runtimePath}`);
+}
+
+if (failures.length > 0) {
+  console.error('handoff check failed:');
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log(`handoff check ok (${stableVersion} -> ${developmentVersion}, ${actualBranch}, push: no)`);

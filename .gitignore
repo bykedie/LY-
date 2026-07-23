@@ -3,4 +3,5 @@ node_modules/
 accounts.json
 bot.config.json
 bot.config.profiles/
+bot.config.automations.json
 npm-debug.log*
