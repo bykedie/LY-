@@ -116,8 +116,11 @@ try {
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
   assert(styles.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), '大厅步骤没有按每排五张卡片布局');
   assert(styles.includes('.lobby-action-step-block:nth-child(5n) .lobby-action-connector'), '每排第五张步骤卡缺少换行连接节点');
-  assert(managerScript.includes('v1.0.38'), '管理脚本版本没有更新到 v1.0.38');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.38"'), '启动脚本期望版本没有更新到 v1.0.38');
+  assert(managerScript.includes('v1.0.39'), '管理脚本版本没有更新到 v1.0.39');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.39"'), '启动脚本期望版本没有更新到 v1.0.39');
+  assert(styles.includes('--accent: #ed6a5a'), '新视觉系统缺少珊瑚强调色');
+  assert(styles.includes('grid-template-columns: 68px minmax(0, 1fr)'), '手机端侧栏没有固定在左侧');
+  assert(styles.includes('@keyframes status-pulse'), '控制台在线状态缺少呼吸动效');
   assert(managerScript.includes('exec bash ./deploy/ly-afk-manager.sh'), '管理脚本生成的 j 快捷命令仍依赖执行权限');
   assert(bootstrapScript.includes('exec sudo bash ./deploy/ly-afk-manager.sh'), '启动脚本生成的 j 快捷命令没有通过 bash 启动');
   assert(bootstrapScript.includes('run_interactive $SUDO bash ./deploy/ly-afk-manager.sh'), '首次部署仍直接执行管理脚本');
