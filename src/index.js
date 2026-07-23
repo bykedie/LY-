@@ -107,6 +107,8 @@ let ACTIVE_CONFIG = FILE_CONFIG ? createActiveConfig(FILE_CONFIG) : USER_CONFIG;
 let ACTIVE_ACCOUNTS = FILE_CONFIG ? FILE_CONFIG.accounts : ACCOUNTS;
 let ACTIVE_FEATURES = mergeFeatures(FILE_CONFIG?.features || {});
 const sessions = new Map();
+const dashboardStartRequestId = String(process.env.DASHBOARD_START_REQUEST_ID || '').trim();
+let executionReadySent = false;
 const FOOD_NAMES = new Set([
   'apple',
   'baked_potato',
@@ -528,6 +530,8 @@ function createBot(account) {
     emitWindowSnapshot(account.username);
     scheduleReconnect(account);
   });
+
+  emitExecutionReady(account.username);
 }
 
 function startFeatureWorkers(username) {
@@ -1404,6 +1408,18 @@ async function waitForWindow(username, titleText = '', timeoutMs = 5000) {
 
 function emitRuntimeEvent(event) {
   console.log(`::ly-event ${JSON.stringify(event)}`);
+}
+
+function emitExecutionReady(username) {
+  if (!dashboardStartRequestId || executionReadySent) return;
+  executionReadySent = true;
+  emitRuntimeEvent({
+    type: 'executionReady',
+    requestId: dashboardStartRequestId,
+    username,
+    ok: true,
+    message: '执行端已完成初始化并创建首个机器人会话。'
+  });
 }
 
 function emitWindowSnapshot(username, requestId = '') {

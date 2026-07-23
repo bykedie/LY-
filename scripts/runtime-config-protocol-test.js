@@ -32,7 +32,12 @@ async function expectDashboardToWaitForConfigResult() {
 
     dashboard = spawn(process.execPath, ['src/dashboard.js'], {
       cwd: tempRoot,
-      env: { ...process.env, DASHBOARD_PORT: String(dashboardPort), BOT_CONFIG_PATH: configPath },
+      env: {
+        ...process.env,
+        DASHBOARD_PORT: String(dashboardPort),
+        BOT_CONFIG_PATH: configPath,
+        DASHBOARD_START_READY_TIMEOUT_MS: '250'
+      },
       stdio: ['ignore', 'pipe', 'pipe']
     });
     let output = '';
@@ -41,6 +46,29 @@ async function expectDashboardToWaitForConfigResult() {
 
     const baseUrl = `http://127.0.0.1:${dashboardPort}`;
     await waitForDashboard(baseUrl, () => output);
+    await requestJson(baseUrl, '/api/config', {
+      method: 'POST',
+      body: JSON.stringify(createConfig('/startup-exit'))
+    });
+    const failedStart = await requestJson(baseUrl, '/api/start', { method: 'POST', expectOk: false });
+    assert(failedStart.ok === false, '执行端初始化后立即退出时 Dashboard 错误返回启动成功');
+    assert(failedStart.message.includes('初始化') || failedStart.message.includes('退出'), `执行端初始化失败原因不明确：${failedStart.message}`);
+    const failedStartStatus = await requestJson(baseUrl, '/api/status');
+    assert(failedStartStatus.running === false, '执行端初始化失败后 Dashboard 仍报告运行中');
+
+    await requestJson(baseUrl, '/api/config', {
+      method: 'POST',
+      body: JSON.stringify(createConfig('/startup-ignore'))
+    });
+    const startupWaitAt = Date.now();
+    const timedOutStart = await requestJson(baseUrl, '/api/start', { method: 'POST', expectOk: false });
+    const startupTimeoutElapsed = Date.now() - startupWaitAt;
+    assert(timedOutStart.ok === false, '执行端不返回初始化回执时 Dashboard 错误返回启动成功');
+    assert(timedOutStart.message.includes('初始化完成超时'), `执行端初始化超时原因不明确：${timedOutStart.message}`);
+    assert(startupTimeoutElapsed >= 150 && startupTimeoutElapsed < 3000, `执行端初始化超时边界异常：${startupTimeoutElapsed}ms`);
+    const timedOutStartStatus = await requestJson(baseUrl, '/api/status');
+    assert(timedOutStartStatus.running === false, '执行端初始化超时后仍有残留运行进程');
+
     const initialConfig = createConfig('/initial');
     await requestJson(baseUrl, '/api/config', { method: 'POST', body: JSON.stringify(initialConfig) });
     await requestJson(baseUrl, '/api/start', { method: 'POST' });
@@ -106,6 +134,7 @@ async function expectExecutorToReportConfigRejection() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-config-executor-'));
   const configPath = path.join(tempDir, 'bot.config.json');
   const requestId = 'config-invalid-test';
+  const startRequestId = 'execution-ready-test';
   let executor = null;
   let output = '';
 
@@ -113,13 +142,14 @@ async function expectExecutorToReportConfigRejection() {
     fs.writeFileSync(configPath, `${JSON.stringify(createConfig('/initial'), null, 2)}\n`, 'utf8');
     executor = spawn(process.execPath, ['src/index.js'], {
       cwd: projectRoot,
-      env: { ...process.env, BOT_CONFIG_PATH: configPath },
+      env: { ...process.env, BOT_CONFIG_PATH: configPath, DASHBOARD_START_REQUEST_ID: startRequestId },
       stdio: ['pipe', 'pipe', 'pipe']
     });
     const resultPromise = waitForRuntimeEvent(executor, requestId, (text) => { output += text; });
     executor.stderr.on('data', (data) => { output += data.toString(); });
     await writeJsonLine(executor.stdin, { type: 'config', requestId, config: null });
     const result = await resultPromise;
+    assert(output.includes(`\"type\":\"executionReady\"`) && output.includes(`\"requestId\":\"${startRequestId}\"`), '真实执行端没有返回匹配的初始化完成回执');
     assert(result.ok === false, '执行端拒绝非法实时配置时返回了成功回执');
     assert(result.message.includes('实时配置格式不正确'), `执行端拒绝原因不明确：${result.message}`);
   } catch (error) {
@@ -161,7 +191,21 @@ function createConfig(preset) {
 
 function fakeExecutorSource() {
   return `
+import fs from 'node:fs';
 import readline from 'node:readline';
+
+const startupConfig = JSON.parse(fs.readFileSync(process.env.BOT_CONFIG_PATH, 'utf8'));
+const startupMarker = startupConfig.features?.chat?.presetMessagesList?.[0];
+if (startupMarker === '/startup-exit') {
+  setImmediate(() => process.exit(9));
+} else if (startupMarker !== '/startup-ignore') {
+  console.log('::ly-event ' + JSON.stringify({
+    type: 'executionReady',
+    requestId: process.env.DASHBOARD_START_REQUEST_ID,
+    ok: true,
+    message: '模拟执行端初始化完成。'
+  }));
+}
 
 let snapshotRequests = 0;
 const input = readline.createInterface({ input: process.stdin });

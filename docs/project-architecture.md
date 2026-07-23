@@ -70,11 +70,12 @@ public/app.js
   -> src/dashboard.js 校验配置并确保 npm 依赖存在
   -> spawn node src/index.js
   -> 等待 ChildProcess spawn 成功；error 时清理状态并返回启动失败
-  -> START_ACCOUNT_NAMES + BOT_CONFIG_PATH 环境变量
-  -> src/index.js 创建 Mineflayer 会话
+  -> START_ACCOUNT_NAMES + BOT_CONFIG_PATH + DASHBOARD_START_REQUEST_ID 环境变量
+  -> src/index.js 完成账号校验并创建首个 Mineflayer 会话
+  -> executionReady 关联回执
 ```
 
-启动 API 只有在操作系统发出 ChildProcess `spawn` 事件后才返回成功；无法创建进程时捕获 `error`，清理运行配置和进程引用并返回明确失败，禁止未处理事件终止 Dashboard。停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
+启动 API 先等待操作系统发出 ChildProcess `spawn`，再等待执行端返回匹配请求 ID 的 `executionReady`；执行端只有完成配置和账号校验、并成功创建首个 Mineflayer 会话后才发送该事件，不等待其他账号按连接间隔全部创建。无法创建进程、初始化提前退出或默认 10 秒内无回执时均返回明确失败；ready 超时会先请求优雅停止，并以强制终止兜底，禁止 API 失败后遗留后台进程。等待上限可通过 `DASHBOARD_START_READY_TIMEOUT_MS` 调整。停止机器人由 `/api/stop` 结束子进程；普通停止同样使用 5 秒强制兜底，停止中重复停止保持幂等；未运行时停止、运行中重复启动以及停止完成前启动都会返回明确错误，避免前端显示虚假成功。Dashboard 收到 `SIGINT` 或 `SIGTERM` 时会停止接收新连接、拒绝全部等待中的跨进程请求、通知 Mineflayer 执行端退出，并在 5 秒后强制清理残留子进程；执行端收到两种信号时停止全部账号和功能工作器。Dashboard 最多保留最近 500 行日志，`/api/status` 返回进程状态、控制状态和日志。
 
 ## 四、配置与持久化
 
@@ -140,9 +141,10 @@ lobbyAction      # 立即执行单个大厅动作并携带 requestId
 windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和协议菜单；主动回执携带 requestId
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 configApplyResult   # 按 requestId 确认或拒绝实时配置
+executionReady      # 按启动 requestId 确认执行端关键初始化完成
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理即时动作、配置应用和主动窗口快照的回执等待；即时动作按动作类型计算超时，配置应用和窗口快照使用固定有界超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的快照回执才成功，因此合法空窗口与执行端无响应不会混淆。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、即时动作、配置应用和主动窗口快照的回执等待；启动就绪、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的快照回执才成功，因此合法空窗口与执行端无响应不会混淆。
 
 ## 七、Mineflayer 执行端
 

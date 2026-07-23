@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { backupCorruptJson, readJson, recoverJsonTransactions, writeJsonTransaction } from './json-store.js';
-import { requestProcessStop, waitForProcessSpawn } from './process-lifecycle.js';
+import { requestProcessStop, waitForProcessExit, waitForProcessSpawn } from './process-lifecycle.js';
 import { writeJsonLine } from './process-ipc.js';
 import { serveStaticFile } from './static-server.js';
 import { createAutomationStore } from './automation-store.js';
@@ -28,6 +28,7 @@ const port = Number(process.env.DASHBOARD_PORT || 30123);
 const host = (process.env.DASHBOARD_HOST || '127.0.0.1').trim() || '127.0.0.1';
 const dashboardUser = (process.env.DASHBOARD_USER || 'admin').trim() || 'admin';
 const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
+const executionReadyTimeoutMs = positiveNumber(process.env.DASHBOARD_START_READY_TIMEOUT_MS, 10000);
 
 let botProcess = null;
 let runningConfig = null;
@@ -44,6 +45,11 @@ const requiredDependencyFiles = [
   'node_modules/mineflayer-pathfinder/package.json'
 ];
 const maxRequestBodyBytes = 1024 * 1024;
+
+function positiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
 
 const transactionRecovery = recoverJsonTransactions(recoveryDir, {
   allowedFiles: [configPath],
@@ -538,9 +544,16 @@ async function startBot(startAccountNames = []) {
   stopping = false;
   logs = [];
   runtimeSnapshots.clear();
+  const startRequestId = createExecutionReadyRequestId();
+  const readyResult = runtimeRequests.wait(startRequestId, executionReadyTimeoutMs, '等待执行端初始化完成超时。');
   const child = spawn(process.execPath, ['src/index.js'], {
     cwd: projectRoot,
-    env: { ...process.env, BOT_CONFIG_PATH: configPath, START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames) },
+    env: {
+      ...process.env,
+      BOT_CONFIG_PATH: configPath,
+      START_ACCOUNT_NAMES: JSON.stringify(selectedAccountNames),
+      DASHBOARD_START_REQUEST_ID: startRequestId
+    },
     stdio: ['pipe', 'pipe', 'pipe']
   });
   botProcess = child;
@@ -567,6 +580,8 @@ async function startBot(startAccountNames = []) {
   try {
     await waitForProcessSpawn(child);
   } catch (error) {
+    runtimeRequests.cancel(startRequestId, error);
+    readyResult.catch(() => {});
     if (botProcess === child) {
       botProcess = null;
       runningConfig = null;
@@ -574,7 +589,29 @@ async function startBot(startAccountNames = []) {
     }
     throw new Error(`挂机进程启动失败：${error.message}`);
   }
-  addLog('挂机进程已启动。');
+
+  try {
+    await readyResult;
+  } catch (error) {
+    runtimeRequests.cancel(startRequestId, error);
+    if (child.exitCode === null && child.signalCode === null) {
+      stopping = true;
+      const exited = waitForProcessExit(child, 3000);
+      requestProcessStop(child, { forceAfterMs: 1000 });
+      try {
+        await exited;
+      } catch (cleanupError) {
+        addLog(`初始化失败后的执行进程清理失败：${cleanupError.message}`);
+      }
+    }
+    if (botProcess === child && (child.exitCode !== null || child.signalCode !== null)) {
+      botProcess = null;
+      runningConfig = null;
+      stopping = false;
+    }
+    throw new Error(`挂机进程初始化失败：${error.message}`);
+  }
+  addLog('挂机进程初始化完成。');
 }
 
 function handleBotEventLine(line) {
@@ -603,6 +640,9 @@ function handleBotEventLine(line) {
     }
     if (event.type === 'configApplyResult' && event.requestId) {
       runtimeRequests.settle(event, '实时配置应用失败。');
+    }
+    if (event.type === 'executionReady' && event.requestId) {
+      runtimeRequests.settle(event, '执行端初始化失败。');
     }
   } catch (error) {
     addLog(`解析运行事件失败：${error.message}`);
@@ -707,6 +747,10 @@ function createWindowSnapshotRequestId() {
 
 function createConfigRequestId() {
   return `config-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createExecutionReadyRequestId() {
+  return `start-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function getLobbyActionTimeout(action) {

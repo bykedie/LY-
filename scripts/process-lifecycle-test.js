@@ -3,12 +3,14 @@ import { once } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { requestProcessStop, waitForProcessSpawn } from '../src/process-lifecycle.js';
+import { requestProcessStop, waitForProcessExit, waitForProcessSpawn } from '../src/process-lifecycle.js';
 
 await testForcedStop();
 await testGracefulExitCancelsForce();
 await testSpawnSuccess();
 await testSpawnFailure();
+await testExitWait();
+await testExitWaitTimeout();
 testMissingChild();
 console.log('process lifecycle test ok');
 
@@ -44,6 +46,22 @@ async function testSpawnFailure() {
   assert(error.code === 'ENOENT', `缺失可执行文件没有返回 ENOENT：${error.code || error.message}`);
 }
 
+async function testExitWait() {
+  const child = fakeChild();
+  const exited = waitForProcessExit(child, 100);
+  setTimeout(() => {
+    child.exitCode = 4;
+    child.emit('exit', 4, null);
+  }, 10);
+  const result = await exited;
+  assert(result.code === 4, `等待进程退出返回了错误退出码：${result.code}`);
+}
+
+async function testExitWaitTimeout() {
+  const error = await capture(waitForProcessExit(fakeChild(), 20));
+  assert(error.message.includes('等待执行进程退出超时'), `进程退出超时原因不明确：${error.message}`);
+}
+
 function testMissingChild() {
   assert(requestProcessStop(null) === null, '空子进程应该返回 null');
 }
@@ -70,7 +88,7 @@ async function capture(promise) {
   } catch (error) {
     return error;
   }
-  throw new Error('预期进程启动失败，但实际成功');
+  throw new Error('预期操作失败，但实际成功');
 }
 
 function assert(condition, message) {

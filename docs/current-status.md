@@ -22,7 +22,7 @@
 
 - 无需等待新需求，持续审计当前实现中的真实 bug，并先复现、后修复。
 - 修复必须覆盖根因，增加能在修复前失败、修复后通过的回归测试。
-- 配置事务在进程被强制终止后必须能够确定性恢复，不得根据文件内容猜测。
+- 执行子进程只有完成关键初始化并创建首个机器人会话后，`/api/start` 才能返回成功；初始化退出或超时必须失败并清理进程状态。
 - 关键动作立即更新当前状态和工作日志；稳定阶段创建本地里程碑提交。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
 
@@ -47,23 +47,27 @@
 - 跨进程等待未处理拒绝竞态：`0ecb92b`。
 - 窗口快照关联回执与无响应失败语义：`4d0f694`。
 - 断线连接级快照清理与会话状态边界：`a50f29f`。
+- 执行子进程操作系统 spawn 确认：`66c72c8`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-执行子进程启动失败边界已修复并通过完整验证：新增真实缺失可执行文件回归和 `waitForProcessSpawn()`；Dashboard 监听 ChildProcess `error`，等待 `spawn` 成功后才记录并返回启动成功，失败时清理进程引用、运行配置和停止状态。当前修改待本地里程碑提交。
+`executionReady` 应用级启动握手、初始化超时和超时后进程清理已完成全部验证，可创建独立本地里程碑提交。
 
 ## 下一步明确动作
 
-创建子进程启动失败边界的独立本地提交；提交后审计执行脚本成功 spawn 但初始化后立即退出时 `/api/start` 是否仍短暂返回成功，以及是否需要执行端 ready 握手。
+创建当前修复的本地提交；随后审计启动过程中并发 `/api/start` 请求是否可能在首个 ready 返回前创建两个执行子进程。
 
 ## 已修改文件
 
+- `.env.example`
 - `docs/current-status.md`
 - `docs/project-architecture.md`
 - `docs/work-log.md`
 - `scripts/process-lifecycle-test.js`
+- `scripts/runtime-config-protocol-test.js`
 - `src/dashboard.js`
+- `src/index.js`
 - `src/process-lifecycle.js`
 
 ## 未解决问题和阻塞项
@@ -76,25 +80,11 @@
 
 ## 最近测试结果
 
-- `node scripts/process-lifecycle-test.js`：通过，新增真实 ChildProcess `spawn` 成功与缺失可执行文件 `ENOENT` 失败场景。
-- `node scripts/smoke-test.js`：通过，启动 API 改为异步等待后既有状态机未回归。
-- `node scripts/dashboard-protocol-test.js`：通过，真实 Dashboard/Mineflayer 启停与协议链路未回归。
-- `npm.cmd run maintenance:check`：通过，Dashboard 为 998 行，其他大型文件与 CSS 基线未增长。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含真实 spawn 成功/失败及全部既有业务、协议和认证场景。
-- `node scripts/dashboard-protocol-test.js`：修复前断线后仍返回旧坐标，修复后位置、窗口、实体、消息、按钮、协议对话和 DragonCore 菜单全部清空。
-- `node scripts/session-state-test.js`：通过，覆盖会话默认状态、连接级快照字段和两个延迟日志定时器清理。
-- `node scripts/anti-afk-movement-test.js`：通过，断线重连仍以新出生点重建移动状态。
-- `npm.cmd run maintenance:check`：通过，`src/index.js` 从 2284 行降至 2235 行；CSS 和其他大型文件预算未增长。
-- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，会话状态单测、断线清理、重连和旧连接事件守卫及所有既有场景均通过；最终 `src/index.js` 为 2242 行。
-- `node scripts/runtime-config-protocol-test.js`：通过；修复前无回执错误返回空快照成功，修复后合法空快照成功、第二次无回执在有界时间内明确失败，同时配置接受/拒绝/超时/退出场景未回归。
-- `node scripts/dashboard-protocol-test.js`：通过，真实 Mineflayer 位置、窗口、协议菜单和大厅动作快照均正常。
-- `node scripts/runtime-request-tracker-test.js`：通过，成功、失败、超时、取消、退出批量拒绝和延迟消费均受覆盖。
-- `npm.cmd run handoff:check`：通过，分支、版本、提交引用、关键文件和推送边界一致。
-- `npm.cmd run maintenance:check`：通过，API 13 个、CSS 重复 `80/80`、`!important` 为 `12/12`；`src/dashboard.js` 983 行。
-- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含新增快照回执场景及全部存储、进程、前端、Minecraft 协议和认证测试。
+- `npm.cmd test`：全部通过，包含交接、维护、语法、存储事务、进程、前端、Minecraft 协议、认证及新增启动 ready 场景。
+- `node scripts/runtime-config-protocol-test.js`：覆盖初始化立即退出、ready 缺失超时并清理、正常 ready、配置回执与窗口快照回执。
+- 修复前同一运行协议测试稳定失败于“执行端初始化后立即退出时 Dashboard 错误返回启动成功”。
+- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2258 行、`public/app.js` 1719 行、`src/dashboard.js` 1042 行。
 
 ## 恢复开发命令
 
@@ -115,4 +105,4 @@ npm.cmd test
 
 ## 最后更新时间
 
-2026-07-24 00:46:56 +08:00
+2026-07-24 01:12:37 +08:00
