@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { backupCorruptJson, readJson, writeJsonTransaction } from './json-store.js';
+import { backupCorruptJson, readJson, recoverJsonTransactions, writeJsonTransaction } from './json-store.js';
 import { requestProcessStop } from './process-lifecycle.js';
 import { writeJsonLine } from './process-ipc.js';
 import { serveStaticFile } from './static-server.js';
@@ -44,6 +44,17 @@ const requiredDependencyFiles = [
 ];
 const maxRequestBodyBytes = 1024 * 1024;
 
+const transactionRecovery = recoverJsonTransactions(recoveryDir, {
+  allowedFiles: [configPath],
+  allowedRoots: [profilesDir]
+});
+if (transactionRecovery.rolledBack > 0 || transactionRecovery.cleaned > 0) {
+  addLog(`配置事务启动恢复完成：回滚 ${transactionRecovery.rolledBack} 个，清理 ${transactionRecovery.cleaned} 个。`);
+}
+
+function writeConfigTransaction(entries) {
+  writeJsonTransaction(entries, { journalDir: recoveryDir });
+}
 
 function readConfig() {
   if (!fs.existsSync(configPath)) {
@@ -59,7 +70,7 @@ function saveConfig(config) {
   const index = ensureDefaultProfile(readProfileIndex());
   const activeId = index.activeProfileId || defaultProfileId;
   const profiles = index.profiles.map((profile) => profile.id === activeId ? { ...profile, updatedAt: nowIso() } : profile);
-  writeJsonTransaction([
+  writeConfigTransaction([
     { filePath: configPath, data: normalizedConfig },
     { filePath: profileConfigPath(activeId), data: normalizedConfig },
     { filePath: profilesIndexPath, data: { activeProfileId: activeId, profiles } }
@@ -151,7 +162,7 @@ function ensureDefaultProfile(index = readProfileIndex()) {
   const nextIndex = { activeProfileId, profiles };
   const entries = [{ filePath: profilesIndexPath, data: nextIndex }];
   if (!fs.existsSync(defaultPath)) entries.unshift({ filePath: defaultPath, data: readConfig() });
-  writeJsonTransaction(entries);
+  writeConfigTransaction(entries);
   return nextIndex;
 }
 
@@ -169,7 +180,7 @@ function saveProfile({ id, name, config }) {
   const updatedAt = nowIso();
   const profiles = index.profiles.filter((profile) => profile.id !== profileId);
   profiles.push({ id: profileId, name: profileName, updatedAt });
-  writeJsonTransaction([
+  writeConfigTransaction([
     { filePath: profileConfigPath(profileId), data: normalizedConfig },
     { filePath: configPath, data: normalizedConfig },
     { filePath: profilesIndexPath, data: { activeProfileId: profileId, profiles } }
@@ -184,7 +195,7 @@ function useProfile(id) {
 
   const config = mergeDefaults(defaultConfig, readJson(profileConfigPath(profile.id)));
   validateConfig(config);
-  writeJsonTransaction([
+  writeConfigTransaction([
     { filePath: configPath, data: config },
     { filePath: profilesIndexPath, data: { ...index, activeProfileId: profile.id } }
   ]);
@@ -199,7 +210,7 @@ function deleteProfile(id) {
   const activeProfileId = index.activeProfileId === id ? defaultProfileId : index.activeProfileId;
   const config = mergeDefaults(defaultConfig, readJson(profileConfigPath(activeProfileId)));
   validateConfig(config);
-  writeJsonTransaction([
+  writeConfigTransaction([
     { filePath: profileConfigPath(id), delete: true },
     { filePath: configPath, data: config },
     { filePath: profilesIndexPath, data: { activeProfileId, profiles } }

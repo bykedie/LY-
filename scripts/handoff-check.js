@@ -155,7 +155,11 @@ const runtimePaths = [
   'bot.config.json',
   'accounts.json',
   'bot.config.profiles/profiles.json',
-  'bot.config.automations.json'
+  'bot.config.automations.json',
+  '.bot.config.json.transaction-check-0.tmp',
+  '.bot.config.json.transaction-check-0.bak',
+  '.json-transaction-check.journal.json',
+  '.json-transaction-check.journal.json.tmp'
 ];
 
 for (const runtimePath of runtimePaths) {

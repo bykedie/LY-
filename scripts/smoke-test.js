@@ -10,11 +10,13 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-smoke-'));
 const configPath = path.join(tempDir, 'bot.config.json');
 const exampleConfigPath = path.join(projectRoot, 'bot.config.example.json');
+const startupRecoveryDir = path.join(tempDir, 'bot.config.profiles', 'recovery');
 
 let dashboard = null;
 let dashboardOutput = '';
 
 try {
+  createPendingStartupTransaction();
   dashboard = spawn(process.execPath, ['src/dashboard.js'], {
     cwd: projectRoot,
     env: { ...process.env, DASHBOARD_PORT: String(port), BOT_CONFIG_PATH: configPath },
@@ -28,7 +30,11 @@ try {
   });
 
   await waitForDashboard();
+  const recoveredStartupConfig = await requestJson('/api/config');
+  assert(recoveredStartupConfig.config.server.host === 'recovered-old.example', 'Dashboard 启动前没有回滚未完成配置事务');
+  assert(fs.readdirSync(startupRecoveryDir).length === 0, 'Dashboard 启动恢复后仍遗留事务日志或备份');
   const initialStatus = await requestJson('/api/status');
+  assert(initialStatus.logs.some((line) => line.includes('配置事务启动恢复完成：回滚 1 个')), 'Dashboard 日志没有报告启动事务回滚');
   assert(initialStatus.control === null, '未启动时不应该返回运行控制快照');
   assert(initialStatus.stopping === false, '未启动时不应该处于停止中状态');
   const stopWhileStopped = await requestJson('/api/stop', { method: 'POST', expectOk: false });
@@ -667,4 +673,27 @@ async function waitForStopped() {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createPendingStartupTransaction() {
+  const transactionId = 'smoke-crash';
+  const oldConfig = JSON.parse(fs.readFileSync(exampleConfigPath, 'utf8'));
+  oldConfig.server.host = 'recovered-old.example';
+  const newConfig = structuredClone(oldConfig);
+  newConfig.server.host = 'partial-new.example';
+  const backupPath = path.join(tempDir, `.bot.config.json.transaction-${transactionId}-0.bak`);
+  const tempPath = path.join(tempDir, `.bot.config.json.transaction-${transactionId}-0.tmp`);
+  fs.mkdirSync(startupRecoveryDir, { recursive: true });
+  fs.writeFileSync(backupPath, `${JSON.stringify(oldConfig, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(configPath, `${JSON.stringify(newConfig, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(
+    path.join(startupRecoveryDir, `.json-transaction-${transactionId}.journal.json`),
+    `${JSON.stringify({
+      version: 1,
+      id: transactionId,
+      phase: 'pending',
+      items: [{ filePath: configPath, tempPath, backupPath, delete: false, hadOriginal: true }]
+    }, null, 2)}\n`,
+    'utf8'
+  );
 }

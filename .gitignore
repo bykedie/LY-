@@ -4,4 +4,8 @@ accounts.json
 bot.config.json
 bot.config.profiles/
 bot.config.automations.json
+.*.transaction-*.tmp
+.*.transaction-*.bak
+.json-transaction-*.journal.json
+.json-transaction-*.journal.json.tmp
 npm-debug.log*
