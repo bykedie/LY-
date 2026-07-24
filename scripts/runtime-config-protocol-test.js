@@ -132,6 +132,13 @@ async function expectDashboardToWaitForConfigResult() {
     });
     assert(trimmedTargetChat.queuedTargets?.join(',') === 'ConfigProtocolBot', '带空白的定向发送目标没有按账号名归一化');
 
+    const invalidMessageShape = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: 'ConfigProtocolBot', message: { text: '/chat-accept' } }),
+      expectOk: false
+    });
+    assert(invalidMessageShape.ok === false && invalidMessageShape.message.includes('文本'), '非文本发送内容没有被 Dashboard 明确拒绝');
+
     const chatTimeoutAt = Date.now();
     const timedOutChat = await requestJson(baseUrl, '/api/send', {
       method: 'POST',

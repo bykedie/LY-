@@ -465,8 +465,10 @@ async function sendBotCommand(command) {
     throw new Error('挂机进程正在初始化，不能发送新指令。');
   }
 
-  if (command.type === 'chat' && !String(command.message || '').trim()) {
-    throw new Error('发送内容不能为空。');
+  if (command.type === 'chat') {
+    if (typeof command.message !== 'string') throw new Error('发送内容必须是文本。');
+    command.message = command.message.trim();
+    if (!command.message) throw new Error('发送内容不能为空。');
   }
 
   const config = runningConfig;
@@ -755,9 +757,10 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
     if (req.method === 'POST' && url.pathname === '/api/send') {
       const body = await readJsonRequest(req);
       const target = String(body.target || '').trim() || 'all';
+      const message = body.message === undefined ? '' : body.message;
       const result = await requestBotCommandResult(
         'chat',
-        { type: 'chat', target, message: body.message || '' },
+        { type: 'chat', target, message },
         1500,
         '等待执行端确认发送命令超时。'
       );
