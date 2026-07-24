@@ -12,7 +12,7 @@ import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
 import { createRuntimeRequestId, createRuntimeRequestTracker } from './runtime-request-tracker.js';
 import { createRuntimeSnapshot } from './runtime-snapshot.js';
-import { listenHttpServer } from './http-server-listener.js';
+import { createHttpServerOptions, listenHttpServer } from './http-server-listener.js';
 import { sendApiRouteFallback } from './api-route-boundary.js';
 import { readJsonRequest } from './json-request.js';
 
@@ -865,7 +865,7 @@ function requestError(statusCode, message) {
   return Object.assign(new Error(message), { statusCode });
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer(createHttpServerOptions(), async (req, res) => {
   try {
     if (!isAuthorized(req)) {
       sendUnauthorized(res);

@@ -60,20 +60,20 @@
 
 ## 正在进行事项
 
-JSON API 缺失/错误 Content-Type、空/畸形/非对象正文缺陷已复现并修复。统一 `src/json-request.js` 边界接管 9 个请求体入口：错误媒体类型返回 415，解析或对象形状错误返回稳定中文 400，1 MiB 上限保持，允许空对象的接口继续兼容无正文 POST。架构、安全审计和完整测试全部通过；Dashboard 从 1048 行降至 1028 行，当前修改可创建本地里程碑提交。
+慢速未完成请求缺陷已复现并修复：HTTP server 现在默认请求体 30 秒、请求头 15 秒、最多 1 秒扫描，支持环境变量覆盖且请求头上限不超过请求体上限。进程级回归在旧实现上失败，修复后收到 408、连接关闭、Dashboard 存活且后续状态请求正常；架构与环境示例已同步，安全审计和完整测试全部通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-创建 JSON 请求边界本地里程碑提交；随后审计慢速或长期不完整请求体的 HTTP request timeout、连接关闭和后续服务健康。
+创建 HTTP 慢速请求防护本地里程碑提交；随后审计配置合并对异常嵌套对象、特殊键、极深 JSON 和未知字段的真实行为。
 
 ## 已修改文件
 
-- `scripts/smoke-test.js`
-- `src/json-request.js`
+- `scripts/dashboard-timeout-test.js`
+- `src/http-server-listener.js`
 - `src/dashboard.js`
-- `scripts/handoff-check.js`
-- `package.json`
+- `.env.example`
 - `docs/project-architecture.md`
+- `package.json`
 - `docs/current-status.md`
 - `docs/work-log.md`
 
@@ -107,6 +107,11 @@ JSON API 缺失/错误 Content-Type、空/畸形/非对象正文缺陷已复现�
 - `runtime-config-protocol-test`、相关语法、交接和维护检查通过；Dashboard 1028 行。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - `npm.cmd test`：全部通过，包含 JSON 请求、API 路由、认证、交接、维护、存储、进程、前端和 Minecraft 协议场景。
+- HTTP 超时审计：Node 默认请求体 5 分钟、请求头 60 秒、扫描间隔 30 秒；200ms/50ms 原型稳定返回 408 并关闭连接。
+- `node scripts/dashboard-timeout-test.js`：旧实现按预期失败于 2 秒内未关闭慢速未完成请求。
+- 修复后慢速请求专项通过 408、连接关闭、进程存活、后续 200、默认值和上下限约束；监听、smoke、语法、交接和维护检查通过。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- 完整 `npm.cmd test`：全部通过，包含慢速请求 408/连接关闭/服务存活与后续 200，以及交接、维护、存储、进程、前端、Minecraft 协议和认证场景。
 
 ## 恢复开发命令
 
@@ -125,4 +130,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 13:30:09 +08:00
+2026-07-24 14:02:00 +08:00

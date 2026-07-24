@@ -25,7 +25,7 @@ LY控制台
 ├─ src/
 │  ├─ dashboard.js                # API、配置校验、档案、鉴权、进程、日志和协议事件
 │  ├─ api-route-boundary.js       # API 路径/方法表与 JSON 404/405 回退
-│  ├─ http-server-listener.js     # Dashboard HTTP 监听启动与失败诊断
+│  ├─ http-server-listener.js     # Dashboard HTTP 监听、失败诊断和请求超时
 │  ├─ json-request.js             # JSON 媒体类型、大小、解析和对象形状边界
 │  ├─ automation-store.js          # 自动化方案校验、持久化、去重和损坏恢复
 │  ├─ json-store.js               # 单文件原子写入与多文件事务回滚
@@ -64,7 +64,7 @@ LY控制台
 npm.cmd run dashboard
 ```
 
-默认监听 `http://127.0.0.1:30123`。线上由 Nginx 反向代理到该地址；需要直接端口访问时按部署文档设置监听地址和安全组。
+默认监听 `http://127.0.0.1:30123`。HTTP 请求体默认须在 30 秒内接收完成，请求头默认 15 秒，超时由 Node 返回 `408` 并关闭连接；可通过 `DASHBOARD_REQUEST_TIMEOUT_MS` 和 `DASHBOARD_HEADERS_TIMEOUT_MS` 调整，请求头上限不会超过请求体上限。线上由 Nginx 反向代理到该地址；需要直接端口访问时按部署文档设置监听地址和安全组。
 
 启动机器人：
 

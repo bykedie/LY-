@@ -11,6 +11,16 @@ export function formatListenError(error, { host, port }) {
   return `管理面板启动失败：无法监听 http://${host}:${port}（${code}：${reason}）。`;
 }
 
+export function createHttpServerOptions(env = process.env) {
+  const requestTimeout = positiveInteger(env.DASHBOARD_REQUEST_TIMEOUT_MS, 30000);
+  const headersTimeout = Math.min(positiveInteger(env.DASHBOARD_HEADERS_TIMEOUT_MS, 15000), requestTimeout);
+  return {
+    requestTimeout,
+    headersTimeout,
+    connectionsCheckingInterval: Math.min(1000, Math.max(50, Math.floor(headersTimeout / 4)))
+  };
+}
+
 export function listenHttpServer(server, { host, port, portInput = String(port), onListening }) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     console.error(`管理面板启动失败：DASHBOARD_PORT=${portInput} 无效，必须是 1 到 65535 之间的整数。`);
@@ -27,4 +37,9 @@ export function listenHttpServer(server, { host, port, portInput = String(port),
     started = true;
     onListening();
   });
+}
+
+function positiveInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
 }
