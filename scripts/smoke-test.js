@@ -761,7 +761,7 @@ async function waitForStopped() {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
     const status = await requestJson('/api/status');
-    if (!status.running) return status;
+    if (!status.running && !status.starting && !status.stopping) return status;
     await delay(250);
   }
   throw new Error('等待停止超时');

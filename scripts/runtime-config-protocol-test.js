@@ -95,6 +95,19 @@ async function expectDashboardToWaitForConfigResult() {
     await requestJson(baseUrl, '/api/stop', { method: 'POST' });
     await waitForStopped(baseUrl);
 
+    await requestJson(baseUrl, '/api/config', {
+      method: 'POST',
+      body: JSON.stringify(createConfig('/stop-delay'))
+    });
+    await requestJson(baseUrl, '/api/start', { method: 'POST' });
+    const stoppingResponse = await requestJson(baseUrl, '/api/stop', { method: 'POST' });
+    assert(stoppingResponse.stopping === true, '停止请求后 Dashboard 没有报告停止中');
+    assert(stoppingResponse.running === false, '停止请求后 Dashboard 错误报告仍在运行');
+    const stoppingStatus = await requestJson(baseUrl, '/api/status');
+    assert(stoppingStatus.running === false, '停止中状态错误报告 running=true');
+    assert(stoppingStatus.control === null, '停止中状态不应开放运行控制快照');
+    await waitForStopped(baseUrl);
+
     const initialConfig = createConfig('/initial');
     await requestJson(baseUrl, '/api/config', { method: 'POST', body: JSON.stringify(initialConfig) });
     await requestJson(baseUrl, '/api/start', { method: 'POST' });
@@ -350,6 +363,9 @@ import readline from 'node:readline';
 
 const startupConfig = JSON.parse(fs.readFileSync(process.env.BOT_CONFIG_PATH, 'utf8'));
 const startupMarker = startupConfig.features?.chat?.presetMessagesList?.[0];
+if (startupMarker === '/stop-delay') {
+  process.on('SIGINT', () => setTimeout(() => process.exit(0), 300));
+}
 if (startupMarker === '/startup-exit') {
   setImmediate(() => process.exit(9));
 } else if (startupMarker !== '/startup-ignore') {

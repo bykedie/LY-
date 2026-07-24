@@ -21,8 +21,8 @@
 ## 本轮需求和验收标准
 
 - 持续审计真实 bug，遵循“真实复现 → 修复前失败回归 → 最小根因修复”。
-- 初始化失败后的 Dashboard 状态日志不得出现 `退出码：null` 这类含糊诊断。
-- 修复后保留 API 中文错误、状态复位、Dashboard 存活和恢复后再次启动能力。
+- 停止请求进入 stopping 后，Dashboard API 不得同时报告 `running:true` 与 `stopping:true`。
+- 修复后前端和 API 调用方应能明确区分运行中、初始化中、停止中和已停止。
 - 关键动作立即更新当前状态和工作日志；稳定阶段创建本地里程碑提交。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
 
@@ -33,20 +33,21 @@
 - 配置完整模式统一覆盖 Dashboard、运行时 IPC 和磁盘直接启动：`4a2ea90`、`39d01ca`、`d62847a`。
 - 执行端磁盘配置加载已提取为独立模块并纳入维护预算：`e8f79a2`。
 - 执行端启动配置缺失泄露已修复并保存为本地提交 `2c2b954`。
-- 初始化失败后 `退出码：null` 含糊日志已修复并完成完整验证，已保存为最新本地里程碑提交。
+- 初始化失败后 `退出码：null` 含糊日志已修复并保存为本地提交 `1bb2437`。
+- 停止中状态语义已修复并完成完整验证，已保存为最新本地里程碑提交。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-初始化失败退出日志已完成真实复现、失败回归、最小修复、安全审计和完整测试，并保存为最新本地里程碑提交。当前工作区应保持干净；下一轮继续审计高风险边界。
+停止中状态语义已完成真实复现、失败回归、最小修复、安全审计和完整测试，并保存为最新本地里程碑提交。当前工作区应保持干净；下一轮继续审计高风险边界。
 
 ## 下一步明确动作
 
-优先审计 Dashboard/执行端启动流程是否还有可复现的用户可见诊断问题，并在触及 `src/dashboard.js` 或 `src/index.js` 前优先提取小模块，避免突破维护预算。
+优先审计 Dashboard/执行端运行期控制命令是否还有可复现的用户可见状态语义问题，并在触及 `src/dashboard.js` 或 `src/index.js` 前优先提取小模块，避免突破维护预算。
 
 ## 已修改文件
 
-无未提交修改。本轮退出日志修复已保存为最新本地提交。
+无未提交修改。本轮停止中状态修复已保存为最新本地提交。
 
 ## 未解决问题和阻塞项
 
@@ -60,9 +61,10 @@
 
 ## 最近测试结果
 
-- 旧实现真实复现：缺失 `bot.config.example.json` 时 `/api/start` 返回清楚中文错误且状态复位，但 `/api/status.logs` 出现“挂机进程已退出，退出码：null”。
-- 新回归旧实现失败：`scripts/runtime-config-protocol-test.js` 在退出日志断言处失败。
-- 修复后 `node scripts/runtime-config-protocol-test.js`：通过；启动失败日志不再包含 `退出码：null`，原有启动诊断脱敏和再次启动能力保持有效。
+- 旧实现真实复现：临时执行端启动后调用 `/api/stop`，API 响应为 `running:true`、`stopping:true`；随后状态恢复为已停止，Dashboard 存活。
+- 新回归旧实现失败：`scripts/runtime-config-protocol-test.js` 在停止请求后 `running` 断言处失败。
+- 修复后 `node scripts/runtime-config-protocol-test.js`：通过；`POST /api/stop` 停止中响应为 `running:false`、`stopping:true`，状态接口不开放控制快照。
+- `node scripts/smoke-test.js`：通过；等待停止 helper 已同步为同时等待 `running=false`、`starting=false`、`stopping=false`。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：通过，包含交接、维护、配置、Dashboard、前端、进程、协议、钓鱼、重生、防挂机、自动登录、账号校验和认证场景。
 - `npm.cmd run maintenance:check`：通过；`src/index.js` 2222/2225，`src/dashboard.js` 783/800，`src/execution-config.js` 100/100，CSS 重复选择器 `80/80`、`!important` `12/12`。
@@ -84,4 +86,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-25 00:22:40 +08:00
+2026-07-25 00:37:03 +08:00

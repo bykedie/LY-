@@ -566,7 +566,7 @@ function getRunningControlState() {
 }
 
 function getBotProcessStatus() {
-  return { running: Boolean(botProcess) && !starting, starting: Boolean(botProcess) && starting, stopping };
+  return { running: Boolean(botProcess) && !starting && !stopping, starting: Boolean(botProcess) && starting, stopping };
 }
 
 function formatProcessExit(code, signal) {
