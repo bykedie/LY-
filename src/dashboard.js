@@ -12,6 +12,7 @@ import { createAutomationStore } from './automation-store.js';
 import { createLineReader } from './line-reader.js';
 import { createRuntimeRequestId, createRuntimeRequestTracker } from './runtime-request-tracker.js';
 import { createRuntimeSnapshot } from './runtime-snapshot.js';
+import { listenHttpServer } from './http-server-listener.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -1035,9 +1036,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, host, () => {
+listenHttpServer(server, { host, port, onListening: () => {
   console.log(`管理面板已启动：http://${host}:${port}`);
-});
+} });
 
 process.once('SIGINT', () => shutdownDashboard('SIGINT'));
 process.once('SIGTERM', () => shutdownDashboard('SIGTERM'));

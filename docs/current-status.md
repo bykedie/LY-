@@ -52,35 +52,43 @@
 - 初始化与运行状态分离及前端初始化提示：`5d94897`。
 - 后续账号未初始化快照失败语义与快照规范化模块：`8a4a3e9`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
-- `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立；最近文档检查点为 `2cfe101`。
+- `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立；最近文档检查点为 `d768284`。
 
 ## 正在进行事项
 
-快照修复与交接检查点已分别保存为本地提交 `8a4a3e9` 和 `2cfe101`。本轮已核验上一轮维护建议：本地开发分支、续接文档和防止维护债继续增长的守卫已经完成；CSS 历史债清理、大型核心文件拆分和具体界面改造范围尚未全部完成；交接与维护校验均通过。当前下一轮审计目标仍为 Dashboard HTTP 服务器监听失败：端口占用、无权限或无效监听地址时必须有明确诊断、确定退出码且不留下子进程或未处理事件。
+Dashboard HTTP 监听失败修复已完成并通过全部验证：真实端口占用从未处理 `error` 事件堆栈改为明确的端点、错误码和中文可操作说明；失败以非零退出，未启动执行子进程，端口释放后可重新监听。独立回归还覆盖 `EACCES` 和 `EADDRNOTAVAIL` 诊断；业务 API 未改变，维护预算未提高。当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-先用真实占用端口启动第二个 Dashboard，记录当前 `EADDRINUSE` 行为；若只有未处理事件堆栈或诊断不稳定，则增加服务器监听生命周期测试并做最小根因修复。
+创建 Dashboard 监听失败本地里程碑提交；随后审计非法 `DASHBOARD_PORT` 和 `DASHBOARD_HOST` 输入是否仍产生原始堆栈或不明确退出。
 
 ## 已修改文件
 
-无，当前核验结果随最新本地文档检查点保存，工作区干净。
+- `src/http-server-listener.js`
+- `src/dashboard.js`
+- `scripts/dashboard-listen-test.js`
+- `scripts/handoff-check.js`
+- `package.json`
+- `docs/project-architecture.md`
+- `docs/current-status.md`
+- `docs/work-log.md`
 
 ## 未解决问题和阻塞项
 
-- CSS 历史基线仍有 80 个完全重复选择器和 12 个 `!important`；“避免继续在 `workbench.css` 末尾大量覆盖”已由维护守卫约束新增数量，但现有重复和覆盖尚未按具体界面范围清理。
-- `public/app.js`、`src/dashboard.js` 和 `src/index.js` 已分别开始提取 API 客户端、进程/存储/快照辅助模块和会话状态等边界，但三个文件仍是大型核心文件，拆分只属部分完成，后续只能随真实功能继续。
+- CSS 历史基线仍有 80 个完全重复选择器和 12 个 `!important`；维护守卫约束新增数量，但现有重复和覆盖尚未按具体界面范围清理。
+- `public/app.js`、`src/dashboard.js` 和 `src/index.js` 已开始按真实边界提取模块，但三个文件仍是大型核心文件，后续只能随真实功能继续拆分。
 - 依赖审计存在 6 个 Mineflayer 上游中危警告；当前无兼容自动修复，禁止破坏性降级。
 - 具体界面重做范围尚未确认；这不阻止 bug 审计和维护性改进，但不应自行全面改版。
+- 非法 Dashboard 监听端口和地址的启动输入边界尚待真实审计。
 - 当前无外部阻塞，推送许可为否。
 
 ## 最近测试结果
 
-- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 中危 Mineflayer 上游告警。
-- `npm.cmd test`：全部通过，包含快照模块、初始化/运行状态、聊天回执及全部既有业务、协议与认证场景。
-- `npm.cmd run handoff:check`：本轮核验通过，版本、分支和推送边界一致。
-- `npm.cmd run maintenance:check`：本轮核验通过，所有维护基线均未增长。
-- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1044 行。
+- 真实监听冲突复现：旧实现退出码 1、无执行子进程，但 stderr 含 `Unhandled 'error' event` 堆栈。
+- `node scripts/dashboard-listen-test.js`：修复前失败于缺少实际端点，修复后通过端点、错误码、中文说明、非零退出、无未处理事件文本和端口复用验证。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- `npm.cmd test`：全部通过，包含交接、维护、存储、进程、监听、前端、Minecraft 协议与认证场景。
+- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1045 行。
 
 ## 恢复开发命令
 
@@ -99,4 +107,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 12:29:00 +08:00
+2026-07-24 12:36:18 +08:00

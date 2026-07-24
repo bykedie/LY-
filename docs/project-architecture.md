@@ -24,6 +24,7 @@ Mineflayer 执行层：src/index.js
 LY控制台
 ├─ src/
 │  ├─ dashboard.js                # API、配置校验、档案、鉴权、进程、日志和协议事件
+│  ├─ http-server-listener.js     # Dashboard HTTP 监听启动与失败诊断
 │  ├─ automation-store.js          # 自动化方案校验、持久化、去重和损坏恢复
 │  ├─ json-store.js               # 单文件原子写入与多文件事务回滚
 │  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
