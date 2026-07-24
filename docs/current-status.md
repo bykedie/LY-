@@ -65,15 +65,15 @@
 
 ## 正在进行事项
 
-执行端配置加载模块已保存为本地里程碑 `e8f79a2`，提交后工作区干净。项目可运行；下一项继续审计 Dashboard 面对执行端启动配置错误时，是否向 API 返回稳定中文诊断且不泄露 Node 堆栈或内部路径。
+Dashboard 启动错误诊断已完成第一层真实审计：启动前已存在的非法磁盘配置会由 Dashboard 稳定拒绝，`POST /api/start` 返回 HTTP 400 和中文诊断，随后 `running=false`、`starting=false`、日志为空且 Dashboard 持续存活。该常规路径没有缺陷；审计继续检查“Dashboard 校验通过、执行端模块初始化才失败”的边界。
 
 ## 下一步明确动作
 
-真实启动 Dashboard 并注入非法磁盘配置，核对 `/api/start` 的状态码、中文错误、堆栈/路径泄露、进程清理和后续服务健康；确认缺陷后再增加失败回归与最小修复。
+在隔离临时项目中先启动 Dashboard，再移除执行端加载所需的 `bot.config.example.json`，构造仅执行端模块初始化失败；核对 `/api/start` 和 `/api/status.logs` 是否泄露 `file:///`、绝对路径、`node:internal` 或堆栈，并验证状态复位、Dashboard 存活及修复文件后的再次启动。确认缺陷后再增加失败回归与最小修复。
 
 ## 已修改文件
 
-无。配置加载模块提交 `e8f79a2` 已完成，交接状态已同步。
+无未提交修改。本轮仅更新 `docs/current-status.md`、`docs/work-log.md`，补记已完成的启动错误首层审计和下一步，没有业务代码修改。
 
 ## 未解决问题和阻塞项
 
@@ -85,6 +85,9 @@
 
 ## 最近测试结果
 
+- Dashboard 预置非法启动配置真实审计：`features.combat.autoAttack="yes"` 时，`POST /api/start` 返回 HTTP 400 和“自动攻击开关必须是真或假。”；随后状态完全复位、日志为空且 Dashboard 持续存活。
+- `npm.cmd run handoff:check`：通过，确认 `v1.0.40 -> v1.0.42`、本地分支 `local/v1.0.42`、推送许可为否。
+- `npm.cmd run maintenance:check`：通过；CSS 重复选择器 `80/80`、`!important` `12/12`，大型文件均未突破预算。
 - HTTP 半包断开真实审计：Dashboard 持续存活、stderr 为空，后续 `/api/status` 返回 200。
 - 运行中主配置损坏真实审计：`GET /api/config` 明确返回损坏诊断，原文件不变，后续状态请求正常。
 - `POST /` 回归：旧实现返回 200 和页面正文；修复后返回 405、`Allow: GET, HEAD` 且不泄露页面。
@@ -149,4 +152,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 23:40:00 +08:00
+2026-07-24 22:53:01 +08:00（本机时钟；本条为审计补记）
