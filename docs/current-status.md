@@ -51,25 +51,23 @@
 - 网页发送命令执行端回执与部分成功语义：`754f03b`。
 - 初始化与运行状态分离及前端初始化提示：`5d94897`。
 - 后续账号未初始化快照失败语义与快照规范化模块：`8a4a3e9`。
+- Dashboard 端口占用监听失败诊断：`84dc24d`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
-- `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立；最近文档检查点为 `d768284`。
+- `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立。
 
 ## 正在进行事项
 
-Dashboard HTTP 监听失败修复已完成并通过全部验证：真实端口占用从未处理 `error` 事件堆栈改为明确的端点、错误码和中文可操作说明；失败以非零退出，未启动执行子进程，端口释放后可重新监听。独立回归还覆盖 `EACCES` 和 `EADDRNOTAVAIL` 诊断；业务 API 未改变，维护预算未提高。当前修改可创建本地里程碑提交。
+Dashboard 非法端口配置修复已完成全部验证：`DASHBOARD_PORT=abc`、`0` 和 `70000` 在旧实现上分别暴露原始堆栈或错误随机监听，现统一在创建监听前校验为 1–65535 整数，输出包含原始配置值和合法范围的中文诊断并以退出码 1 结束。安全审计和完整测试均通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-创建 Dashboard 监听失败本地里程碑提交；随后审计非法 `DASHBOARD_PORT` 和 `DASHBOARD_HOST` 输入是否仍产生原始堆栈或不明确退出。
+创建非法端口修复本地里程碑提交；随后审计 Dashboard 请求中客户端提前断开时，异步读取请求体和错误响应是否会产生未处理流错误。
 
 ## 已修改文件
 
 - `src/http-server-listener.js`
 - `src/dashboard.js`
 - `scripts/dashboard-listen-test.js`
-- `scripts/handoff-check.js`
-- `package.json`
-- `docs/project-architecture.md`
 - `docs/current-status.md`
 - `docs/work-log.md`
 
@@ -79,16 +77,15 @@ Dashboard HTTP 监听失败修复已完成并通过全部验证：真实端口�
 - `public/app.js`、`src/dashboard.js` 和 `src/index.js` 已开始按真实边界提取模块，但三个文件仍是大型核心文件，后续只能随真实功能继续拆分。
 - 依赖审计存在 6 个 Mineflayer 上游中危警告；当前无兼容自动修复，禁止破坏性降级。
 - 具体界面重做范围尚未确认；这不阻止 bug 审计和维护性改进，但不应自行全面改版。
-- 非法 Dashboard 监听端口和地址的启动输入边界尚待真实审计。
 - 当前无外部阻塞，推送许可为否。
 
 ## 最近测试结果
 
-- 真实监听冲突复现：旧实现退出码 1、无执行子进程，但 stderr 含 `Unhandled 'error' event` 堆栈。
-- `node scripts/dashboard-listen-test.js`：修复前失败于缺少实际端点，修复后通过端点、错误码、中文说明、非零退出、无未处理事件文本和端口复用验证。
+- 非法端口真实审计：旧实现中 `abc`、`70000` 退出但抛原始 `RangeError`，`0` 随机监听且打印错误端点。
+- `node scripts/dashboard-listen-test.js`：扩展回归在旧实现上失败，修复后通过非法、零值、越界端口及既有监听失败场景。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - `npm.cmd test`：全部通过，包含交接、维护、存储、进程、监听、前端、Minecraft 协议与认证场景。
-- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1045 行。
+- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1046 行。
 
 ## 恢复开发命令
 
@@ -107,4 +104,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 12:36:18 +08:00
+2026-07-24 12:45:11 +08:00

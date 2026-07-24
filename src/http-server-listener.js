@@ -11,7 +11,13 @@ export function formatListenError(error, { host, port }) {
   return `管理面板启动失败：无法监听 http://${host}:${port}（${code}：${reason}）。`;
 }
 
-export function listenHttpServer(server, { host, port, onListening }) {
+export function listenHttpServer(server, { host, port, portInput = String(port), onListening }) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error(`管理面板启动失败：DASHBOARD_PORT=${portInput} 无效，必须是 1 到 65535 之间的整数。`);
+    process.exitCode = 1;
+    return;
+  }
+
   let started = false;
   server.on('error', (error) => {
     console.error(formatListenError(error, { host, port }));

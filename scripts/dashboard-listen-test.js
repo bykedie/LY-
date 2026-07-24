@@ -8,7 +8,7 @@ import { formatListenError } from '../src/http-server-listener.js';
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-listen-'));
 const holder = http.createServer((_req, res) => res.end('holder'));
-let dashboard = null;
+const dashboards = new Set();
 
 try {
   assert(
@@ -19,23 +19,23 @@ try {
     formatListenError({ code: 'EADDRNOTAVAIL' }, { host: '192.0.2.1', port: 30123 }).includes('监听地址在本机不可用'),
     '无效本机地址缺少可操作诊断'
   );
+  const invalidPortResults = await Promise.all(['abc', '0', '70000'].map(runInvalidPort));
+  for (const result of invalidPortResults) {
+    assert(!result.timeout, `DASHBOARD_PORT=${result.port} 没有及时退出`);
+    assert(result.code === 1 && result.signal === null, `DASHBOARD_PORT=${result.port} 没有以退出码 1 结束`);
+    assert(result.stderr.includes(`DASHBOARD_PORT=${result.port}`), `DASHBOARD_PORT=${result.port} 的诊断缺少原始配置值`);
+    assert(result.stderr.includes('1 到 65535'), `DASHBOARD_PORT=${result.port} 的诊断缺少合法范围`);
+    assert(!result.stderr.includes('RangeError'), `DASHBOARD_PORT=${result.port} 仍输出原始 RangeError 堆栈`);
+  }
   await listen(holder, 0);
   const port = holder.address().port;
   const output = { stdout: '', stderr: '' };
-  dashboard = spawn(process.execPath, ['src/dashboard.js'], {
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      DASHBOARD_HOST: '127.0.0.1',
-      DASHBOARD_PORT: String(port),
-      BOT_CONFIG_PATH: path.join(tempDir, 'bot.config.json')
-    },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
+  const dashboard = spawnDashboard(String(port), 'bot.config.json');
   dashboard.stdout.on('data', (chunk) => { output.stdout += chunk; });
   dashboard.stderr.on('data', (chunk) => { output.stderr += chunk; });
 
   const exit = await waitForExit(dashboard, 5000);
+  dashboards.delete(dashboard);
   assert(exit.code !== 0, '监听失败时 Dashboard 应以非零退出码结束');
   assert(exit.signal === null, '监听失败时 Dashboard 不应依赖外部信号退出');
   assert(output.stderr.includes(`http://127.0.0.1:${port}`), '监听失败诊断缺少实际端点');
@@ -49,9 +49,35 @@ try {
   await close(probe);
   console.log('dashboard listen test ok');
 } finally {
-  if (dashboard && dashboard.exitCode === null) dashboard.kill('SIGKILL');
+  for (const dashboard of dashboards) {
+    if (dashboard.exitCode === null) dashboard.kill('SIGKILL');
+  }
   if (holder.listening) await close(holder);
   fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
+async function runInvalidPort(port) {
+  const dashboard = spawnDashboard(port, `invalid-${port}.json`);
+  let stderr = '';
+  dashboard.stderr.on('data', (chunk) => { stderr += chunk; });
+  const exit = await waitForExit(dashboard, 1500, true);
+  dashboards.delete(dashboard);
+  return { port, stderr, ...exit };
+}
+
+function spawnDashboard(port, configName) {
+  const dashboard = spawn(process.execPath, ['src/dashboard.js'], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      DASHBOARD_HOST: '127.0.0.1',
+      DASHBOARD_PORT: port,
+      BOT_CONFIG_PATH: path.join(tempDir, configName)
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  dashboards.add(dashboard);
+  return dashboard;
 }
 
 function listen(server, port) {
@@ -65,9 +91,16 @@ function close(server) {
   return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
-function waitForExit(child, timeoutMs) {
+function waitForExit(child, timeoutMs, killOnTimeout = false) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('等待 Dashboard 监听失败退出超时')), timeoutMs);
+    const timer = setTimeout(() => {
+      if (!killOnTimeout) {
+        reject(new Error('等待 Dashboard 监听失败退出超时'));
+        return;
+      }
+      child.kill('SIGKILL');
+      resolve({ timeout: true, code: child.exitCode, signal: child.signalCode });
+    }, timeoutMs);
     child.once('error', (error) => {
       clearTimeout(timer);
       reject(error);

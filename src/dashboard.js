@@ -26,7 +26,8 @@ const profilesIndexPath = path.join(profilesDir, 'profiles.json');
 const recoveryDir = path.join(profilesDir, 'recovery');
 const automationsPath = path.join(path.dirname(configPath), `${configBaseName}.automations.json`);
 const exampleConfigPath = path.join(projectRoot, 'bot.config.example.json');
-const port = Number(process.env.DASHBOARD_PORT || 30123);
+const portInput = process.env.DASHBOARD_PORT || '30123';
+const port = Number(portInput);
 const host = (process.env.DASHBOARD_HOST || '127.0.0.1').trim() || '127.0.0.1';
 const dashboardUser = (process.env.DASHBOARD_USER || 'admin').trim() || 'admin';
 const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
@@ -1036,7 +1037,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-listenHttpServer(server, { host, port, onListening: () => {
+listenHttpServer(server, { host, port, portInput, onListening: () => {
   console.log(`管理面板已启动：http://${host}:${port}`);
 } });
 
