@@ -25,6 +25,7 @@ LY控制台
 ├─ src/
 │  ├─ dashboard.js                # API、档案、鉴权、进程、日志和协议事件编排
 │  ├─ config-schema.js            # 配置默认值合并、结构安全、类型校验和动作模式
+│  ├─ execution-config.js         # 执行端磁盘配置读取、旧字段补齐和专用启动诊断
 │  ├─ api-route-boundary.js       # API 路径/方法表与 JSON 404/405 回退
 │  ├─ http-server-listener.js     # Dashboard HTTP 监听、失败诊断和请求超时
 │  ├─ json-request.js             # JSON 媒体类型、大小、解析和对象形状边界
@@ -216,7 +217,7 @@ npm.cmd test              # 完整测试
 ```text
 前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
 Dashboard/API     src/dashboard.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
-Minecraft 功能    src/index.js, scripts/*-integration-test.js
+Minecraft 功能    src/index.js, src/execution-config.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md
 ```

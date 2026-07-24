@@ -58,31 +58,27 @@
 - Dashboard 慢速未完成请求 408、连接关闭和后续健康检查：`6e72a6c`。
 - 配置模式严格类型、特殊键/深度边界和 Dashboard 拆分：`4a2ea90`。
 - 执行端运行时配置完整模式与原子状态替换：`39d01ca`。
+- 执行端磁盘启动完整模式与旧配置兼容：`d62847a`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 - `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立。
 
 ## 正在进行事项
 
-磁盘直接启动完整模式绕过已完成根因修复和完整验证：执行端保留核心字段专用诊断，再以示例配置补齐旧字段并执行完整模式；四类非法配置均在 ready 前失败。旧配置缺失整组功能、账号可选字段和账号池时仍能补齐并真实启动成功。相关 Minecraft 集成测试已改用产品允许的最小时间参数，安全审计和完整测试全部通过，当前修改可创建本地里程碑提交。
+执行端磁盘配置加载边界已完成提取和完整验证：磁盘读取、旧字段补齐和专用启动诊断移入 `src/execution-config.js`；`src/index.js` 从 2290 降至 2206 行，预算从 2300 收紧为 2225，新模块 84/100 行。全部专项、安全审计和完整测试通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-创建磁盘启动配置模式本地里程碑提交；随后沿当前真实边界提取执行端磁盘配置加载模块，降低 `src/index.js` 2290/2300 行的维护压力，并保持现有回归不变。
+创建执行端配置加载模块本地里程碑提交；随后继续审计执行端启动错误是否通过 Dashboard API 保留稳定中文诊断，避免 Node 堆栈或内部路径泄露。
 
 ## 已修改文件
 
 - `docs/current-status.md`
 - `docs/project-architecture.md`
 - `docs/work-log.md`
-- `scripts/account-validation-test.js`
-- `scripts/anti-afk-movement-test.js`
-- `scripts/auto-login-integration-test.js`
-- `scripts/config-schema-test.js`
-- `scripts/fishing-integration-test.js`
+- `package.json`
 - `scripts/handoff-check.js`
-- `scripts/protocol-integration-test.js`
-- `scripts/respawn-integration-test.js`
-- `src/config-schema.js`
+- `scripts/maintenance-check.js`
+- `src/execution-config.js`
 - `src/index.js`
 
 ## 未解决问题和阻塞项
@@ -138,6 +134,9 @@
 - 交接与维护检查通过；`src/index.js` 2290/2300 行，未提高维护预算。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：111.6 秒全部通过，包含磁盘启动完整模式拒绝、旧配置兼容和全部 Dashboard/Minecraft 场景。
+- 模块提取后交接、维护、配置模式、账号启动、运行时配置协议、协议、钓鱼、重生、防挂机和自动登录专项全部通过；行为保持不变。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- 完整 `npm.cmd test`：110.7 秒全部通过，配置加载模块纳入语法、交接和维护长期守卫。
 
 ## 恢复开发命令
 
@@ -156,4 +155,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 23:05:00 +08:00
+2026-07-24 23:35:00 +08:00

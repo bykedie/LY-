@@ -41,6 +41,7 @@ const requiredFiles = [
   'bot.config.example.json',
   'src/dashboard.js',
   'src/config-schema.js',
+  'src/execution-config.js',
   'src/api-route-boundary.js',
   'src/http-server-listener.js',
   'src/json-request.js',
