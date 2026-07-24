@@ -14,6 +14,7 @@ import { createRuntimeRequestId, createRuntimeRequestTracker } from './runtime-r
 import { createRuntimeSnapshot } from './runtime-snapshot.js';
 import { listenHttpServer } from './http-server-listener.js';
 import { sendApiRouteFallback } from './api-route-boundary.js';
+import { readJsonRequest } from './json-request.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -49,7 +50,6 @@ const requiredDependencyFiles = [
   'node_modules/mineflayer/package.json',
   'node_modules/mineflayer-pathfinder/package.json'
 ];
-const maxRequestBodyBytes = 1024 * 1024;
 
 function positiveNumber(value, fallback) {
   const number = Number(value);
@@ -865,26 +865,6 @@ function requestError(statusCode, message) {
   return Object.assign(new Error(message), { statusCode });
 }
 
-async function readBody(req) {
-  const contentLength = Number(req.headers['content-length'] || 0);
-  if (Number.isFinite(contentLength) && contentLength > maxRequestBodyBytes) {
-    req.resume();
-    throw requestError(413, '请求内容过大，最大允许 1 MiB。');
-  }
-
-  const chunks = [];
-  let totalBytes = 0;
-  for await (const chunk of req) {
-    totalBytes += chunk.length;
-    if (totalBytes > maxRequestBodyBytes) {
-      req.resume();
-      throw requestError(413, '请求内容过大，最大允许 1 MiB。');
-    }
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks, totalBytes).toString('utf8');
-}
-
 const server = http.createServer(async (req, res) => {
   try {
     if (!isAuthorized(req)) {
@@ -905,7 +885,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/profiles') {
-      const body = JSON.parse(await readBody(req));
+      const body = await readJsonRequest(req);
       const result = saveProfile({ id: body.id, name: body.name, config: body.config });
       const liveApplied = await sendRuntimeConfigUpdate(result.config);
       sendJson(res, 200, { ok: true, ...result, liveApplied });
@@ -913,7 +893,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/profiles/use') {
-      const body = JSON.parse(await readBody(req));
+      const body = await readJsonRequest(req);
       const result = useProfile(body.id);
       const liveApplied = await sendRuntimeConfigUpdate(result.config);
       sendJson(res, 200, { ok: true, ...result, liveApplied });
@@ -921,7 +901,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/profiles/delete') {
-      const body = JSON.parse(await readBody(req));
+      const body = await readJsonRequest(req);
       const result = deleteProfile(body.id);
       const liveApplied = await sendRuntimeConfigUpdate(result.config);
       sendJson(res, 200, { ok: true, ...result, liveApplied });
@@ -934,19 +914,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/automations') {
-      const body = JSON.parse(await readBody(req));
+      const body = await readJsonRequest(req);
       sendJson(res, 200, { ok: true, ...saveAutomation(body) });
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/api/automations/delete') {
-      const body = JSON.parse(await readBody(req));
+      const body = await readJsonRequest(req);
       sendJson(res, 200, { ok: true, ...deleteAutomation(body.id) });
       return;
     }
 
     if (req.method === 'POST' && url.pathname === '/api/config') {
-      const config = JSON.parse(await readBody(req));
+      const config = await readJsonRequest(req);
       const normalizedConfig = saveConfig(config);
       const liveApplied = await sendRuntimeConfigUpdate(normalizedConfig);
       sendJson(res, 200, { ok: true, liveApplied });
@@ -972,7 +952,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/start') {
-      const body = JSON.parse(await readBody(req) || '{}');
+      const body = await readJsonRequest(req, { allowEmpty: true });
       await startBot(body.accounts || []);
       sendJson(res, 200, { ok: true, ...getBotProcessStatus() });
       return;
@@ -993,7 +973,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/lobby/action') {
-      const body = JSON.parse(await readBody(req) || '{}');
+      const body = await readJsonRequest(req, { allowEmpty: true });
       const target = String(body.target || '').trim();
       if (!target || target === 'all') throw new Error('立即执行动作需要选择一个具体账号。');
       const action = structuredClone(body.action || {});
@@ -1016,7 +996,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/send') {
-      const body = JSON.parse(await readBody(req));
+      const body = await readJsonRequest(req);
       const result = await requestBotCommandResult(
         'chat',
         { type: 'chat', target: body.target || 'all', message: body.message || '' },

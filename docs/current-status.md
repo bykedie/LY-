@@ -60,15 +60,20 @@
 
 ## 正在进行事项
 
-API 路由 JSON 404/405 与自动同步守卫已保存为本地提交 `d3dfc71`。Basic Auth 信息隐藏顺序已加入认证回归：匿名未知 API 和错误方法均先返回 401，认证后才返回 JSON 404/405；完整 `npm.cmd test` 已通过，当前修改可保存为本地测试/交接检查点。
+JSON API 缺失/错误 Content-Type、空/畸形/非对象正文缺陷已复现并修复。统一 `src/json-request.js` 边界接管 9 个请求体入口：错误媒体类型返回 415，解析或对象形状错误返回稳定中文 400，1 MiB 上限保持，允许空对象的接口继续兼容无正文 POST。架构、安全审计和完整测试全部通过；Dashboard 从 1048 行降至 1028 行，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-保存认证回归本地检查点；随后审计 JSON API 在缺少或错误 `Content-Type`、空正文和畸形 JSON 时的状态码、诊断及进程存活。
+创建 JSON 请求边界本地里程碑提交；随后审计慢速或长期不完整请求体的 HTTP request timeout、连接关闭和后续服务健康。
 
 ## 已修改文件
 
-- `scripts/dashboard-auth-test.js`
+- `scripts/smoke-test.js`
+- `src/json-request.js`
+- `src/dashboard.js`
+- `scripts/handoff-check.js`
+- `package.json`
+- `docs/project-architecture.md`
 - `docs/current-status.md`
 - `docs/work-log.md`
 
@@ -97,6 +102,11 @@ API 路由 JSON 404/405 与自动同步守卫已保存为本地提交 `d3dfc71`�
 - `npm.cmd test`：全部通过，包含 API 路由边界、交接、维护、存储、进程、前端、Minecraft 协议与认证场景。
 - Basic Auth 路由审计：匿名未知/错误方法 API 均返回 401；认证后分别返回 JSON 404 和带真实 `Allow` 的 JSON 405。
 - `node scripts/dashboard-auth-test.js` 和完整 `npm.cmd test`：通过，认证信息隐藏顺序已进入全套验证。
+- JSON 请求矩阵旧行为：缺失/文本 Content-Type 被接受；空/畸形 JSON 返回 `Unexpected end` 或带位置的英文解析器错误；后续 `/api/status` 仍为 200。
+- 新回归在旧实现失败于缺失 Content-Type 未返回 415；修复后 smoke 覆盖 415、空/畸形/null JSON 中文 400、charset JSON 和可选空正文兼容。
+- `runtime-config-protocol-test`、相关语法、交接和维护检查通过；Dashboard 1028 行。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- `npm.cmd test`：全部通过，包含 JSON 请求、API 路由、认证、交接、维护、存储、进程、前端和 Minecraft 协议场景。
 
 ## 恢复开发命令
 
@@ -115,4 +125,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 13:21:03 +08:00
+2026-07-24 13:30:09 +08:00

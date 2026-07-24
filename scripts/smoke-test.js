@@ -49,6 +49,42 @@ try {
   assert(oversizedJson.ok === false && oversizedJson.message.includes('过大'), '超大请求体没有返回明确错误');
   const statusAfterOversizedBody = await requestJson('/api/status');
   assert(statusAfterOversizedBody.running === false, '拒绝超大请求后 Dashboard 无法继续响应');
+  const missingJsonType = await request('/api/profiles/use', { method: 'POST', body: '{}' });
+  assert(missingJsonType.statusCode === 415, '缺少 JSON Content-Type 没有返回 415');
+  assert(JSON.parse(missingJsonType.body).message.includes('application/json'), '缺少 JSON Content-Type 的诊断不明确');
+  const wrongJsonType = await request('/api/profiles/use', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: '{}'
+  });
+  assert(wrongJsonType.statusCode === 415, '错误 JSON Content-Type 没有返回 415');
+  const emptyJsonBody = await request('/api/profiles/use', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  assert(emptyJsonBody.statusCode === 400, '空 JSON 正文没有返回 400');
+  assert(JSON.parse(emptyJsonBody.body).message.includes('有效 JSON'), '空 JSON 正文泄露了解析器内部错误');
+  const malformedJsonBody = await request('/api/profiles/use', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{bad'
+  });
+  assert(malformedJsonBody.statusCode === 400, '畸形 JSON 没有返回 400');
+  assert(JSON.parse(malformedJsonBody.body).message.includes('有效 JSON'), '畸形 JSON 泄露了解析器内部错误');
+  const nullJsonBody = await request('/api/profiles/use', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: 'null'
+  });
+  assert(nullJsonBody.statusCode === 400, 'null JSON 正文没有返回 400');
+  assert(JSON.parse(nullJsonBody.body).message.includes('对象'), 'null JSON 正文泄露了属性访问错误');
+  const charsetJsonBody = await request('/api/profiles/use', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body: '{}'
+  });
+  assert(charsetJsonBody.statusCode === 400, '带 charset 的 JSON 没有进入业务校验');
+  assert(JSON.parse(charsetJsonBody.body).message.includes('配置档案'), '带 charset 的 JSON 被错误拒绝为媒体类型');
   const oversizedChunkedResponse = await request('/api/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -65,6 +101,9 @@ try {
     expectOk: false
   });
   assert(stoppedLobbyAction.message.includes('挂机进程未启动'), '未启动时不应该接受大厅即时动作');
+  const emptyOptionalJson = await request('/api/lobby/action', { method: 'POST' });
+  assert(emptyOptionalJson.statusCode === 400, '可选空 JSON 请求没有进入业务校验');
+  assert(JSON.parse(emptyOptionalJson.body).message.includes('选择'), '可选空 JSON 请求被错误拒绝为媒体类型');
 
   const rejectedStaticPost = await request('/', { method: 'POST' });
   assert(rejectedStaticPost.statusCode === 405, 'POST / 不应返回静态控制台页面');
