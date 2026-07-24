@@ -1772,3 +1772,58 @@
 - 待确认问题：无新增外部阻塞；推送仍需项目所有者明确许可。
 - 未提交修改：无；本轮修改已保存为最新本地提交。
 - 推送许可：否。
+
+## 2026-07-25 02:03:30 +08:00 — 复现即时动作格式语义缺陷
+
+- 完成内容：使用临时 Dashboard 真实复现 `/api/lobby/action` 在 `action` 为字符串时返回 JavaScript TypeError，而不是稳定中文输入形状诊断。
+- 修改文件：当前状态和工作日志；生产代码未修改。
+- 可运行状态：上一里程碑可运行；新确认的即时动作格式边界问题尚未修复，临时目录和进程已清理。
+- 测试结果：临时复现请求 `{ target: "SmokeBot", action: "wait" }` 返回 HTTP 400，消息为 `Cannot create property 'enabled' on string 'wait'`。
+- 下一步：给 `scripts/smoke-test.js` 增加非对象 `action` 回归，再最小修改 `src/dashboard.js` 在设置 `enabled` 前明确拒绝非普通对象动作。
+- 待确认问题：需要保持空请求进入“选择具体账号”、合法 wait 动作未运行时返回“挂机进程未启动”、`target=all` 拒绝等既有语义不变。
+- 未提交修改：有，仅复现检查点文档。
+- 推送许可：否。
+
+## 2026-07-25 02:07:36 +08:00 — 即时动作格式失败回归已确认
+
+- 完成内容：在 `scripts/smoke-test.js` 增加 `/api/lobby/action` 非对象 `action` 回归，要求 Dashboard 返回明确“动作对象”格式错误。
+- 修改文件：smoke 测试、当前状态和工作日志。
+- 可运行状态：生产代码尚未修复；回归已证明旧 Dashboard 未稳定拒绝非对象即时动作。
+- 测试结果：`node scripts/smoke-test.js` 按预期失败于“非对象即时动作没有返回明确格式错误”。
+- 下一步：最小修改 Dashboard 即时动作边界，优先提取专用 helper，在设置 `enabled` 前明确拒绝非普通对象动作。
+- 待确认问题：需要保持空请求进入“选择具体账号”、合法 wait 动作未运行时返回“挂机进程未启动”、`target=all` 拒绝等既有语义不变。
+- 未提交修改：有，失败回归和交接文档。
+- 推送许可：否。
+
+## 2026-07-25 02:16:24 +08:00 — 即时动作格式专项通过
+
+- 完成内容：新增 `src/runtime-lobby-action.js`，在 Dashboard 设置运行期 `enabled` 前校验即时大厅动作必须是对象，并保留非法 `enabled` 类型诊断；架构文档同步新 helper 和 API 边界。
+- 修改文件：Dashboard、即时动作 helper、smoke 测试、package 脚本、架构、当前状态和工作日志。
+- 可运行状态：专项通过，等待交接校验、维护校验、安全审计和完整测试。
+- 测试结果：修复前新增回归失败于“非对象即时动作没有返回明确格式错误”；修复后 `node --check src/runtime-lobby-action.js`、`node --check src/dashboard.js` 和 `node scripts/smoke-test.js` 通过。
+- 下一步：运行 `npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test`，通过后创建本地里程碑提交。
+- 待确认问题：无新增外部阻塞；后续触及 Dashboard 时继续优先提取小模块。
+- 未提交修改：有，即时动作格式修复、回归和文档。
+- 推送许可：否。
+
+## 2026-07-25 02:22:31 +08:00 — 即时动作格式完整验证通过
+
+- 完成内容：`/api/lobby/action` 非对象 `action` 与非法 `enabled` 类型边界修复完成完整验证，当前状态更新为可创建本地里程碑提交。
+- 修改文件：即时动作 helper、Dashboard、smoke 测试、package 脚本、架构、当前状态和工作日志。
+- 可运行状态：项目可运行，当前修改可创建本地 `fix:` 里程碑提交。
+- 测试结果：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过；维护预算为 `src/dashboard.js` 788/800。
+- 下一步：创建本地里程碑提交；提交后核对工作区并把当前状态改为最新提交后的干净状态。
+- 待确认问题：无新增外部阻塞；后续触及 Dashboard 时继续优先提取小模块。
+- 未提交修改：有，即时动作格式修复、回归和文档。
+- 推送许可：否。
+
+## 2026-07-25 02:26:20 +08:00 — 即时动作格式本地里程碑已保存
+
+- 完成内容：即时动作格式修复已保存为最新本地提交，当前状态更新到提交后的续接视角。
+- 修改文件：当前状态和工作日志。
+- 可运行状态：最新本地提交已通过完整验证；当前工作区应保持干净。
+- 测试结果：沿用本轮完整验证结果，`handoff:check`、`maintenance:check`、`security:audit` 和完整 `npm.cmd test` 均通过。
+- 下一步：继续审计 Dashboard/执行端运行期控制命令；因 Dashboard 仍为 788/800，下一轮触及时继续优先提取小模块或专用 helper。
+- 待确认问题：无新增外部阻塞；推送仍需项目所有者明确许可。
+- 未提交修改：无；本轮修改已保存为最新本地提交。
+- 推送许可：否。

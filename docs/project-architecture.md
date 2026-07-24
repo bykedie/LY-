@@ -34,6 +34,7 @@ LY控制台
 │  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
+│  ├─ runtime-lobby-action.js     # 即时大厅动作输入形状校验和运行期归一化
 │  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
 │  ├─ runtime-snapshot.js         # Dashboard 运行快照字段规范化
 │  ├─ session-state.js            # 账号会话状态创建与连接级快照清理
@@ -121,7 +122,7 @@ POST /api/start                  # 启动执行端；accounts 缺省/数组合�
 POST /api/stop                   # 停止执行端
 POST /api/send                   # 向全部或指定账号发送聊天/命令；message 必须是文本，指定目标会 trim 首尾空白
 GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标
-POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
+POST /api/lobby/action           # 对指定账号立即执行单个大厅动作；action 必须是对象
 ```
 
 所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。需要正文的 JSON API 只接受 `application/json`（可带 charset），错误媒体类型返回 `415`；空、畸形或非对象 JSON 返回稳定中文 `400`，允许空对象语义的启动/即时动作接口继续兼容无正文 POST。JSON 请求体最大为 1 MiB，超限返回 `413`。未知 `/api/*` 返回 JSON `404`；已知 API 的错误方法返回 JSON `405` 和真实 `Allow`，路由路径与方法集合由维护守卫和 Dashboard 实现保持同步。静态文件只允许 `GET`/`HEAD` 读取 `public/` 内普通文件，其他方法返回带 `Allow` 的 `405`；打开前文件消失返回 `404`，权限或同步打开错误返回 `500`，已开始响应后的读取错误销毁不完整连接，禁止未处理流错误终止 Dashboard。
@@ -216,7 +217,7 @@ npm.cmd test              # 完整测试
 
 ```text
 前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
-Dashboard/API     src/dashboard.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
+Dashboard/API     src/dashboard.js, src/runtime-lobby-action.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
 Minecraft 功能    src/index.js, src/execution-config.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md

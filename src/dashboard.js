@@ -15,7 +15,8 @@ import { createRuntimeSnapshot } from './runtime-snapshot.js';
 import { createHttpServerOptions, listenHttpServer } from './http-server-listener.js';
 import { sendApiRouteFallback } from './api-route-boundary.js';
 import { readJsonRequest } from './json-request.js';
-import { mergeDefaults, validateAutomationLobby, validateConfig, validateLobbyActions } from './config-schema.js';
+import { mergeDefaults, validateAutomationLobby, validateConfig } from './config-schema.js';
+import { normalizeRuntimeLobbyAction } from './runtime-lobby-action.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -735,9 +736,7 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
       const body = await readJsonRequest(req, { allowEmpty: true });
       const target = String(body.target || '').trim();
       if (!target || target === 'all') throw new Error('立即执行动作需要选择一个具体账号。');
-      const action = structuredClone(body.action || {});
-      action.enabled = true;
-      validateLobbyActions([action]);
+      const action = normalizeRuntimeLobbyAction(body.action);
       await requestBotCommandResult(
         'lobby',
         {

@@ -101,6 +101,24 @@ try {
     expectOk: false
   });
   assert(stoppedLobbyAction.message.includes('挂机进程未启动'), '未启动时不应该接受大厅即时动作');
+  const invalidLobbyActionShape = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'SmokeBot', action: 'wait' }),
+    expectOk: false
+  });
+  assert(
+    invalidLobbyActionShape.message.includes('动作') && invalidLobbyActionShape.message.includes('对象'),
+    '非对象即时动作没有返回明确格式错误'
+  );
+  const invalidLobbyActionEnabled = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'SmokeBot', action: { type: 'wait', delayMs: 100, enabled: 'yes' } }),
+    expectOk: false
+  });
+  assert(
+    invalidLobbyActionEnabled.message.includes('启用开关'),
+    '即时动作不应该在校验前覆盖非法 enabled 类型'
+  );
   const emptyOptionalJson = await request('/api/lobby/action', { method: 'POST' });
   assert(emptyOptionalJson.statusCode === 400, '可选空 JSON 请求没有进入业务校验');
   assert(JSON.parse(emptyOptionalJson.body).message.includes('选择'), '可选空 JSON 请求被错误拒绝为媒体类型');
