@@ -752,9 +752,10 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
 
     if (req.method === 'POST' && url.pathname === '/api/send') {
       const body = await readJsonRequest(req);
+      const target = String(body.target || '').trim() || 'all';
       const result = await requestBotCommandResult(
         'chat',
-        { type: 'chat', target: body.target || 'all', message: body.message || '' },
+        { type: 'chat', target, message: body.message || '' },
         1500,
         '等待执行端确认发送命令超时。'
       );

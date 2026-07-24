@@ -126,6 +126,12 @@ async function expectDashboardToWaitForConfigResult() {
     assert(acceptedChat.queuedTargets?.join(',') === 'ConfigProtocolBot', '执行端确认发送后 Dashboard 没有返回成功入队目标');
     assert(acceptedChat.failedTargets?.length === 0, '执行端确认发送后 Dashboard 错误返回失败目标');
 
+    const trimmedTargetChat = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: ' ConfigProtocolBot ', message: '/chat-accept' })
+    });
+    assert(trimmedTargetChat.queuedTargets?.join(',') === 'ConfigProtocolBot', '带空白的定向发送目标没有按账号名归一化');
+
     const chatTimeoutAt = Date.now();
     const timedOutChat = await requestJson(baseUrl, '/api/send', {
       method: 'POST',
