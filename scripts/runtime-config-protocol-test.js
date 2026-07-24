@@ -198,7 +198,6 @@ async function expectDashboardToWaitForConfigResult() {
 async function expectExecutorToReportConfigRejection() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-config-executor-'));
   const configPath = path.join(tempDir, 'bot.config.json');
-  const requestId = 'config-invalid-test';
   const startRequestId = 'execution-ready-test';
   let executor = null;
   let output = '';
@@ -210,13 +209,30 @@ async function expectExecutorToReportConfigRejection() {
       env: { ...process.env, BOT_CONFIG_PATH: configPath, DASHBOARD_START_REQUEST_ID: startRequestId },
       stdio: ['pipe', 'pipe', 'pipe']
     });
-    const resultPromise = waitForRuntimeEvent(executor, requestId, (text) => { output += text; });
     executor.stderr.on('data', (data) => { output += data.toString(); });
-    await writeJsonLine(executor.stdin, { type: 'config', requestId, config: null });
-    const result = await resultPromise;
+    const invalidShapeId = 'config-invalid-shape';
+    const invalidShapePromise = waitForRuntimeEvent(executor, invalidShapeId, (text) => { output += text; });
+    await writeJsonLine(executor.stdin, { type: 'config', requestId: invalidShapeId, config: null });
+    const result = await invalidShapePromise;
     assert(output.includes(`\"type\":\"executionReady\"`) && output.includes(`\"requestId\":\"${startRequestId}\"`), '真实执行端没有返回匹配的初始化完成回执');
     assert(result.ok === false, '执行端拒绝非法实时配置时返回了成功回执');
     assert(result.message.includes('实时配置格式不正确'), `执行端拒绝原因不明确：${result.message}`);
+
+    const invalidFeature = createConfig('/invalid-feature');
+    invalidFeature.features.combat.autoAttack = 'yes';
+    const invalidFeatureId = 'config-invalid-feature';
+    const invalidFeaturePromise = waitForRuntimeEvent(executor, invalidFeatureId, (text) => { output += text; });
+    await writeJsonLine(executor.stdin, { type: 'config', requestId: invalidFeatureId, config: invalidFeature });
+    const invalidFeatureResult = await invalidFeaturePromise;
+    assert(invalidFeatureResult.ok === false, '执行端错误接受了非法功能配置类型');
+    assert(invalidFeatureResult.message.includes('自动攻击开关必须是真或假'), `非法功能配置拒绝原因不明确：${invalidFeatureResult.message}`);
+    assert(executor.exitCode === null, '执行端拒绝非法功能配置后退出');
+
+    const validConfigId = 'config-valid-after-rejection';
+    const validConfigPromise = waitForRuntimeEvent(executor, validConfigId, (text) => { output += text; });
+    await writeJsonLine(executor.stdin, { type: 'config', requestId: validConfigId, config: createConfig('/valid-after-rejection') });
+    const validConfigResult = await validConfigPromise;
+    assert(validConfigResult.ok === true, '执行端拒绝非法功能配置后无法应用合法配置');
   } catch (error) {
     throw new Error(`${error.message}\n执行端输出：\n${output}`);
   } finally {
@@ -227,21 +243,26 @@ async function expectExecutorToReportConfigRejection() {
 
 function waitForRuntimeEvent(child, requestId, onOutput) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('等待执行端配置拒绝回执超时')), 3000);
+    const timer = setTimeout(() => finish(reject, new Error('等待执行端配置拒绝回执超时')), 3000);
     const reader = createLineReader((line) => {
       onOutput(`${line}\n`);
       if (!line.startsWith('::ly-event ')) return;
       const event = JSON.parse(line.slice('::ly-event '.length));
       if (event.type !== 'configApplyResult' || event.requestId !== requestId) return;
-      clearTimeout(timer);
-      resolve(event);
+      finish(resolve, event);
     });
+    const onExit = (code) => finish(reject, new Error(`执行端在返回配置回执前退出：${code}`));
     child.stdout.on('data', reader.push);
     child.stdout.once('end', reader.end);
-    child.once('exit', (code) => {
+    child.once('exit', onExit);
+
+    function finish(callback, value) {
       clearTimeout(timer);
-      reject(new Error(`执行端在返回配置回执前退出：${code}`));
-    });
+      child.stdout.off('data', reader.push);
+      child.stdout.off('end', reader.end);
+      child.off('exit', onExit);
+      callback(value);
+    }
   });
 }
 

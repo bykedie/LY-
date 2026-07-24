@@ -35,6 +35,7 @@ function assertSafeConfigTree(value) {
 }
 
 export function validateConfig(config) {
+  assertSafeConfigTree(config);
   requirePlainObject(config, '配置');
   requirePlainObject(config.server, '服务器配置');
   requirePlainObject(config.runtime, '运行配置');

@@ -62,15 +62,20 @@
 
 ## 正在进行事项
 
-配置模式修复已保存为本地里程碑 `4a2ea90`，提交后工作区干净。正在继续审计执行端运行时配置更新面对畸形或绕过 Dashboard 的 IPC 配置时，是否保持严格模式、稳定失败回执和原运行状态。
+运行时配置 IPC 模式绕过已完成根因修复和完整验证：执行端热更新先克隆配置并通过完整模式，只有成功后才替换三组 `ACTIVE_*` 状态；真实协议回归证明非法 `autoAttack="yes"` 返回失败、进程存活，随后合法配置仍成功。协议测试的临时 stdout/exit 监听器也在每轮回执后清理，避免重复采集。安全审计和完整测试全部通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-检查执行端 `config` IPC 的解析、模式校验、状态切换和 `configApplyResult` 回执；先真实复现，确认缺陷后再增加回归和最小修复。
+创建运行时配置模式本地里程碑提交；随后审计执行端从磁盘直接启动时是否同样完整校验功能、动作、规则和账号池，而非只校验核心服务器/运行字段。
 
 ## 已修改文件
 
-无。配置模式功能提交 `4a2ea90` 已完成；本次提交后状态校正将保存为本地文档检查点。
+- `docs/current-status.md`
+- `docs/project-architecture.md`
+- `docs/work-log.md`
+- `scripts/runtime-config-protocol-test.js`
+- `src/config-schema.js`
+- `src/index.js`
 
 ## 未解决问题和阻塞项
 
@@ -113,6 +118,11 @@
 - 交接、维护、语法综合检查：通过；Dashboard 774/800 行，配置模式模块 275/350 行，未提高既有 CSS 或大型文件预算。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：97.2 秒全部通过，包含配置模式、Dashboard API/认证/超时、存储事务、进程 IPC、前端、Minecraft 协议、钓鱼、重生、防挂机、自动登录和账号校验。
+- 真实执行端运行时配置审计：`autoAttack="yes"` 被错误返回 `configApplyResult.ok=true`，日志显示自动攻击已开启，确认 IPC 可绕过 Dashboard 完整模式。
+- `node scripts/runtime-config-protocol-test.js`：新增真实执行端回归在旧实现按预期失败，输出同时证明非法功能类型返回成功并改变启用功能日志。
+- 修复后 `node scripts/config-schema-test.js` 和 `node scripts/runtime-config-protocol-test.js`：通过；非法功能类型失败、执行端存活、随后合法更新成功。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- 完整 `npm.cmd test`：97 秒全部通过，包含新增真实执行端运行时配置模式拒绝和恢复场景。
 
 ## 恢复开发命令
 
@@ -131,4 +141,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 14:55:00 +08:00
+2026-07-24 15:35:00 +08:00

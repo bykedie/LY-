@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
 import { clearConnectionSnapshot, createSessionState } from './session-state.js';
+import { validateConfig } from './config-schema.js';
 
 const { pathfinder, Movements, goals } = pathfinderPackage;
 
@@ -2162,6 +2163,7 @@ function applyRuntimeConfig(config) {
   }
 
   const nextConfig = structuredClone(config);
+  validateConfig(nextConfig);
   normalizeFileConfig(nextConfig);
 
   ACTIVE_CONFIG = createActiveConfig(nextConfig);

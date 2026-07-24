@@ -98,7 +98,7 @@ Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、�
 
 配置保存前由 `src/config-schema.js` 统一执行默认值合并、结构安全与严格 JSON 类型校验。普通未知字段为前向兼容保留；`__proto__`、`prototype`、`constructor` 和超过 64 层的嵌套会被拒绝。Dashboard 对全部已知数字字段要求 JSON number；执行端直接启动时也严格校验服务器端口和运行时数字，拒绝布尔值、空值或数字字符串。
 
-保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发携带 `requestId` 的 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接，并用 `configApplyResult` 明确确认成功或返回拒绝原因。网页聊天和命令同样携带请求 ID；执行端只把处于 play 状态的目标加入消息冷却队列，并在 `chatCommandResult` 中返回成功入队和失败账号。
+保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发携带 `requestId` 的 `config` 命令；执行端先克隆并通过同一完整配置模式校验，只有成功后才原子替换 `ACTIVE_CONFIG`、`ACTIVE_ACCOUNTS` 和 `ACTIVE_FEATURES`，随后只重启支持热更新的功能工作器，不重建全部账号连接，并用 `configApplyResult` 明确确认成功或返回拒绝原因。网页聊天和命令同样携带请求 ID；执行端只把处于 play 状态的目标加入消息冷却队列，并在 `chatCommandResult` 中返回成功入队和失败账号。
 
 以上运行时数据均由 `.gitignore` 排除。部署脚本使用 Git 或压缩包更新时必须备份并恢复这些文件和目录。
 
