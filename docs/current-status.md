@@ -54,26 +54,21 @@
 - Dashboard 端口占用监听失败诊断：`84dc24d`。
 - Dashboard 非法、零值和越界端口校验：`de3c163`。
 - 静态资源错误方法 405 边界与防挂机重连测试稳定性：`c648e70`。
+- API 路由 JSON 404/405 与路径/方法集合守卫：`d3dfc71`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 - `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立。
 
 ## 正在进行事项
 
-已真实复现并修复 `/api/*` 路由错误落入静态文件回退：未知 API 现返回 JSON 404，已知 API 错误方法返回 JSON 405 与真实 `Allow`。API 路径/方法表已提取为独立边界，维护守卫同时校验路由集合和每条路由的方法集合；架构、安全审计和完整测试全部同步并通过，当前修改可创建本地里程碑提交。
+API 路由 JSON 404/405 与自动同步守卫已保存为本地提交 `d3dfc71`。Basic Auth 信息隐藏顺序已加入认证回归：匿名未知 API 和错误方法均先返回 401，认证后才返回 JSON 404/405；完整 `npm.cmd test` 已通过，当前修改可保存为本地测试/交接检查点。
 
 ## 下一步明确动作
 
-创建 API 路由边界本地里程碑提交；随后在开启 Basic Auth 时审计未知 API 和错误方法是否仍先返回 401，确保不泄露路由存在性。
+保存认证回归本地检查点；随后审计 JSON API 在缺少或错误 `Content-Type`、空正文和畸形 JSON 时的状态码、诊断及进程存活。
 
 ## 已修改文件
 
-- `src/api-route-boundary.js`
-- `src/dashboard.js`
-- `scripts/smoke-test.js`
-- `scripts/maintenance-check.js`
-- `scripts/handoff-check.js`
-- `package.json`
-- `docs/project-architecture.md`
+- `scripts/dashboard-auth-test.js`
 - `docs/current-status.md`
 - `docs/work-log.md`
 
@@ -100,6 +95,8 @@
 - 相关语法、smoke、交接和维护检查通过；API 路径及方法集合守卫通过，Dashboard 1048 行，未提高预算。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - `npm.cmd test`：全部通过，包含 API 路由边界、交接、维护、存储、进程、前端、Minecraft 协议与认证场景。
+- Basic Auth 路由审计：匿名未知/错误方法 API 均返回 401；认证后分别返回 JSON 404 和带真实 `Allow` 的 JSON 405。
+- `node scripts/dashboard-auth-test.js` 和完整 `npm.cmd test`：通过，认证信息隐藏顺序已进入全套验证。
 
 ## 恢复开发命令
 
@@ -118,4 +115,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 13:15:49 +08:00
+2026-07-24 13:21:03 +08:00

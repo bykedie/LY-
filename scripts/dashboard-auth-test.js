@@ -65,6 +65,21 @@ try {
 
   const unauthorizedStop = await request('/api/stop', { method: 'POST' });
   assert(unauthorizedStop.statusCode === 401, '未登录 POST /api/stop 应该被拒绝');
+  const anonymousMissingApi = await request('/api/missing');
+  assert(anonymousMissingApi.statusCode === 401, '未登录未知 API 泄露了路由存在性');
+  const anonymousWrongMethod = await request('/api/config', { method: 'PUT' });
+  assert(anonymousWrongMethod.statusCode === 401, '未登录错误方法 API 泄露了允许方法');
+  const authorizedMissingApi = await request('/api/missing', {
+    headers: { Authorization: basicAuth('root', 'secret-pass') }
+  });
+  assert(authorizedMissingApi.statusCode === 404, '认证后未知 API 没有返回 404');
+  assert(JSON.parse(authorizedMissingApi.body).ok === false, '认证后未知 API 没有返回 JSON 错误');
+  const authorizedWrongMethod = await request('/api/config', {
+    method: 'PUT',
+    headers: { Authorization: basicAuth('root', 'secret-pass') }
+  });
+  assert(authorizedWrongMethod.statusCode === 405, '认证后错误方法 API 没有返回 405');
+  assert(authorizedWrongMethod.headers.allow === 'GET, POST', '认证后错误方法 API Allow 头不正确');
 
   const authorizedPage = await request('/', {
     headers: { Authorization: basicAuth('root', 'secret-pass') }
