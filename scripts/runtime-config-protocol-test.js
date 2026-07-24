@@ -9,6 +9,7 @@ import { writeJsonLine } from '../src/process-ipc.js';
 const projectRoot = path.resolve(import.meta.dirname, '..');
 
 await expectDashboardToWaitForConfigResult();
+await expectDashboardToHideExecutorBootstrapFailure();
 await expectExecutorToReportConfigRejection();
 console.log('runtime config protocol test ok');
 
@@ -193,6 +194,72 @@ async function expectDashboardToWaitForConfigResult() {
     await stopProcess(dashboard);
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+}
+
+async function expectDashboardToHideExecutorBootstrapFailure() {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-bootstrap-failure-'));
+  const configPath = path.join(tempRoot, 'bot.config.json');
+  const examplePath = path.join(tempRoot, 'bot.config.example.json');
+  const dashboardPort = 41000 + Math.floor(Math.random() * 2000);
+  let dashboard = null;
+  let output = '';
+
+  try {
+    fs.cpSync(path.join(projectRoot, 'src'), path.join(tempRoot, 'src'), { recursive: true });
+    fs.cpSync(path.join(projectRoot, 'public'), path.join(tempRoot, 'public'), { recursive: true });
+    fs.copyFileSync(path.join(projectRoot, 'package.json'), path.join(tempRoot, 'package.json'));
+    fs.copyFileSync(path.join(projectRoot, 'bot.config.example.json'), examplePath);
+    fs.symlinkSync(
+      path.join(projectRoot, 'node_modules'),
+      path.join(tempRoot, 'node_modules'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+
+    fs.writeFileSync(configPath, `${JSON.stringify(createConfig('/bootstrap-failure'), null, 2)}\n`, 'utf8');
+    dashboard = spawn(process.execPath, ['src/dashboard.js'], {
+      cwd: tempRoot,
+      env: {
+        ...process.env,
+        DASHBOARD_PORT: String(dashboardPort),
+        BOT_CONFIG_PATH: configPath,
+        DASHBOARD_START_READY_TIMEOUT_MS: '1200'
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    dashboard.stdout.on('data', (data) => { output += data.toString(); });
+    dashboard.stderr.on('data', (data) => { output += data.toString(); });
+
+    const baseUrl = `http://127.0.0.1:${dashboardPort}`;
+    await waitForDashboard(baseUrl, () => output);
+    fs.unlinkSync(examplePath);
+
+    const failedStart = await requestJson(baseUrl, '/api/start', { method: 'POST', expectOk: false });
+    assert(failedStart.ok === false, '执行端启动配置缺失时 Dashboard 错误返回成功');
+    assert(failedStart.message.includes('bot.config.example.json'), `执行端启动失败原因不明确：${failedStart.message}`);
+    await sleep(100);
+    const failedStatus = await requestJson(baseUrl, '/api/status');
+    assert(failedStatus.running === false, '执行端启动失败后 Dashboard 仍报告运行中');
+    assert(failedStatus.starting === false, '执行端启动失败后 Dashboard 仍报告初始化中');
+    assert(failedStatus.stopping === false, '执行端启动失败后 Dashboard 仍报告停止中');
+
+    const diagnosticText = `${failedStart.message}\n${failedStatus.logs.join('\n')}\n${output}`;
+    assert(!containsInternalDiagnostic(diagnosticText), `执行端启动失败泄露了内部诊断：\n${diagnosticText}`);
+    assert(diagnosticText.includes('bot.config.example.json') || diagnosticText.includes('执行端初始化'), '执行端启动失败缺少可操作中文诊断');
+    assert(dashboard.exitCode === null, '执行端启动失败导致 Dashboard 退出');
+
+    fs.copyFileSync(path.join(projectRoot, 'bot.config.example.json'), examplePath);
+    const retry = await requestJson(baseUrl, '/api/start', { method: 'POST' });
+    assert(retry.running === true && retry.starting === false, '恢复示例配置后 Dashboard 无法再次启动执行端');
+    await requestJson(baseUrl, '/api/stop', { method: 'POST' });
+    await waitForStopped(baseUrl);
+  } finally {
+    await stopProcess(dashboard);
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function containsInternalDiagnostic(text) {
+  return /file:\/\/\/|node:internal|\n\s+at\s|node:fs:|readFileUtf8|pcl-afk-bootstrap-failure-|(^|[\s'\"])[A-Za-z]:[\\/]/.test(text);
 }
 
 async function expectExecutorToReportConfigRejection() {

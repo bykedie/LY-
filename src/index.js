@@ -104,12 +104,10 @@ const ACCOUNTS = [
 // 下面是程序逻辑，一般不需要修改
 // =========================
 
-const FILE_CONFIG = loadExecutionConfig(
-  process.env.BOT_CONFIG_PATH ? path.resolve(process.env.BOT_CONFIG_PATH) : path.resolve(process.cwd(), 'bot.config.json')
-);
-let ACTIVE_CONFIG = FILE_CONFIG ? createActiveConfig(FILE_CONFIG) : USER_CONFIG;
-let ACTIVE_ACCOUNTS = FILE_CONFIG ? FILE_CONFIG.accounts : ACCOUNTS;
-let ACTIVE_FEATURES = mergeFeatures(FILE_CONFIG?.features || {});
+let ACTIVE_CONFIG = USER_CONFIG;
+let ACTIVE_ACCOUNTS = ACCOUNTS;
+let ACTIVE_FEATURES = mergeFeatures({});
+let diskConfigLoaded = false;
 const sessions = new Map();
 const dashboardStartRequestId = String(process.env.DASHBOARD_START_REQUEST_ID || '').trim();
 let executionReadySent = false;
@@ -2032,6 +2030,17 @@ function scheduleReconnect(account) {
   session.reconnectTimer = setTimeout(() => createBot(account), ACTIVE_CONFIG.reconnectDelayMs);
 }
 
+function loadDiskConfig() {
+  if (diskConfigLoaded) return;
+  const fileConfig = loadExecutionConfig(
+    process.env.BOT_CONFIG_PATH ? path.resolve(process.env.BOT_CONFIG_PATH) : path.resolve(process.cwd(), 'bot.config.json')
+  );
+  ACTIVE_CONFIG = fileConfig ? createActiveConfig(fileConfig) : USER_CONFIG;
+  ACTIVE_ACCOUNTS = fileConfig ? fileConfig.accounts : ACCOUNTS;
+  ACTIVE_FEATURES = mergeFeatures(fileConfig?.features || {});
+  diskConfigLoaded = true;
+}
+
 function formatReason(reason) {
   if (typeof reason === 'string') return reason;
   try {
@@ -2042,6 +2051,7 @@ function formatReason(reason) {
 }
 
 async function startAllAccounts() {
+  loadDiskConfig();
   const accounts = loadAccounts().filter((account) => account.enabled);
   activeAccountNames = accounts.map((account) => account.username);
   const enabledFeatures = getEnabledFeatures();
@@ -2068,6 +2078,7 @@ async function startAllAccounts() {
 }
 
 function stopAllAccounts() {
+  if (!diskConfigLoaded) return;
   log(null, '正在停止所有账号...');
   ACTIVE_CONFIG.reconnect = false;
 
@@ -2090,6 +2101,7 @@ function applyRuntimeConfig(config) {
   ACTIVE_CONFIG = createActiveConfig(nextConfig);
   ACTIVE_ACCOUNTS = nextConfig.accounts;
   ACTIVE_FEATURES = mergeFeatures(nextConfig.features || {});
+  diskConfigLoaded = true;
 
   for (const [username, session] of sessions) {
     if (!session?.bot) continue;
@@ -2200,6 +2212,10 @@ process.once('SIGTERM', () => shutdownExecution('SIGTERM'));
 
 listenDashboardCommands();
 startAllAccounts().catch((error) => {
-  log(null, `启动失败：${error.message}`);
+  const message = `执行端启动失败：${error.message}`;
+  if (dashboardStartRequestId && !executionReadySent) {
+    emitRuntimeEvent({ type: 'executionReady', requestId: dashboardStartRequestId, ok: false, message });
+  }
+  log(null, message);
   process.exit(1);
 });

@@ -4,12 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { mergeDefaults, validateConfig } from './config-schema.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const defaultFileConfig = JSON.parse(fs.readFileSync(path.join(projectRoot, 'bot.config.example.json'), 'utf8'));
 
 export function loadExecutionConfig(configPath) {
   if (!fs.existsSync(configPath)) return null;
-
-  const parsedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const defaultFileConfig = readDefaultConfig();
+  const parsedConfig = readConfigFile(configPath);
   if (!parsedConfig.server || !parsedConfig.runtime || !Array.isArray(parsedConfig.accounts)) {
     throw new Error('bot.config.json 格式不正确，请参考 bot.config.example.json。');
   }
@@ -18,6 +17,23 @@ export function loadExecutionConfig(configPath) {
   const fileConfig = mergeDefaults(defaultFileConfig, parsedConfig);
   validateConfig(fileConfig);
   return fileConfig;
+}
+
+function readDefaultConfig() {
+  const defaultConfigPath = path.join(projectRoot, 'bot.config.example.json');
+  try {
+    return JSON.parse(fs.readFileSync(defaultConfigPath, 'utf8'));
+  } catch {
+    throw new Error('执行端默认配置 bot.config.example.json 无法读取，请确认项目文件完整后重试。');
+  }
+}
+
+function readConfigFile(configPath) {
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch {
+    throw new Error('bot.config.json 无法读取或不是合法 JSON，请检查配置文件后重试。');
+  }
 }
 
 function normalizeCoreConfig(fileConfig) {
