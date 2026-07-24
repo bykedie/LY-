@@ -136,6 +136,9 @@ async function expectDashboardToWaitForConfigResult() {
     assert(timedOutChat.ok === false && timedOutChat.message.includes('确认发送命令超时'), '执行端不返回发送回执时 Dashboard 错误返回成功');
     assert(chatTimeoutElapsed >= 1000 && chatTimeoutElapsed < 5000, `发送回执超时边界异常：${chatTimeoutElapsed}ms`);
 
+    const allTargetSnapshot = await requestJson(baseUrl, '/api/window?target=all', { expectOk: false });
+    assert(allTargetSnapshot.ok === false && allTargetSnapshot.message.includes('具体账号'), '窗口快照聚合目标没有被明确拒绝');
+
     const emptySnapshot = await requestJson(baseUrl, '/api/window?target=ConfigProtocolBot');
     assert(emptySnapshot.ok === true && emptySnapshot.window === null, '执行端返回的合法空窗口快照不应被当成失败');
     const ignoredSnapshotAt = Date.now();

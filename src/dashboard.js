@@ -720,8 +720,8 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
     }
 
     if (req.method === 'GET' && url.pathname === '/api/window') {
-      const target = url.searchParams.get('target') || '';
-      if (!target) throw new Error('请选择要读取窗口的账号。');
+      const target = String(url.searchParams.get('target') || '').trim();
+      if (!target || target === 'all') throw new Error('读取窗口需要选择一个具体账号。');
       const snapshot = await requestWindowSnapshot(target);
       sendJson(res, 200, { ok: true, ...snapshot });
       return;

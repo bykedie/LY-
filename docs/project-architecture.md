@@ -120,7 +120,7 @@ GET  /api/status                 # 运行状态、控制状态和日志
 POST /api/start                  # 启动执行端
 POST /api/stop                   # 停止执行端
 POST /api/send                   # 向全部或指定账号发送聊天/命令
-GET  /api/window                 # 请求指定账号窗口和协议快照
+GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
 ```
 
