@@ -120,7 +120,7 @@ function createTestConfig({ port, username, password }) {
       auth: 'offline'
     },
     runtime: {
-      connectIntervalMs: 100,
+      connectIntervalMs: 1000,
       reconnect: false,
       reconnectDelayMs: 1000,
       idleActions: false,

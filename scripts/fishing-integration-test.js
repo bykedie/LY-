@@ -65,7 +65,7 @@ function createFishingConfig(port) {
       auth: 'offline'
     },
     runtime: {
-      connectIntervalMs: 100,
+      connectIntervalMs: 1000,
       reconnect: false,
       reconnectDelayMs: 1000,
       idleActions: false,
@@ -90,14 +90,14 @@ function createFishingConfig(port) {
         eatThreshold: 16,
         fishingStartDelayMs: 300,
         fishingCastDelayMs: 1000,
-        fishingTimeoutMs: 4000
+        fishingTimeoutMs: 10000
       },
       movement: {
         autoWalk: false,
         antiAfk: false,
         switchHeldItem: false,
-        antiAfkMinDelayMs: 600,
-        antiAfkMaxDelayMs: 700,
+        antiAfkMinDelayMs: 1000,
+        antiAfkMaxDelayMs: 1200,
         antiAfkCommand: '',
         antiAfkSneak: false,
         antiAfkWalk: true,

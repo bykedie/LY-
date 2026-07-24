@@ -2,12 +2,15 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
 import { clearConnectionSnapshot, createSessionState } from './session-state.js';
-import { validateConfig } from './config-schema.js';
+import { mergeDefaults, validateConfig } from './config-schema.js';
 
 const { pathfinder, Movements, goals } = pathfinderPackage;
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const defaultFileConfig = JSON.parse(fs.readFileSync(path.join(projectRoot, 'bot.config.example.json'), 'utf8'));
 
 /*
   PCL / Minecraft 批量登录挂机脚本
@@ -229,13 +232,15 @@ function loadMainConfigFromFile() {
   if (!fs.existsSync(configPath)) return null;
 
   const raw = fs.readFileSync(configPath, 'utf8');
-  const fileConfig = JSON.parse(raw);
+  const parsedConfig = JSON.parse(raw);
 
-  if (!fileConfig.server || !fileConfig.runtime || !Array.isArray(fileConfig.accounts)) {
+  if (!parsedConfig.server || !parsedConfig.runtime || !Array.isArray(parsedConfig.accounts)) {
     throw new Error('bot.config.json 格式不正确，请参考 bot.config.example.json。');
   }
 
-  normalizeFileConfig(fileConfig);
+  normalizeFileConfig(parsedConfig);
+  const fileConfig = mergeDefaults(defaultFileConfig, parsedConfig);
+  validateConfig(fileConfig);
   return fileConfig;
 }
 

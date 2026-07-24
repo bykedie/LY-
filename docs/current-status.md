@@ -63,15 +63,27 @@
 
 ## 正在进行事项
 
-运行时配置 IPC 修复已保存为本地里程碑 `39d01ca`，提交后工作区干净。项目可运行，准备继续审计执行端从磁盘直接启动时是否同样完整校验功能、动作、规则和账号池。
+磁盘直接启动完整模式绕过已完成根因修复和完整验证：执行端保留核心字段专用诊断，再以示例配置补齐旧字段并执行完整模式；四类非法配置均在 ready 前失败。旧配置缺失整组功能、账号可选字段和账号池时仍能补齐并真实启动成功。相关 Minecraft 集成测试已改用产品允许的最小时间参数，安全审计和完整测试全部通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-真实复现执行端直接读取磁盘配置时对非法功能类型、异常动作/规则和账号池的行为；若能绕过模式，增加启动失败回归并复用完整配置模式。
+创建磁盘启动配置模式本地里程碑提交；随后沿当前真实边界提取执行端磁盘配置加载模块，降低 `src/index.js` 2290/2300 行的维护压力，并保持现有回归不变。
 
 ## 已修改文件
 
-无。运行时配置功能提交 `39d01ca` 已完成，交接状态已同步。
+- `docs/current-status.md`
+- `docs/project-architecture.md`
+- `docs/work-log.md`
+- `scripts/account-validation-test.js`
+- `scripts/anti-afk-movement-test.js`
+- `scripts/auto-login-integration-test.js`
+- `scripts/config-schema-test.js`
+- `scripts/fishing-integration-test.js`
+- `scripts/handoff-check.js`
+- `scripts/protocol-integration-test.js`
+- `scripts/respawn-integration-test.js`
+- `src/config-schema.js`
+- `src/index.js`
 
 ## 未解决问题和阻塞项
 
@@ -119,6 +131,13 @@
 - 修复后 `node scripts/config-schema-test.js` 和 `node scripts/runtime-config-protocol-test.js`：通过；非法功能类型失败、执行端存活、随后合法更新成功。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：97 秒全部通过，包含新增真实执行端运行时配置模式拒绝和恢复场景。
+- 磁盘启动隔离矩阵：非法功能类型、空动作、空规则和空账号池均错误发出 `executionReady` 且进程保持运行，确认直接启动可绕过完整模式。
+- `node scripts/account-validation-test.js`：新增启动回归在旧实现按预期失败，非法功能类型被当作启用并最终以退出码 0 结束。
+- 修复后配置模式和账号启动专项通过：四类非法磁盘配置在 ready 前退出；缺失功能组、账号可选字段和账号池的旧配置补齐后成功启动。
+- 协议、钓鱼、重生、防挂机、自动登录和运行时配置专项全部通过；测试夹具使用正式模式允许的最小时间参数。
+- 交接与维护检查通过；`src/index.js` 2290/2300 行，未提高维护预算。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- 完整 `npm.cmd test`：111.6 秒全部通过，包含磁盘启动完整模式拒绝、旧配置兼容和全部 Dashboard/Minecraft 场景。
 
 ## 恢复开发命令
 
@@ -137,4 +156,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 15:40:00 +08:00
+2026-07-24 23:05:00 +08:00

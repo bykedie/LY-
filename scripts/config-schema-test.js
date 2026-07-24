@@ -37,6 +37,13 @@ expectFailure(() => validateConfig(invalidRule), '关键词规则第 1 条必须
 const valid = structuredClone(defaults);
 validateConfig(valid);
 assert(valid.server.port === 25565, '合法数字配置被意外修改');
+const legacyAccounts = structuredClone(defaults);
+legacyAccounts.accounts = [{ username: 'LegacyBot', enabled: true }];
+legacyAccounts.accountPool = [{ username: 'LegacyPoolBot' }];
+validateConfig(legacyAccounts);
+assert(legacyAccounts.accounts[0].chatOnJoin === '', '旧账号缺失进服消息时没有补齐默认值');
+assert(legacyAccounts.accounts[0].registerPassword === '', '旧账号缺失注册密码时没有补齐默认值');
+assert(legacyAccounts.accountPool[0].registerPassword === '', '旧账号池缺失密码时没有补齐默认值');
 console.log('config schema test ok');
 
 function expectFailure(callback, expectedMessage) {

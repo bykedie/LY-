@@ -18,7 +18,7 @@ await expectStartupFailure({
 await expectStartupFailure({
   name: 'blank-name',
   accounts: [{ username: '   ', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
-  expected: '缺少 username'
+  expected: '缺少用户名'
 });
 
 await expectStartupFailure({
@@ -30,19 +30,19 @@ await expectStartupFailure({
 await expectStartupFailure({
   name: 'not-string-name',
   accounts: [{ username: 123, enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
-  expected: 'username 必须是文本'
+  expected: '用户名必须是文本'
 });
 
 await expectStartupFailure({
   name: 'bad-auth',
   accounts: [{ username: 'BadAuthBot', enabled: true, chatOnJoin: '', auth: 'yggdrasil', registerPassword: '' }],
-  expected: 'auth 必须是 offline'
+  expected: '登录模式必须是 offline'
 });
 
 await expectStartupFailure({
   name: 'bad-enabled',
   accounts: [{ username: 'BadEnabledBot', enabled: 'true', chatOnJoin: '', auth: '', registerPassword: '' }],
-  expected: 'enabled 必须是真或假'
+  expected: '启用开关必须是真或假'
 });
 
 await expectStartupFailure({
@@ -110,7 +110,65 @@ await expectStartupFailure({
   expected: 'runtime.messageCooldownMs 必须是数字'
 });
 
+await expectStartupFailure({
+  name: 'invalid-feature-type',
+  accounts: [{ username: 'FeatureBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
+  configPatch: { features: { combat: { autoAttack: 'yes' } } },
+  expected: '自动攻击开关必须是真或假'
+});
+
+await expectStartupFailure({
+  name: 'null-lobby-action',
+  accounts: [{ username: 'ActionBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
+  configPatch: { features: { lobby: { actions: [null] } } },
+  expected: '第 1 个大厅动作必须是对象'
+});
+
+await expectStartupFailure({
+  name: 'null-keyword-rule',
+  accounts: [{ username: 'RuleBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
+  configPatch: { features: { chat: { keywordRules: [null] } } },
+  expected: '关键词规则第 1 条必须是对象'
+});
+
+await expectStartupFailure({
+  name: 'null-account-pool',
+  accounts: [{ username: 'PoolBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
+  configPatch: { accountPool: null },
+  expected: '账号池必须是数组'
+});
+
+await expectLegacyStartupSuccess();
+
 console.log('account validation test ok');
+
+async function expectLegacyStartupSuccess() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-account-legacy-'));
+  let child = null;
+
+  try {
+    const config = createConfig([{ username: 'LegacyBot', enabled: true }]);
+    delete config.features;
+    delete config.accountPool;
+    config.server.port = 9;
+    config.runtime.reconnect = false;
+    config.runtime.testExitAfterMs = 50;
+    fs.writeFileSync(path.join(tempDir, 'bot.config.json'), JSON.stringify(config, null, 2), 'utf8');
+
+    const output = [];
+    child = spawn(process.execPath, [botScript], { cwd: tempDir, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', (data) => output.push(data.toString()));
+    child.stderr.on('data', (data) => output.push(data.toString()));
+
+    const [exitCode] = await once(child, 'exit', 10000);
+    const text = output.join('');
+    assert(exitCode === 0, `旧配置补齐默认值后启动失败：${exitCode}\n${text}`);
+    assert(text.includes('读取到 1 个启用账号'), `旧配置没有成功加载账号：\n${text}`);
+  } finally {
+    if (child && child.exitCode === null) child.kill('SIGINT');
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
 
 async function expectStartupFailure({ name, accounts, expected, configPatch = {} }) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pcl-afk-account-${name}-`));
@@ -150,7 +208,7 @@ function createConfig(accounts, patch = {}) {
       auth: 'offline'
     },
     runtime: {
-      connectIntervalMs: 100,
+      connectIntervalMs: 1000,
       reconnect: false,
       reconnectDelayMs: 1000,
       idleActions: false,

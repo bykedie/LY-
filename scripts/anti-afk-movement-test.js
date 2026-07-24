@@ -92,7 +92,7 @@ async function runReconnectOriginScenario() {
     await once(server, 'listening');
     const config = createAntiAfkConfig({ port: serverPort, username: 'AntiAfkReconnectBot', antiAfkCommand: '' });
     config.runtime.reconnect = true;
-    config.runtime.reconnectDelayMs = 250;
+    config.runtime.reconnectDelayMs = 1000;
     config.runtime.testExitAfterMs = 7500;
     fs.writeFileSync(path.join(tempDir, 'bot.config.json'), JSON.stringify(config, null, 2), 'utf8');
 
@@ -129,7 +129,7 @@ function createAntiAfkConfig({ port, username, antiAfkCommand }) {
       auth: 'offline'
     },
     runtime: {
-      connectIntervalMs: 100,
+      connectIntervalMs: 1000,
       reconnect: false,
       reconnectDelayMs: 1000,
       idleActions: false,

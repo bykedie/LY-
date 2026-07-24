@@ -133,6 +133,8 @@ export function validateConfig(config) {
     if (!username) throw new Error(`第 ${index + 1} 个账号缺少用户名。`);
     if (names.has(username)) throw new Error(`账号名重复：${username}`);
     account.username = username;
+    if (account.chatOnJoin === undefined) account.chatOnJoin = '';
+    if (account.registerPassword === undefined) account.registerPassword = '';
     if (account.auth && !['offline', 'microsoft'].includes(account.auth)) throw new Error(`第 ${index + 1} 个账号登录模式必须是 offline、microsoft 或留空。`);
     if (account.enabled !== undefined) requireBoolean(account.enabled, `第 ${index + 1} 个账号启用开关`);
     if (typeof account.chatOnJoin !== 'string') throw new Error(`第 ${index + 1} 个账号进服发言必须是文本。`);
@@ -246,6 +248,7 @@ function validateAccountPool(value) {
     requirePlainObject(account, `账号池第 ${index + 1} 个账号`);
     if (typeof account.username !== 'string') throw new Error(`账号池第 ${index + 1} 个账号名必须是文本。`);
     account.username = account.username.trim();
+    if (account.registerPassword === undefined) account.registerPassword = '';
     if (typeof account.registerPassword !== 'string') throw new Error(`账号池第 ${index + 1} 个密码必须是文本。`);
     if (account.note !== undefined && typeof account.note !== 'string') throw new Error(`账号池第 ${index + 1} 个备注必须是文本。`);
     if (typeof account.note === 'string') account.note = account.note.trim();

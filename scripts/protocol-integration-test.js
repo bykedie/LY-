@@ -84,7 +84,7 @@ function createTestConfig(port) {
       auth: 'offline'
     },
     runtime: {
-      connectIntervalMs: 100,
+      connectIntervalMs: 1000,
       reconnect: false,
       reconnectDelayMs: 1000,
       idleActions: false,
@@ -115,8 +115,8 @@ function createTestConfig(port) {
         autoWalk: true,
         antiAfk: true,
         switchHeldItem: true,
-        antiAfkMinDelayMs: 600,
-        antiAfkMaxDelayMs: 700,
+        antiAfkMinDelayMs: 1000,
+        antiAfkMaxDelayMs: 1200,
         antiAfkCommand: '/ping',
         antiAfkSneak: false,
         antiAfkWalk: true,

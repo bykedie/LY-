@@ -73,7 +73,7 @@ function createRespawnConfig({ port, autoRespawn, username }) {
       auth: 'offline'
     },
     runtime: {
-      connectIntervalMs: 100,
+      connectIntervalMs: 1000,
       reconnect: false,
       reconnectDelayMs: 1000,
       idleActions: false,

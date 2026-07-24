@@ -38,6 +38,7 @@ const requiredFiles = [
   'docs/next-ai-prompt.md',
   'docs/conversation-handoff.md',
   'docs/ubuntu-24.04-deploy.md',
+  'bot.config.example.json',
   'src/dashboard.js',
   'src/config-schema.js',
   'src/api-route-boundary.js',
