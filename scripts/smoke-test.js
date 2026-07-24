@@ -70,6 +70,17 @@ try {
   assert(rejectedStaticPost.statusCode === 405, 'POST / 不应返回静态控制台页面');
   assert(rejectedStaticPost.headers.allow === 'GET, HEAD', '静态资源错误方法响应缺少 Allow 头');
   assert(!rejectedStaticPost.body.includes('LY挂机控制台'), '静态资源错误方法响应泄露了页面正文');
+  const missingApi = await request('/api/missing');
+  assert(missingApi.statusCode === 404, '未知 API 没有返回 404');
+  assert(missingApi.headers['content-type']?.includes('application/json'), '未知 API 没有返回 JSON');
+  assert(JSON.parse(missingApi.body).message.includes('不存在'), '未知 API 缺少明确诊断');
+  const rejectedConfigMethod = await request('/api/config', { method: 'PUT' });
+  assert(rejectedConfigMethod.statusCode === 405, '配置 API 错误方法没有返回 405');
+  assert(rejectedConfigMethod.headers.allow === 'GET, POST', '配置 API Allow 头不正确');
+  assert(rejectedConfigMethod.headers['content-type']?.includes('application/json'), '配置 API 错误方法没有返回 JSON');
+  const rejectedStatusMethod = await request('/api/status', { method: 'POST' });
+  assert(rejectedStatusMethod.statusCode === 405, '状态 API 错误方法没有返回 405');
+  assert(rejectedStatusMethod.headers.allow === 'GET', '状态 API Allow 头不正确');
   const page = await requestText('/');
   assert(page.includes('LY挂机控制台'), '页面默认标题没有改成 LY挂机控制台');
   assert(page.includes('sidebarToggle'), '页面缺少侧边栏收放按钮');

@@ -59,15 +59,23 @@
 
 ## 正在进行事项
 
-监听失败、非法端口和静态错误方法修复已分别保存为本地提交 `84dc24d`、`de3c163`、`c648e70`；HTTP 边界检查点已保存为 `70db46d`。静态 `HEAD /` 真实审计返回 200、正确内容类型和 0 字节正文，Dashboard 持续存活，无需额外修改。当前工作区干净。
+已真实复现并修复 `/api/*` 路由错误落入静态文件回退：未知 API 现返回 JSON 404，已知 API 错误方法返回 JSON 405 与真实 `Allow`。API 路径/方法表已提取为独立边界，维护守卫同时校验路由集合和每条路由的方法集合；架构、安全审计和完整测试全部同步并通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-审计未知或错误方法的 `/api/*` 请求是否错误落入静态文件回退，确认应返回稳定 JSON `404/405` 还是保留当前文本 404；先记录真实客户端行为，再决定是否修复。
+创建 API 路由边界本地里程碑提交；随后在开启 Basic Auth 时审计未知 API 和错误方法是否仍先返回 401，确保不泄露路由存在性。
 
 ## 已修改文件
 
-无，前三轮修复和本检查点均保存为本地提交，工作区干净。
+- `src/api-route-boundary.js`
+- `src/dashboard.js`
+- `scripts/smoke-test.js`
+- `scripts/maintenance-check.js`
+- `scripts/handoff-check.js`
+- `package.json`
+- `docs/project-architecture.md`
+- `docs/current-status.md`
+- `docs/work-log.md`
 
 ## 未解决问题和阻塞项
 
@@ -87,6 +95,11 @@
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - `npm.cmd test`：重新运行后全部通过，包含静态方法、重连移动、交接、维护、存储、进程、前端、协议与认证场景。
 - 静态 `HEAD /` 真实审计：返回 200、`text/html`、0 字节正文，Dashboard 无 stderr 且持续存活。
+- API 路由矩阵旧行为：未知 API 为文本 404；`PUT /api/config` 为文本 405 且错误 `Allow: GET, HEAD`。
+- `node scripts/smoke-test.js`：新回归在旧实现失败于未知 API 非 JSON，修复后通过未知 API JSON 404、配置 API `Allow: GET, POST` 和状态 API `Allow: GET`。
+- 相关语法、smoke、交接和维护检查通过；API 路径及方法集合守卫通过，Dashboard 1048 行，未提高预算。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- `npm.cmd test`：全部通过，包含 API 路由边界、交接、维护、存储、进程、前端、Minecraft 协议与认证场景。
 
 ## 恢复开发命令
 
@@ -105,4 +118,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 13:05:56 +08:00
+2026-07-24 13:15:49 +08:00

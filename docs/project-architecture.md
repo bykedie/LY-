@@ -24,6 +24,7 @@ Mineflayer 执行层：src/index.js
 LY控制台
 ├─ src/
 │  ├─ dashboard.js                # API、配置校验、档案、鉴权、进程、日志和协议事件
+│  ├─ api-route-boundary.js       # API 路径/方法表与 JSON 404/405 回退
 │  ├─ http-server-listener.js     # Dashboard HTTP 监听启动与失败诊断
 │  ├─ automation-store.js          # 自动化方案校验、持久化、去重和损坏恢复
 │  ├─ json-store.js               # 单文件原子写入与多文件事务回滚
@@ -118,7 +119,7 @@ GET  /api/window                 # 请求指定账号窗口和协议快照
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
 ```
 
-所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。JSON 请求体最大为 1 MiB，超限返回 `413`。静态文件只允许 `GET`/`HEAD` 读取 `public/` 内普通文件，其他方法返回带 `Allow` 的 `405`；打开前文件消失返回 `404`，权限或同步打开错误返回 `500`，已开始响应后的读取错误销毁不完整连接，禁止未处理流错误终止 Dashboard。
+所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。JSON 请求体最大为 1 MiB，超限返回 `413`。未知 `/api/*` 返回 JSON `404`；已知 API 的错误方法返回 JSON `405` 和真实 `Allow`，路由路径与方法集合由维护守卫和 Dashboard 实现保持同步。静态文件只允许 `GET`/`HEAD` 读取 `public/` 内普通文件，其他方法返回带 `Allow` 的 `405`；打开前文件消失返回 `404`，权限或同步打开错误返回 `500`，已开始响应后的读取错误销毁不完整连接，禁止未处理流错误终止 Dashboard。
 
 ## 六、运行时通信协议
 

@@ -13,6 +13,7 @@ import { createLineReader } from './line-reader.js';
 import { createRuntimeRequestId, createRuntimeRequestTracker } from './runtime-request-tracker.js';
 import { createRuntimeSnapshot } from './runtime-snapshot.js';
 import { listenHttpServer } from './http-server-listener.js';
+import { sendApiRouteFallback } from './api-route-boundary.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -1030,6 +1031,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (sendApiRouteFallback(req, res, url.pathname)) return;
     const requestPath = decodeURIComponent(url.pathname);
     await serveStaticFile(requestPath, res, { publicDir, method: req.method });
   } catch (error) {

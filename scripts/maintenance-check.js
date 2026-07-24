@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { apiRouteMethods } from '../src/api-route-boundary.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -13,15 +14,28 @@ function failWhen(condition, message) {
   if (condition) failures.push(message);
 }
 
-const dashboardRoutes = new Set(
-  [...read('src/dashboard.js').matchAll(/url\.pathname === '([^']+)'/g)].map((match) => match[1])
-);
+const dashboardRouteMethods = new Map();
+for (const match of read('src/dashboard.js').matchAll(/req\.method === '([^']+)' && url\.pathname === '([^']+)'/g)) {
+  const methods = dashboardRouteMethods.get(match[2]) || new Set();
+  methods.add(match[1]);
+  dashboardRouteMethods.set(match[2], methods);
+}
+const dashboardRoutes = new Set(dashboardRouteMethods.keys());
 const testSource = fs.readdirSync(path.join(projectRoot, 'scripts'))
   .filter((name) => name.endsWith('-test.js'))
   .map((name) => read(path.join('scripts', name)))
   .join('\n');
 const uncoveredRoutes = [...dashboardRoutes].filter((route) => !testSource.includes(route)).sort();
 failWhen(uncoveredRoutes.length > 0, `Dashboard API 缺少测试引用：${uncoveredRoutes.join(', ')}`);
+const boundaryRoutes = new Set(apiRouteMethods.keys());
+const missingBoundaryRoutes = [...dashboardRoutes].filter((route) => !boundaryRoutes.has(route)).sort();
+const staleBoundaryRoutes = [...boundaryRoutes].filter((route) => !dashboardRoutes.has(route)).sort();
+failWhen(missingBoundaryRoutes.length > 0, `API 方法边界缺少路由：${missingBoundaryRoutes.join(', ')}`);
+failWhen(staleBoundaryRoutes.length > 0, `API 方法边界包含过期路由：${staleBoundaryRoutes.join(', ')}`);
+const methodMismatches = [...dashboardRouteMethods].filter(([route, methods]) => {
+  return [...methods].sort().join(',') !== [...(apiRouteMethods.get(route) || [])].sort().join(',');
+}).map(([route]) => route).sort();
+failWhen(methodMismatches.length > 0, `API 方法边界与实现不一致：${methodMismatches.join(', ')}`);
 
 function selectors(relativePath) {
   const source = read(relativePath).replace(/\/\*[\s\S]*?\*\//g, '');
