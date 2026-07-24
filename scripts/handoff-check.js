@@ -39,6 +39,7 @@ const requiredFiles = [
   'docs/conversation-handoff.md',
   'docs/ubuntu-24.04-deploy.md',
   'src/dashboard.js',
+  'src/config-schema.js',
   'src/api-route-boundary.js',
   'src/http-server-listener.js',
   'src/json-request.js',

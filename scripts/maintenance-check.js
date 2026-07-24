@@ -70,7 +70,8 @@ failWhen(
 const lineBudgets = {
   'src/index.js': 2300,
   'public/app.js': 1800,
-  'src/dashboard.js': 1050,
+  'src/dashboard.js': 800,
+  'src/config-schema.js': 350,
   'public/styles.css': 2450,
   'public/workbench.css': 550
 };

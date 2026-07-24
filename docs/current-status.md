@@ -61,15 +61,26 @@
 
 ## 正在进行事项
 
-当前没有未完成的代码修改。Dashboard 慢速请求防护已保存为本地里程碑 `6e72a6c`；项目处于可运行、可继续审计的状态。
+配置类型缺陷已完成根因修复和完整验证：配置默认值合并、结构安全、严格类型及动作模式已从 Dashboard 提取到 `src/config-schema.js`；Dashboard 拒绝非数字 JSON 类型、特殊键、超过 64 层的嵌套和异常规则对象，普通未知字段继续保留。执行端直接启动也拒绝布尔端口和空值运行数字。Dashboard 从 1028 行降至 774 行，维护预算收紧到 800；配置模块预算 350。安全审计和完整测试全部通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-审计配置合并对异常嵌套对象、特殊键、极深 JSON 和未知字段的真实行为；先复现，只有确认真实缺陷才增加回归并做最小修复。
+创建配置模式边界本地里程碑提交；随后审计执行端运行时配置更新面对畸形或绕过 Dashboard 的 IPC 配置时，是否保持严格模式、稳定失败回执和原运行状态。
 
 ## 已修改文件
 
-无。功能里程碑 `6e72a6c` 已提交；本次状态校正将单独保存为本地文档检查点。
+- `docs/current-status.md`
+- `docs/project-architecture.md`
+- `docs/work-log.md`
+- `package.json`
+- `scripts/account-validation-test.js`
+- `scripts/config-schema-test.js`
+- `scripts/handoff-check.js`
+- `scripts/maintenance-check.js`
+- `scripts/smoke-test.js`
+- `src/config-schema.js`
+- `src/dashboard.js`
+- `src/index.js`
 
 ## 未解决问题和阻塞项
 
@@ -106,6 +117,12 @@
 - 修复后慢速请求专项通过 408、连接关闭、进程存活、后续 200、默认值和上下限约束；监听、smoke、语法、交接和维护检查通过。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：全部通过，包含慢速请求 408/连接关闭/服务存活与后续 200，以及交接、维护、存储、进程、前端、Minecraft 协议和认证场景。
+- 配置数字类型隔离复现：`POST /api/config` 接受 `server.port=true` 和 `messageCooldownMs=null` 并返回 200；随后 API 和磁盘仍分别保存布尔值与空值，确认是持久化类型缺陷。
+- `node scripts/smoke-test.js`：新增回归在旧实现按预期失败，报错“布尔值服务器端口没有被拒绝”。
+- 配置模式、smoke 和账号启动专项：全部通过；特殊键、65 层未知嵌套、异常规则对象、布尔端口和空值运行数字均返回稳定拒绝，普通未知字段保留。
+- 交接、维护、语法综合检查：通过；Dashboard 774/800 行，配置模式模块 275/350 行，未提高既有 CSS 或大型文件预算。
+- `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- 完整 `npm.cmd test`：97.2 秒全部通过，包含配置模式、Dashboard API/认证/超时、存储事务、进程 IPC、前端、Minecraft 协议、钓鱼、重生、防挂机、自动登录和账号校验。
 
 ## 恢复开发命令
 
@@ -124,4 +141,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 14:08:00 +08:00
+2026-07-24 14:50:00 +08:00

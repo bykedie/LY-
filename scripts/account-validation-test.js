@@ -76,6 +76,13 @@ await expectStartupFailure({
 });
 
 await expectStartupFailure({
+  name: 'boolean-port',
+  accounts: [{ username: 'PortBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
+  configPatch: { server: { port: true } },
+  expected: 'server.port 必须是 1 到 65535'
+});
+
+await expectStartupFailure({
   name: 'bad-global-auth',
   accounts: [{ username: 'GlobalAuthBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
   configPatch: { server: { auth: 'yggdrasil' } },
@@ -94,6 +101,13 @@ await expectStartupFailure({
   accounts: [{ username: 'RuntimeBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
   configPatch: { runtime: { messageCooldownMs: -1 } },
   expected: 'runtime.messageCooldownMs 不能小于 0'
+});
+
+await expectStartupFailure({
+  name: 'null-runtime-number',
+  accounts: [{ username: 'RuntimeBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }],
+  configPatch: { runtime: { messageCooldownMs: null } },
+  expected: 'runtime.messageCooldownMs 必须是数字'
 });
 
 console.log('account validation test ok');

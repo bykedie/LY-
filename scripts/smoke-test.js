@@ -419,6 +419,43 @@ try {
     expectOk: false
   });
   assert(invalid.ok === false && invalid.message.includes('端口'), '非法端口没有被拒绝');
+  await expectInvalidConfig(
+    { ...testConfig, server: { ...testConfig.server, port: true } },
+    '服务器端口必须是数字',
+    '布尔值服务器端口没有被拒绝'
+  );
+  await expectInvalidConfig(
+    { ...testConfig, runtime: { ...testConfig.runtime, messageCooldownMs: null } },
+    '消息冷却必须是数字',
+    '空值消息冷却没有被拒绝'
+  );
+  await expectInvalidConfig(
+    {
+      ...testConfig,
+      features: {
+        ...testConfig.features,
+        chat: { ...testConfig.features.chat, keywordRules: [null] }
+      }
+    },
+    '关键词规则第 1 条必须是对象',
+    '空值关键词规则没有返回稳定错误'
+  );
+  await expectInvalidConfig(
+    { ...testConfig, constructor: { prototype: { polluted: true } } },
+    '配置包含不允许的字段',
+    '特殊配置键没有被拒绝'
+  );
+  const deeplyNestedConfig = structuredClone(testConfig);
+  let nestedValue = deeplyNestedConfig;
+  for (let depth = 0; depth < 65; depth += 1) {
+    nestedValue.extension = {};
+    nestedValue = nestedValue.extension;
+  }
+  await expectInvalidConfig(
+    deeplyNestedConfig,
+    '配置嵌套层级不能超过 64 层',
+    '过深配置没有被拒绝'
+  );
 
   await expectInvalidConfig(
     { ...testConfig, server: { ...testConfig.server, host: '   ' } },

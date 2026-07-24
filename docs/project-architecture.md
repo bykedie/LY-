@@ -23,7 +23,8 @@ Mineflayer 执行层：src/index.js
 ```text
 LY控制台
 ├─ src/
-│  ├─ dashboard.js                # API、配置校验、档案、鉴权、进程、日志和协议事件
+│  ├─ dashboard.js                # API、档案、鉴权、进程、日志和协议事件编排
+│  ├─ config-schema.js            # 配置默认值合并、结构安全、类型校验和动作模式
 │  ├─ api-route-boundary.js       # API 路径/方法表与 JSON 404/405 回退
 │  ├─ http-server-listener.js     # Dashboard HTTP 监听、失败诊断和请求超时
 │  ├─ json-request.js             # JSON 媒体类型、大小、解析和对象形状边界
@@ -94,6 +95,8 @@ accounts.json                   # 可选独立账号列表
 ```
 
 Dashboard 在保存前执行默认值合并和严格校验，覆盖服务器、账号池、功能开关、规则列表、大厅动作和定时任务。保存、切换或删除当前档案会替换主配置；执行端在线时与普通保存、重置一样实时下发可热更新项，服务器和账号仍在下次启动生效。磁盘保存成功后，只有收到执行端匹配 `requestId` 的成功回执才返回 `liveApplied: true` 并更新 Dashboard 运行快照；stdin 写入失败、执行端拒绝、回执超时或进程退出均保持 API 保存成功但返回 `liveApplied: false`。聊天、窗口和即时动作命令写入失败时 API 必须失败。所有运行时 JSON 通过 `src/json-store.js` 写入临时文件后原子替换，避免中断留下半份配置。主配置、活动档案和档案索引使用多文件事务：修改目标前先在 `bot.config.profiles/recovery/` 写入 `pending` 日志，全部目标安装后才标记 `committed`。进程内失败按逆序回滚；回滚失败时保留日志与 `.bak`。Dashboard 在读取主配置前恢复遗留日志：`pending` 回滚旧状态，`committed` 校验新目标并清理工件。恢复是幂等的；损坏、越界、重复路径或目标缺失都会阻止启动并保留证据，禁止猜测和静默覆盖。主配置或具体档案损坏时返回明确错误且不覆盖原文件；可派生的 `profiles.json` 和自动化库损坏时先备份到 `bot.config.profiles/recovery/`，再重建安全索引或空方案库。自动化库读取时还会验证条目结构、ID、名称、大厅参数和动作列表，保留唯一合法方案并隔离非法或重复条目，避免损坏数据进入前端。
+
+配置保存前由 `src/config-schema.js` 统一执行默认值合并、结构安全与严格 JSON 类型校验。普通未知字段为前向兼容保留；`__proto__`、`prototype`、`constructor` 和超过 64 层的嵌套会被拒绝。Dashboard 对全部已知数字字段要求 JSON number；执行端直接启动时也严格校验服务器端口和运行时数字，拒绝布尔值、空值或数字字符串。
 
 保存配置时，如果执行端正在运行，Dashboard 会通过子进程 stdin 下发携带 `requestId` 的 `config` 命令；执行端只重启支持热更新的功能工作器，不重建全部账号连接，并用 `configApplyResult` 明确确认成功或返回拒绝原因。网页聊天和命令同样携带请求 ID；执行端只把处于 play 状态的目标加入消息冷却队列，并在 `chatCommandResult` 中返回成功入队和失败账号。
 
@@ -212,7 +215,7 @@ npm.cmd test              # 完整测试
 
 ```text
 前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
-Dashboard/API     src/dashboard.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
+Dashboard/API     src/dashboard.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
 Minecraft 功能    src/index.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md

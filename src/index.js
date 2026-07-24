@@ -248,8 +248,8 @@ function normalizeFileConfig(fileConfig) {
     throw new Error('bot.config.json 里的 server.host 不能为空。');
   }
 
-  const port = Number(fileConfig.server.port);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  const port = fileConfig.server.port;
+  if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('bot.config.json 里的 server.port 必须是 1 到 65535 之间的整数。');
   }
   fileConfig.server.port = port;
@@ -294,11 +294,10 @@ function normalizeRuntimeConfig(runtime) {
 }
 
 function requireRuntimeNumber(value, key, options = {}) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new Error(`bot.config.json 里的 ${key} 必须是数字。`);
   }
-  if (options.min !== undefined && number < options.min) {
+  if (options.min !== undefined && value < options.min) {
     throw new Error(`bot.config.json 里的 ${key} 不能小于 ${options.min}。`);
   }
 }
