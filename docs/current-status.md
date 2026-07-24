@@ -52,24 +52,21 @@
 - 初始化与运行状态分离及前端初始化提示：`5d94897`。
 - 后续账号未初始化快照失败语义与快照规范化模块：`8a4a3e9`。
 - Dashboard 端口占用监听失败诊断：`84dc24d`。
+- Dashboard 非法、零值和越界端口校验：`de3c163`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 - `local/v1.0.42` 本地开发分支、续接文档体系和自动交接校验已建立。
 
 ## 正在进行事项
 
-Dashboard 非法端口配置修复已完成全部验证：`DASHBOARD_PORT=abc`、`0` 和 `70000` 在旧实现上分别暴露原始堆栈或错误随机监听，现统一在创建监听前校验为 1–65535 整数，输出包含原始配置值和合法范围的中文诊断并以退出码 1 结束。安全审计和完整测试均通过，当前修改可创建本地里程碑提交。
+Dashboard 监听失败和非法端口两轮修复均已完成完整验证并保存为本地提交 `84dc24d`、`de3c163`。工作区恢复干净，下一轮审计转向 HTTP 客户端在请求体上传途中提前断开：需要确认 Dashboard 不产生未处理流错误、不退出，并能继续响应后续合法请求。
 
 ## 下一步明确动作
 
-创建非法端口修复本地里程碑提交；随后审计 Dashboard 请求中客户端提前断开时，异步读取请求体和错误响应是否会产生未处理流错误。
+启动临时 Dashboard，以原始 TCP 连接发送声明较大 `Content-Length` 的不完整 JSON 后立即断开；记录进程、stderr 和后续 `/api/status` 响应，再决定是否需要回归和修复。
 
 ## 已修改文件
 
-- `src/http-server-listener.js`
-- `src/dashboard.js`
-- `scripts/dashboard-listen-test.js`
-- `docs/current-status.md`
-- `docs/work-log.md`
+无，端口修复和本检查点已保存为本地提交，工作区干净。
 
 ## 未解决问题和阻塞项
 
@@ -81,8 +78,7 @@ Dashboard 非法端口配置修复已完成全部验证：`DASHBOARD_PORT=abc`�
 
 ## 最近测试结果
 
-- 非法端口真实审计：旧实现中 `abc`、`70000` 退出但抛原始 `RangeError`，`0` 随机监听且打印错误端点。
-- `node scripts/dashboard-listen-test.js`：扩展回归在旧实现上失败，修复后通过非法、零值、越界端口及既有监听失败场景。
+- `node scripts/dashboard-listen-test.js`：通过端口占用、权限、不可用地址、非法/零值/越界端口、非零退出和端口复用场景。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - `npm.cmd test`：全部通过，包含交接、维护、存储、进程、监听、前端、Minecraft 协议与认证场景。
 - 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1046 行。
@@ -104,4 +100,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 12:45:11 +08:00
+2026-07-24 12:46:34 +08:00
