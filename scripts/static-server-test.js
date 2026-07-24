@@ -9,6 +9,7 @@ await expectPermissionError();
 await expectSynchronousOpenError();
 await expectMidStreamError();
 await expectDirectoryRejected();
+await expectMethodRejected();
 expectTraversalRejected();
 console.log('static server test ok');
 
@@ -87,6 +88,14 @@ async function expectDirectoryRejected() {
     createReadStream: () => { throw new Error('目录不应创建读取流'); }
   });
   assert(response.statusCode === 404, '静态路径指向目录时没有返回 404');
+}
+
+async function expectMethodRejected() {
+  const response = fakeResponse();
+  await serveStaticFile('/', response, { publicDir, method: 'POST' });
+  assert(response.statusCode === 405, '静态资源错误方法没有返回 405');
+  assert(response.headers.Allow === 'GET, HEAD', '静态资源错误方法缺少 Allow 头');
+  assert(response.body === 'Method not allowed', '静态资源错误方法响应正文不正确');
 }
 
 function expectTraversalRejected() {

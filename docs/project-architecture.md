@@ -33,7 +33,7 @@ LY控制台
 │  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
 │  ├─ runtime-snapshot.js         # Dashboard 运行快照字段规范化
 │  ├─ session-state.js            # 账号会话状态创建与连接级快照清理
-│  ├─ static-server.js             # 静态路径约束、普通文件检查和流错误响应
+│  ├─ static-server.js             # 静态方法/路径约束、普通文件检查和流错误响应
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
 │  ├─ index.html                  # 业务 DOM 和页面区域
@@ -118,7 +118,7 @@ GET  /api/window                 # 请求指定账号窗口和协议快照
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作
 ```
 
-所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。JSON 请求体最大为 1 MiB，超限返回 `413`。 静态文件只允许读取 `public/` 内普通文件；打开前文件消失返回 `404`，权限或同步打开错误返回 `500`，已开始响应后的读取错误销毁不完整连接，禁止未处理流错误终止 Dashboard。
+所有 API 和静态资源统一受可选 Basic Auth 保护。公网部署必须配置 `DASHBOARD_PASSWORD`。JSON 请求体最大为 1 MiB，超限返回 `413`。静态文件只允许 `GET`/`HEAD` 读取 `public/` 内普通文件，其他方法返回带 `Allow` 的 `405`；打开前文件消失返回 `404`，权限或同步打开错误返回 `500`，已开始响应后的读取错误销毁不完整连接，禁止未处理流错误终止 Dashboard。
 
 ## 六、运行时通信协议
 

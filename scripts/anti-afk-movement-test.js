@@ -257,7 +257,8 @@ function createAntiAfkServer(port, receivedMessages, receivedPackets, options = 
     });
     const recordMovement = (name, packet) => {
       receivedPackets.push({ name, packet });
-      if (options.disconnectAfterFirstMove && spawnX === 1 && !disconnected && Math.abs(Number(packet.x) - spawnX) >= 0.5) {
+      const movedDistance = Math.hypot(Number(packet.x) - spawnX, Number(packet.z) - 1);
+      if (options.disconnectAfterFirstMove && spawnX === 1 && !disconnected && movedDistance >= 0.5) {
         disconnected = true;
         client.end('reconnect test');
       }

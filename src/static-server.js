@@ -5,6 +5,10 @@ export function serveStaticFile(requestPath, response, options) {
   const publicDir = options.publicDir;
   const statSync = options.statSync || fs.statSync;
   const createReadStream = options.createReadStream || fs.createReadStream;
+  if (options.method && !['GET', 'HEAD'].includes(options.method)) {
+    sendText(response, 405, 'Method not allowed', { Allow: 'GET, HEAD' });
+    return Promise.resolve();
+  }
   const safePath = requestPath === '/' ? '/index.html' : requestPath;
   const filePath = path.normalize(path.join(publicDir, safePath));
 
@@ -74,10 +78,11 @@ function contentType(filePath) {
   return contentTypes[path.extname(filePath)] || 'application/octet-stream';
 }
 
-function sendText(response, statusCode, body) {
+function sendText(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
     'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'no-store'
+    'Cache-Control': 'no-store',
+    ...headers
   });
   response.end(body);
 }

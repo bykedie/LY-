@@ -66,6 +66,10 @@ try {
   });
   assert(stoppedLobbyAction.message.includes('挂机进程未启动'), '未启动时不应该接受大厅即时动作');
 
+  const rejectedStaticPost = await request('/', { method: 'POST' });
+  assert(rejectedStaticPost.statusCode === 405, 'POST / 不应返回静态控制台页面');
+  assert(rejectedStaticPost.headers.allow === 'GET, HEAD', '静态资源错误方法响应缺少 Allow 头');
+  assert(!rejectedStaticPost.body.includes('LY挂机控制台'), '静态资源错误方法响应泄露了页面正文');
   const page = await requestText('/');
   assert(page.includes('LY挂机控制台'), '页面默认标题没有改成 LY挂机控制台');
   assert(page.includes('sidebarToggle'), '页面缺少侧边栏收放按钮');
@@ -625,7 +629,7 @@ function request(pathname, options = {}) {
         res.on('data', (chunk) => {
           data += chunk;
         });
-        res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+        res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body: data }));
       }
     );
     req.on('error', reject);

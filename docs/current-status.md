@@ -58,15 +58,22 @@
 
 ## 正在进行事项
 
-Dashboard 监听失败和非法端口两轮修复均已完成完整验证并保存为本地提交 `84dc24d`、`de3c163`。工作区恢复干净，下一轮审计转向 HTTP 客户端在请求体上传途中提前断开：需要确认 Dashboard 不产生未处理流错误、不退出，并能继续响应后续合法请求。
+静态资源错误方法修复和防挂机重连测试稳定性修复已完成全部验证：静态资源仅允许 `GET/HEAD`，错误方法返回 405、`Allow` 且不泄露页面；重连测试按 X/Z 平面位移触发断线，不再因随机目标轴向制造假红。防挂机专项连续两次通过，安全审计和完整测试随后全部通过，当前修改可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-启动临时 Dashboard，以原始 TCP 连接发送声明较大 `Content-Length` 的不完整 JSON 后立即断开；记录进程、stderr 和后续 `/api/status` 响应，再决定是否需要回归和修复。
+创建静态方法边界与测试稳定性本地里程碑提交；随后审计静态 `HEAD` 请求是否避免发送正文并保持正确响应头。
 
 ## 已修改文件
 
-无，端口修复和本检查点已保存为本地提交，工作区干净。
+- `src/static-server.js`
+- `src/dashboard.js`
+- `scripts/static-server-test.js`
+- `scripts/smoke-test.js`
+- `scripts/anti-afk-movement-test.js`
+- `docs/project-architecture.md`
+- `docs/current-status.md`
+- `docs/work-log.md`
 
 ## 未解决问题和阻塞项
 
@@ -78,10 +85,13 @@ Dashboard 监听失败和非法端口两轮修复均已完成完整验证并保�
 
 ## 最近测试结果
 
-- `node scripts/dashboard-listen-test.js`：通过端口占用、权限、不可用地址、非法/零值/越界端口、非零退出和端口复用场景。
+- HTTP 半包断开真实审计：Dashboard 持续存活、stderr 为空，后续 `/api/status` 返回 200。
+- 运行中主配置损坏真实审计：`GET /api/config` 明确返回损坏诊断，原文件不变，后续状态请求正常。
+- `POST /` 回归：旧实现返回 200 和页面正文；修复后返回 405、`Allow: GET, HEAD` 且不泄露页面。
+- smoke、静态模块、相关语法、交接与维护检查：通过；Dashboard 1046 行。
+- 防挂机专项在平面位移修复后连续两次通过。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
-- `npm.cmd test`：全部通过，包含交接、维护、存储、进程、监听、前端、Minecraft 协议与认证场景。
-- 当前维护基线：API 13 个，CSS 重复选择器 `80/80`，`!important` `12/12`；`src/index.js` 2284 行、`public/app.js` 1728 行、`src/dashboard.js` 1046 行。
+- `npm.cmd test`：重新运行后全部通过，包含静态方法、重连移动、交接、维护、存储、进程、前端、协议与认证场景。
 
 ## 恢复开发命令
 
@@ -100,4 +110,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-24 12:46:34 +08:00
+2026-07-24 13:02:29 +08:00

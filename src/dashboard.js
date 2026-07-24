@@ -1031,7 +1031,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const requestPath = decodeURIComponent(url.pathname);
-    await serveStaticFile(requestPath, res, { publicDir });
+    await serveStaticFile(requestPath, res, { publicDir, method: req.method });
   } catch (error) {
     sendJson(res, Number(error.statusCode) || 400, { ok: false, message: error.message });
   }
