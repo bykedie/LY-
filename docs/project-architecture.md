@@ -34,6 +34,7 @@ LY控制台
 │  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
+│  ├─ runtime-chat-command.js     # 运行期聊天命令目标和内容归一化
 │  ├─ runtime-lobby-action.js     # 即时大厅动作输入形状校验和运行期归一化
 │  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
 │  ├─ runtime-snapshot.js         # Dashboard 运行快照字段规范化
@@ -120,7 +121,7 @@ POST /api/automations/delete     # 删除自动化方案
 GET  /api/status                 # 运行状态、控制状态和日志
 POST /api/start                  # 启动执行端；accounts 缺省/数组合法，非数组拒绝
 POST /api/stop                   # 停止执行端
-POST /api/send                   # 向全部或指定账号发送聊天/命令；message 必须是文本，指定目标会 trim 首尾空白
+POST /api/send                   # 向全部或指定账号发送聊天/命令；message 和非空 target 必须是文本，指定目标会 trim 首尾空白
 GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作；action 必须是对象
 ```
@@ -217,7 +218,7 @@ npm.cmd test              # 完整测试
 
 ```text
 前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
-Dashboard/API     src/dashboard.js, src/runtime-lobby-action.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
+Dashboard/API     src/dashboard.js, src/runtime-chat-command.js, src/runtime-lobby-action.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
 Minecraft 功能    src/index.js, src/execution-config.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md

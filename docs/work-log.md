@@ -1827,3 +1827,58 @@
 - 待确认问题：无新增外部阻塞；推送仍需项目所有者明确许可。
 - 未提交修改：无；本轮修改已保存为最新本地提交。
 - 推送许可：否。
+
+## 2026-07-25 02:39:10 +08:00 — 复现发送目标类型语义缺陷
+
+- 完成内容：使用临时 Dashboard 与假执行端真实复现 `/api/send` 非字符串假值 `target` 被隐式归一化为 `all`，导致发送到全部账号语义。
+- 修改文件：当前状态和工作日志；生产代码未修改。
+- 可运行状态：上一里程碑可运行；新确认的发送目标类型边界问题尚未修复，临时目录和进程已清理。
+- 测试结果：临时复现请求 `{ target: false, message: "/chat-accept" }` 返回成功并报告 `queuedTargets:["all"]`，假执行端收到 `target:"all"`。
+- 下一步：给 `scripts/runtime-config-protocol-test.js` 增加非字符串 `target` 回归，再最小修改 Dashboard 发送目标边界。
+- 待确认问题：需要保持缺省/空白字符串目标默认为 `all`、指定账号目标 trim、非字符串 `message` 拒绝和执行端回执语义不变。
+- 未提交修改：有，仅复现检查点文档。
+- 推送许可：否。
+
+## 2026-07-25 02:43:52 +08:00 — 发送目标类型失败回归已确认
+
+- 完成内容：在 `scripts/runtime-config-protocol-test.js` 增加 `/api/send` 非字符串 `target` 回归，要求 Dashboard 返回明确“目标必须是文本”错误。
+- 修改文件：运行时协议测试、当前状态和工作日志。
+- 可运行状态：生产代码尚未修复；回归已证明旧 Dashboard 未稳定拒绝非字符串发送目标。
+- 测试结果：`node scripts/runtime-config-protocol-test.js` 按预期失败于“非文本发送目标没有被 Dashboard 明确拒绝”。
+- 下一步：最小修改 Dashboard 发送目标边界，优先提取专用 helper，让缺省/空白字符串目标仍为 `all`，存在且非字符串目标明确拒绝。
+- 待确认问题：需要保持指定账号目标 trim、非字符串 `message` 拒绝和执行端发送回执/超时语义不变。
+- 未提交修改：有，失败回归和交接文档。
+- 推送许可：否。
+
+## 2026-07-25 02:51:10 +08:00 — 发送目标类型专项通过
+
+- 完成内容：新增 `src/runtime-chat-command.js`，统一校验和归一化运行期聊天命令目标与内容；`/api/send` 非字符串目标不再被隐式转换为 `all`；架构文档同步新 helper 和 API 边界。
+- 修改文件：聊天命令 helper、Dashboard、运行时协议测试、package 脚本、架构、当前状态和工作日志。
+- 可运行状态：专项通过，等待交接校验、维护校验、安全审计和完整测试。
+- 测试结果：修复前新增回归失败于“非文本发送目标没有被 Dashboard 明确拒绝”；修复后 `node --check src/runtime-chat-command.js`、`node --check src/dashboard.js` 和 `node scripts/runtime-config-protocol-test.js` 通过。
+- 下一步：运行 `npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test`，通过后创建本地里程碑提交。
+- 待确认问题：无新增外部阻塞；后续触及 Dashboard 时继续优先提取小模块。
+- 未提交修改：有，发送目标类型修复、回归和文档。
+- 推送许可：否。
+
+## 2026-07-25 02:59:56 +08:00 — 发送目标类型完整验证通过
+
+- 完成内容：`/api/send` 非字符串 `target` 拒绝修复完成完整验证，当前状态更新为可创建本地里程碑提交。
+- 修改文件：聊天命令 helper、Dashboard、运行时协议测试、package 脚本、架构、当前状态和工作日志。
+- 可运行状态：项目可运行，当前修改可创建本地 `fix:` 里程碑提交。
+- 测试结果：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过；维护预算为 `src/dashboard.js` 784/800。
+- 下一步：创建本地里程碑提交；提交后核对工作区并把当前状态改为最新提交后的干净状态。
+- 待确认问题：无新增外部阻塞；后续触及 Dashboard 时继续优先提取小模块。
+- 未提交修改：有，发送目标类型修复、回归和文档。
+- 推送许可：否。
+
+## 2026-07-25 03:02:31 +08:00 — 发送目标类型本地里程碑已保存
+
+- 完成内容：发送目标类型修复已保存为最新本地提交，当前状态更新到提交后的续接视角。
+- 修改文件：当前状态和工作日志。
+- 可运行状态：最新本地提交已通过完整验证；当前工作区应保持干净。
+- 测试结果：沿用本轮完整验证结果，`handoff:check`、`maintenance:check`、`security:audit` 和完整 `npm.cmd test` 均通过。
+- 下一步：继续审计 Dashboard/执行端运行期控制命令；因 Dashboard 为 784/800，下一轮触及时继续优先提取小模块或专用 helper。
+- 待确认问题：无新增外部阻塞；推送仍需项目所有者明确许可。
+- 未提交修改：无；本轮修改已保存为最新本地提交。
+- 推送许可：否。

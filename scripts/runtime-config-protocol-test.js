@@ -139,6 +139,13 @@ async function expectDashboardToWaitForConfigResult() {
     });
     assert(invalidMessageShape.ok === false && invalidMessageShape.message.includes('文本'), '非文本发送内容没有被 Dashboard 明确拒绝');
 
+    const invalidTargetShape = await requestJson(baseUrl, '/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ target: false, message: '/chat-accept' }),
+      expectOk: false
+    });
+    assert(invalidTargetShape.ok === false && invalidTargetShape.message.includes('目标') && invalidTargetShape.message.includes('文本'), '非文本发送目标没有被 Dashboard 明确拒绝');
+
     const chatTimeoutAt = Date.now();
     const timedOutChat = await requestJson(baseUrl, '/api/send', {
       method: 'POST',
