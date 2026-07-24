@@ -44,6 +44,7 @@ let logs = [];
 let shuttingDown = false;
 const runtimeSnapshots = new Map();
 const runtimeRequests = createRuntimeRequestTracker();
+const failedExecutionReadyRequests = new Set();
 const defaultProfileId = 'default';
 const defaultConfig = readJson(exampleConfigPath);
 const requiredDependencyFiles = [
@@ -320,9 +321,10 @@ async function startBot(startAccountNames = []) {
   child.stderr.on('data', (data) => addLog(data.toString().trimEnd()));
   child.stdin.on('error', (error) => addLog(`执行进程通信失败：${error.message}`));
   child.on('error', (error) => addLog(`执行进程错误：${error.message}`));
-  child.on('exit', (code) => {
-    addLog(`挂机进程已退出，退出码：${code}`);
-    runtimeRequests.rejectAll(new Error(`挂机进程已退出，退出码：${code}`));
+  child.on('exit', (code, signal) => {
+    const exitMessage = formatProcessExit(code, signal);
+    if (!failedExecutionReadyRequests.delete(startRequestId)) addLog(exitMessage);
+    runtimeRequests.rejectAll(new Error(exitMessage));
     if (botProcess === child) {
       botProcess = null;
       runningConfig = null;
@@ -398,6 +400,7 @@ function handleBotEventLine(line) {
       runtimeRequests.settle(event, '实时配置应用失败。');
     }
     if (event.type === 'executionReady' && event.requestId) {
+      if (event.ok === false) failedExecutionReadyRequests.add(event.requestId);
       runtimeRequests.settle(event, '执行端初始化失败。');
     }
     if (event.type === 'chatCommandResult' && event.requestId) {
@@ -564,6 +567,12 @@ function getRunningControlState() {
 
 function getBotProcessStatus() {
   return { running: Boolean(botProcess) && !starting, starting: Boolean(botProcess) && starting, stopping };
+}
+
+function formatProcessExit(code, signal) {
+  if (code !== null && code !== undefined) return `挂机进程已退出，退出码：${code}`;
+  if (signal) return `挂机进程已退出，信号：${signal}`;
+  return '挂机进程已退出。';
 }
 
 function sendJson(res, statusCode, data) {

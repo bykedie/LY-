@@ -241,6 +241,7 @@ async function expectDashboardToHideExecutorBootstrapFailure() {
     assert(failedStatus.running === false, '执行端启动失败后 Dashboard 仍报告运行中');
     assert(failedStatus.starting === false, '执行端启动失败后 Dashboard 仍报告初始化中');
     assert(failedStatus.stopping === false, '执行端启动失败后 Dashboard 仍报告停止中');
+    assert(!failedStatus.logs.join('\n').includes('退出码：null'), `执行端启动失败日志包含含糊退出码：\n${failedStatus.logs.join('\n')}`);
 
     const diagnosticText = `${failedStart.message}\n${failedStatus.logs.join('\n')}\n${output}`;
     assert(!containsInternalDiagnostic(diagnosticText), `执行端启动失败泄露了内部诊断：\n${diagnosticText}`);
