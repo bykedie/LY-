@@ -18,6 +18,7 @@ import { readJsonRequest } from './json-request.js';
 import { mergeDefaults, validateAutomationLobby, validateConfig } from './config-schema.js';
 import { normalizeRuntimeChatCommand } from './runtime-chat-command.js';
 import { normalizeRuntimeLobbyAction } from './runtime-lobby-action.js';
+import { normalizeStartAccountNames } from './runtime-start-accounts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -412,21 +413,6 @@ function handleBotEventLine(line) {
     addLog(`解析运行事件失败：${error.message}`);
   }
   return true;
-}
-
-function normalizeStartAccountNames(startAccountNames, accounts) {
-  if (!Array.isArray(startAccountNames) || startAccountNames.length === 0) return [];
-
-  const enabledAccounts = new Set(
-    accounts
-      .filter((account) => account.enabled !== false)
-      .map((account) => account.username)
-  );
-  const selected = [...new Set(startAccountNames.map((name) => String(name || '').trim()).filter(Boolean))];
-  const invalid = selected.filter((name) => !enabledAccounts.has(name));
-  if (invalid.length > 0) throw new Error(`启动账号不存在或未启用：${invalid.join(', ')}`);
-  if (selected.length === 0) throw new Error('至少需要选择一个启动账号。');
-  return selected;
 }
 
 function stopBot() {

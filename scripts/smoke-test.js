@@ -603,6 +603,27 @@ try {
     '非法定时任务触发方式没有被拒绝'
   );
 
+  await requestJson('/api/config', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...testConfig,
+      accounts: [
+        { username: 'true', enabled: true, chatOnJoin: '', auth: '', registerPassword: 'pass123' },
+        { username: 'SmokeBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: 'pass123' }
+      ]
+    })
+  });
+  const invalidStartAccountElement = await requestJson('/api/start', {
+    method: 'POST',
+    body: JSON.stringify({ accounts: [true] }),
+    expectOk: false
+  });
+  assert(
+    invalidStartAccountElement.ok === false && invalidStartAccountElement.message.includes('账号名称') && invalidStartAccountElement.message.includes('文本'),
+    '非文本启动账号元素没有被 Dashboard 明确拒绝'
+  );
+  await requestJson('/api/config', { method: 'POST', body: JSON.stringify(testConfig) });
+
   const invalidStartAccount = await requestJson('/api/start', {
     method: 'POST',
     body: JSON.stringify({ accounts: ['MissingBot'] }),

@@ -38,6 +38,7 @@ LY控制台
 │  ├─ runtime-lobby-action.js     # 即时大厅动作输入形状校验和运行期归一化
 │  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
 │  ├─ runtime-snapshot.js         # Dashboard 运行快照字段规范化
+│  ├─ runtime-start-accounts.js   # 本次启动账号列表元素校验和归一化
 │  ├─ session-state.js            # 账号会话状态创建与连接级快照清理
 │  ├─ static-server.js             # 静态方法/路径约束、普通文件检查和流错误响应
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
@@ -119,7 +120,7 @@ GET  /api/automations            # 自动化方案列表
 POST /api/automations            # 保存自动化方案
 POST /api/automations/delete     # 删除自动化方案
 GET  /api/status                 # 运行状态、控制状态和日志
-POST /api/start                  # 启动执行端；accounts 缺省/数组合法，非数组拒绝
+POST /api/start                  # 启动执行端；accounts 缺省/数组合法，元素必须是文本
 POST /api/stop                   # 停止执行端
 POST /api/send                   # 向全部或指定账号发送聊天/命令；message 和非空 target 必须是文本，指定目标会 trim 首尾空白
 GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标
@@ -218,7 +219,7 @@ npm.cmd test              # 完整测试
 
 ```text
 前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
-Dashboard/API     src/dashboard.js, src/runtime-chat-command.js, src/runtime-lobby-action.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
+Dashboard/API     src/dashboard.js, src/runtime-chat-command.js, src/runtime-lobby-action.js, src/runtime-start-accounts.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
 Minecraft 功能    src/index.js, src/execution-config.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md
