@@ -708,7 +708,9 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
 
     if (req.method === 'POST' && url.pathname === '/api/start') {
       const body = await readJsonRequest(req, { allowEmpty: true });
-      await startBot(body.accounts || []);
+      const startAccounts = body.accounts === undefined ? [] : body.accounts;
+      if (!Array.isArray(startAccounts)) throw new Error('本次启动账号列表必须是数组。');
+      await startBot(startAccounts);
       sendJson(res, 200, { ok: true, ...getBotProcessStatus() });
       return;
     }

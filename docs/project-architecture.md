@@ -117,7 +117,7 @@ GET  /api/automations            # 自动化方案列表
 POST /api/automations            # 保存自动化方案
 POST /api/automations/delete     # 删除自动化方案
 GET  /api/status                 # 运行状态、控制状态和日志
-POST /api/start                  # 启动执行端
+POST /api/start                  # 启动执行端；accounts 缺省/数组合法，非数组拒绝
 POST /api/stop                   # 停止执行端
 POST /api/send                   # 向全部或指定账号发送聊天/命令；指定目标会 trim 首尾空白
 GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标

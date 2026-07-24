@@ -592,6 +592,13 @@ try {
   });
   assert(invalidStartAccount.ok === false && invalidStartAccount.message.includes('不存在或未启用'), '不存在的启动账号没有被拒绝');
 
+  const invalidStartAccountsShape = await requestJson('/api/start', {
+    method: 'POST',
+    body: JSON.stringify({ accounts: 'SmokeBot' }),
+    expectOk: false
+  });
+  assert(invalidStartAccountsShape.ok === false && invalidStartAccountsShape.message.includes('账号列表'), '非数组启动账号列表没有被拒绝');
+
   fs.writeFileSync(
     configPath,
     JSON.stringify({ ...testConfig, server: { ...testConfig.server, port: 70000 } }, null, 2),
