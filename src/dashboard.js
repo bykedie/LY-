@@ -19,6 +19,7 @@ import { mergeDefaults, validateAutomationLobby, validateConfig } from './config
 import { normalizeRuntimeChatCommand } from './runtime-chat-command.js';
 import { normalizeRuntimeLobbyAction } from './runtime-lobby-action.js';
 import { normalizeStartAccountNames } from './runtime-start-accounts.js';
+import { normalizeSpecificRuntimeTarget } from './runtime-target.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -708,8 +709,7 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
     }
 
     if (req.method === 'GET' && url.pathname === '/api/window') {
-      const target = String(url.searchParams.get('target') || '').trim();
-      if (!target || target === 'all') throw new Error('读取窗口需要选择一个具体账号。');
+      const target = normalizeSpecificRuntimeTarget(url.searchParams.get('target') ?? undefined, '读取窗口');
       const snapshot = await requestWindowSnapshot(target);
       sendJson(res, 200, { ok: true, ...snapshot });
       return;
@@ -717,8 +717,7 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
 
     if (req.method === 'POST' && url.pathname === '/api/lobby/action') {
       const body = await readJsonRequest(req, { allowEmpty: true });
-      const target = String(body.target || '').trim();
-      if (!target || target === 'all') throw new Error('立即执行动作需要选择一个具体账号。');
+      const target = normalizeSpecificRuntimeTarget(body.target, '立即执行动作');
       const action = normalizeRuntimeLobbyAction(body.action);
       await requestBotCommandResult(
         'lobby',

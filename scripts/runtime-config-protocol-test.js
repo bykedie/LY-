@@ -146,6 +146,13 @@ async function expectDashboardToWaitForConfigResult() {
     });
     assert(invalidTargetShape.ok === false && invalidTargetShape.message.includes('目标') && invalidTargetShape.message.includes('文本'), '非文本发送目标没有被 Dashboard 明确拒绝');
 
+    const invalidLobbyTargetShape = await requestJson(baseUrl, '/api/lobby/action', {
+      method: 'POST',
+      body: JSON.stringify({ target: true, action: { type: 'wait', delayMs: 100, enabled: true } }),
+      expectOk: false
+    });
+    assert(invalidLobbyTargetShape.ok === false && invalidLobbyTargetShape.message.includes('目标') && invalidLobbyTargetShape.message.includes('文本'), '非文本即时动作目标没有被 Dashboard 明确拒绝');
+
     const chatTimeoutAt = Date.now();
     const timedOutChat = await requestJson(baseUrl, '/api/send', {
       method: 'POST',
@@ -375,7 +382,10 @@ function createConfig(preset) {
   config.server = { host: '127.0.0.1', port: 9, version: '1.16.4', auth: 'offline' };
   config.runtime.reconnect = false;
   config.features.chat.presetMessagesList = [preset];
-  config.accounts = [{ username: 'ConfigProtocolBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }];
+  config.accounts = [
+    { username: 'ConfigProtocolBot', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' },
+    { username: 'true', enabled: true, chatOnJoin: '', auth: '', registerPassword: '' }
+  ];
   return config;
 }
 
@@ -434,6 +444,26 @@ input.on('line', (line) => {
       queuedTargets: ok ? [command.target] : [],
       failedTargets: ok ? [] : [{ username: command.target, message: '模拟执行端拒绝发送。' }],
       message: ok ? '模拟执行端已加入发送队列。' : '模拟执行端拒绝发送。'
+    }));
+    return;
+  }
+  if (command.type === 'lobbyAction') {
+    console.log('::ly-event ' + JSON.stringify({
+      type: 'lobbyActionResult',
+      requestId: command.requestId,
+      ok: true,
+      message: '模拟执行端已完成即时动作。'
+    }));
+    console.log('::ly-event ' + JSON.stringify({
+      type: 'windowSnapshot',
+      username: command.target,
+      window: null,
+      position: null,
+      entities: [],
+      messages: [],
+      chatButtons: [],
+      protocolDialogs: [],
+      protocolMenu: null
     }));
     return;
   }
