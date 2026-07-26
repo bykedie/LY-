@@ -186,6 +186,8 @@ try {
   assert(!page.includes('entitySnapshotTitle'), '大厅功能不应再单独展示实体统计区');
   assert(!page.includes('entitySnapshotList'), '大厅功能不应再铺开实体卡片列表');
   assert(page.includes('windowGrid'), '大厅功能缺少 NPC 弹窗槽位列表');
+  assert(page.includes('interactionVisualCanvas'), '大厅功能缺少交互界面协议重建图');
+  assert(page.includes('interactionVisualLeftBtn') && page.includes('interactionVisualRightBtn'), '交互界面缺少图上选点左右键执行控件');
   assert(page.includes('lobby-action-operate-entry'), '操作点击窗口动作缺少统一交互选项下拉框');
   assert(page.includes('lobby-action-interaction-notice'), '操作点击窗口动作缺少无法解析协议时的诊断区');
   assert(!page.includes('interactionOptionList'), '大厅功能不应在动作卡外重复显示交互选项区');
@@ -207,6 +209,7 @@ try {
 
   const appScript = await requestText('/app.js');
   const apiClientScript = await requestText('/api-client.js');
+  const interactionVisualScript = await requestText('/interaction-visual.js');
   const runtimeControlScript = await requestText('/runtime-control.js');
   assert(appScript.includes("from './api-client.js'"), '前端入口没有导入统一 API 客户端');
   assert(appScript.includes("from './interaction-snapshot.js'"), '前端入口没有导入交互快照模型');
@@ -217,12 +220,13 @@ try {
   assert(appScript.includes('已加入执行端发送队列'), '前端发送成功提示没有准确表达队列接收语义');
   assert(appScript.includes('挂机初始化中'), '前端缺少执行端初始化状态提示');
   assert(apiClientScript.includes('export async function requestJson'), '统一 API 客户端静态资源不可用');
-  assert(appScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
+  assert(interactionVisualScript.includes('slotIndex <= 80'), '交互窗口没有固定渲染 0-80 槽位网格');
   assert(appScript.includes('步骤已在 ${target} 执行完成'), '即时动作完成后没有刷新坐标和窗口');
   assert(appScript.includes('最近模组界面：'), '前端没有显示最近检测到的模组界面协议');
   assert(appScript.includes('data.protocolMenu || null'), '前端没有接收 DragonCore 菜单映射');
   assert(appScript.includes('data.chatButtons || []'), '前端没有接收聊天 clickEvent 选项');
   assert(appScript.includes('data.npcDialog || null'), '前端没有接收 CustomNPCs 对话选项');
+  assert(appScript.includes("'/api/window/click'"), '前端没有提交图上坐标点击');
   assert(appScript.includes('dataset.protocolEntry'), '前端没有保留 DragonCore 按钮来源标记');
   assert(appScript.includes('当前模组界面：'), '前端没有显示 DragonCore 可选择按钮界面');
   assert(appScript.includes('block.after(createLobbyAction(defaultLobbyAction()))'), '步骤后的添加动作按钮没有按当前位置插入');

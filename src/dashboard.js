@@ -21,6 +21,7 @@ import { normalizeRuntimeChatCommand } from './runtime-chat-command.js';
 import { normalizeRuntimeLobbyAction } from './runtime-lobby-action.js';
 import { normalizeStartAccountNames } from './runtime-start-accounts.js';
 import { normalizeSpecificRuntimeTarget } from './runtime-target.js';
+import { normalizeInteractionVisualClick } from './interaction-visual.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -242,6 +243,9 @@ function handleBotEventLine(line) {
     }
     if (event.type === 'lobbyActionResult' && event.requestId) {
       runtimeRequests.settle(event, '大厅动作执行失败。');
+    }
+    if (event.type === 'interactionVisualClickResult' && event.requestId) {
+      runtimeRequests.settle(event, '界面选点执行失败。');
     }
     if (event.type === 'configApplyResult' && event.requestId) {
       runtimeRequests.settle(event, '实时配置应用失败。');
@@ -574,6 +578,28 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
       const target = normalizeSpecificRuntimeTarget(url.searchParams.get('target') ?? undefined, '读取窗口');
       const snapshot = await requestWindowSnapshot(target);
       sendJson(res, 200, { ok: true, ...snapshot });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/window/click') {
+      const body = await readJsonRequest(req);
+      const target = normalizeSpecificRuntimeTarget(body.target, '界面选点');
+      const click = normalizeInteractionVisualClick(body);
+      const result = await requestBotCommandResult(
+        'visual-click',
+        { type: 'interactionVisualClick', target, click },
+        5000,
+        '等待界面选点执行结果超时。'
+      );
+      const snapshot = await requestWindowSnapshot(target);
+      sendJson(res, 200, {
+        ok: true,
+        target,
+        executed: result.executed === true,
+        selection: result.selection || null,
+        message: result.message || '',
+        ...snapshot
+      });
       return;
     }
 

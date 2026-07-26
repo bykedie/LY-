@@ -16,8 +16,8 @@ const Vec3 = require('vec3');
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-dashboard-'));
 const configPath = path.join(tempDir, 'bot.config.json');
-const dashboardPort = 35000 + Math.floor(Math.random() * 4000);
-const minecraftPort = 41000 + Math.floor(Math.random() * 4000);
+const dashboardPort = Number(process.env.DASHBOARD_TEST_PORT) || 35000 + Math.floor(Math.random() * 4000);
+const minecraftPort = Number(process.env.MINECRAFT_TEST_PORT) || 41000 + Math.floor(Math.random() * 4000);
 const dashboardUrl = `http://127.0.0.1:${dashboardPort}`;
 const receivedMessages = [];
 const receivedMovementPackets = [];
@@ -82,11 +82,19 @@ try {
   assert(protocolSnapshot.npcDialog?.resolved === true, '协议快照没有用同步定义解析 CustomNPCs 对话');
   assert(protocolSnapshot.npcDialog?.options[0]?.title === '领取新手礼包', '协议快照没有返回 CustomNPCs 真实选项文字');
   assert(protocolSnapshot.protocolDialogs.some((item) => item.channel === 'dragoncore:main' && item.text.includes('新手福利')), '协议快照过滤掉了有效 DragonCore NPC 菜单内容');
+  assert(protocolSnapshot.protocolDialogs.some((item) => item.channel === 'dragoncore:main' && item.encoding === 'base64' && item.raw), '协议快照没有保留二进制 DragonCore 界面信号');
   assert(!protocolSnapshot.protocolDialogs.some((item) => /更新数据|team_expand_|playertag_/i.test(item.text)), '协议快照没有过滤 DragonCore HUD 更新噪声');
   assert(protocolSnapshot.protocolMenu?.title === '选服', '协议快照没有解析 DragonCore 界面名称');
   assert(
     protocolSnapshot.protocolMenu?.entries.some((entry) => entry.name === '新手福利七日签到' && entry.slot === 20),
     '协议快照没有把 DragonCore 按钮名称映射到槽位'
+  );
+  assert(protocolSnapshot.interactionVisual?.kind === 'container', '协议快照没有返回标准窗口协议重建图');
+  const visualSlot = protocolSnapshot.interactionVisual.elements.find((element) => element.slot === 11);
+  assert(visualSlot?.label === '进入一号服务器', '协议重建图没有保留真实窗口槽位文字');
+  assert(
+    protocolSnapshot.protocolDialogs.some((item) => item.text.includes('载荷末尾标记') && item.text.length > 300),
+    'DragonCore 长载荷仍被截断或没有保留末尾界面字段'
   );
   await waitForDashboardLog('模组对话协议 [CustomNPCs]：实体 ID 9102，对话 ID 77');
   await waitForDashboardLog('DragonCore 界面 [选服]');
@@ -107,6 +115,25 @@ try {
   assert(!/更新数据|team_expand_|playertag_|YeeCombatView/i.test(menuLogs), '运行日志不应输出 DragonCore HUD、血条或玩家标签更新');
   assert(!menuLogs.includes('模组界面协议 [dragoncore:main]'), '运行日志不应逐条输出 DragonCore 原始载荷');
   assert(menuLogs.includes('DragonCore 界面 [选服]：识别到 1 个可操作项：槽位 20 新手福利七日签到'), '运行日志缺少精简后的 DragonCore 可操作按钮摘要');
+  if (Number(process.env.DASHBOARD_BROWSER_HOLD_MS) > 0) {
+    console.log('dashboard browser fixture ready: ' + dashboardUrl);
+    await delay(Number(process.env.DASHBOARD_BROWSER_HOLD_MS));
+  }
+
+  const visualWindowClickStart = receivedWindowClicks.length;
+  const visualClickResult = await requestJson('/api/window/click', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      visualId: protocolSnapshot.interactionVisual.id,
+      x: visualSlot.x + visualSlot.width / 2,
+      y: visualSlot.y + visualSlot.height / 2,
+      button: 'left'
+    })
+  });
+  await waitForWindowClick(visualWindowClickStart, 11, 0);
+  assert(visualClickResult.executed === true, '标准窗口图上选点没有报告真实执行');
+  assert(visualClickResult.selection?.hitId === 'slot:11', '图上选点后没有返回本次命中槽位和选点坐标');
 
   const npcChoiceStart = receivedCustomNpcsChoices.length;
   const npcChoiceResult = await requestJson('/api/lobby/action', {
@@ -583,6 +610,8 @@ function createMinecraftServer(port) {
       setTimeout(() => sendDragonCorePayload(client, 'playertag_player_op playertag_playerhealth_op 9.5 playertag_playermaxhealth_op 330'), 1350);
       setTimeout(() => sendCustomNpcsDialog(client), 1400);
       setTimeout(() => sendDragonCorePayload(client, 'NPC对话：1.新手福利食用图鉴 2.新手福利七日签到 3.新手福利等级奖励'), 1450);
+      setTimeout(() => sendDragonCoreBinaryPayload(client), 1460);
+      setTimeout(() => sendDragonCorePayload(client, `NPC界面 ${'完整字段'.repeat(120)} 载荷末尾标记`), 1475);
       setTimeout(() => sendDragonCorePayload(client, 'craftx_entry_configName 选服 craftx_entry_functionName 新手福利七日签到 craftx_entry_right-click false craftx_entry_left-click false craftx_entry_shift-click false craftx_entry_inventory-action'), 1500);
       setTimeout(() => sendDragonCorePayload(client, 'craftx_slot-id_20 新手福利七日签到'), 1550);
       setTimeout(() => sendNpcMenu(client), 1600);
@@ -726,6 +755,10 @@ function createCustomNpcsSyncPacket(packetType, compound) {
 
 function sendDragonCorePayload(client, text) {
   client.write('custom_payload', { channel: 'dragoncore:main', data: Buffer.from(text, 'utf8') });
+}
+
+function sendDragonCoreBinaryPayload(client) {
+  client.write('custom_payload', { channel: 'dragoncore:main', data: Buffer.from([0, 1, 2, 3, 255, 254, 253, 0]) });
 }
 
 function createNamedItem(itemName, displayName, lore) {

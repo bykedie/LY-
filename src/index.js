@@ -9,6 +9,8 @@ import { handleStopRuntimeAccountCommand } from './runtime-account-control.js';
 import { listenRuntimeCommands } from './runtime-command-listener.js';
 import { validateConfig } from './config-schema.js';
 import { loadExecutionConfig } from './execution-config.js';
+import { createInteractionVisualSnapshot, extractProtocolPayloadText } from './interaction-visual.js';
+import { runInteractionVisualClick } from './interaction-visual-runtime.js';
 
 const { pathfinder, Movements, goals } = pathfinderPackage;
 
@@ -1376,7 +1378,20 @@ function emitWindowSnapshot(username, requestId = '') {
     chatButtons: getChatButtonSnapshot(session),
     protocolDialogs: getProtocolDialogSnapshot(session),
     protocolMenu: getProtocolMenuSnapshot(session),
-    npcDialog: getCustomNpcsDialogSnapshot(session?.customNpcs)
+    npcDialog: getCustomNpcsDialogSnapshot(session?.customNpcs),
+    interactionVisual: getInteractionVisualSnapshot(session)
+  });
+}
+
+function getInteractionVisualSnapshot(session) {
+  if (!session) return null;
+  return createInteractionVisualSnapshot({
+    window: getWindowSnapshot(session),
+    chatButtons: getChatButtonSnapshot(session),
+    protocolDialogs: getProtocolDialogSnapshot(session),
+    protocolMenu: getProtocolMenuSnapshot(session),
+    npcDialog: getCustomNpcsDialogSnapshot(session.customNpcs),
+    selection: session.interactionVisualSelection
   });
 }
 
@@ -1439,6 +1454,7 @@ function getWindowSnapshot(session) {
   return {
     title: getWindowTitle(window),
     type: window.type || '',
+    at: session?.lastWindowOpenedAt || 0,
     inventoryStart: Number.isInteger(window.inventoryStart) ? window.inventoryStart : null,
     slots: (window.slots || []).map((item, slot) => serializeWindowSlot(slot, item))
   };
@@ -1719,10 +1735,12 @@ function recordProtocolPayload(username, session, packet) {
   const text = customNpcsSignal?.dialog?.resolved
     ? [customNpcsSignal.dialog.title, customNpcsSignal.dialog.text].filter(Boolean).join('：')
     : extractProtocolPayloadText(data);
-  if (channel.toLowerCase() === 'dragoncore:main') updateDragonCoreProtocolMenu(username, session, text);
+  const normalizedChannel = channel.toLowerCase();
+  const dragonCoreSignal = normalizedChannel === 'dragoncore:main';
+  if (dragonCoreSignal) updateDragonCoreProtocolMenu(username, session, text);
   if (isNoisyProtocolPayload(channel, text)) return;
   const signal = customNpcsSignal;
-  const likelyUiChannel = /(npc|dialog|gui|menu|quest|screen)/i.test(channel);
+  const likelyUiChannel = dragonCoreSignal || /(npc|dialog|gui|menu|quest|screen)/i.test(channel);
   if (!signal && !likelyUiChannel && !/[\u3400-\u9fff]/u.test(text)) return;
   if (signal?.packetType && !CUSTOM_NPCS_DIALOG_PACKETS.has(signal.packetType) && !text) return;
 
@@ -1733,6 +1751,9 @@ function recordProtocolPayload(username, session, packet) {
     entityId: signal?.entityId ?? null,
     dialogId: signal?.dialogId ?? null,
     text,
+    raw: text ? '' : data.subarray(0, 6144).toString('base64'),
+    encoding: text ? 'utf8' : 'base64',
+    truncated: data.length > (text ? 16 * 1024 : 6144),
     size: data.length,
     at: now
   };
@@ -1832,7 +1853,8 @@ function scheduleProtocolMenuSummary(username, session) {
 
 function isNoisyProtocolPayload(channel, text) {
   if (channel.toLowerCase() !== 'dragoncore:main') return false;
-  if (!text || text.length < 8) return true;
+  if (!text) return false;
+  if (text.length < 8) return true;
   return [
     /team_expand_/i,
     /yeecombatview/i,
@@ -1841,17 +1863,6 @@ function isNoisyProtocolPayload(channel, text) {
     /血条视图/i,
     /执行方法\(['"]?更新数据/i
   ].some((pattern) => pattern.test(text));
-}
-
-function extractProtocolPayloadText(data) {
-  if (!data.length) return '';
-  const text = data.toString('utf8')
-    .replace(/\uFFFD/g, ' ')
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!text || (!/[\u3400-\u9fff]/u.test(text) && !/[a-z]{4,}/i.test(text))) return '';
-  return text.slice(0, 300);
 }
 
 function getChatComponentText(component) {
@@ -2186,6 +2197,9 @@ process.once('SIGTERM', () => shutdownExecution('SIGTERM'));
 listenRuntimeCommands(process.stdin, {
   chat: (command) => sendChatCommand(command.target || 'all', command.message || '', command.requestId || ''),
   windowSnapshot: (command) => emitWindowSnapshot(command.target || '', command.requestId || ''),
+  interactionVisualClick: (command) => void runInteractionVisualClick(command, {
+    sessions, getInteractionVisual: getInteractionVisualSnapshot, emitWindowSnapshot, emitRuntimeEvent, log, enqueueChat
+  }),
   lobbyAction: (command) => void runManualLobbyAction(command.target || '', command.action || {}, command.requestId || ''),
   config: applyRuntimeConfigCommand,
   stopAccount: (command) => {

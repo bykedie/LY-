@@ -1,0 +1,121 @@
+.interaction-visual-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid #c9d8df;
+  border-radius: 8px;
+  background: #f4f8f9;
+}
+
+.interaction-visual-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.interaction-visual-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.interaction-visual-head strong {
+  color: #1f3540;
+  font-size: 14px;
+}
+
+.interaction-visual-head span:not(.interaction-visual-badge) {
+  color: #657985;
+  font-size: 11px;
+}
+
+.interaction-visual-badge {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid #91bbc0;
+  border-radius: 999px;
+  color: #316a70;
+  background: #e7f5f4;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.interaction-visual-notice {
+  margin: 0;
+  color: #526873;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.interaction-visual-stage {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  padding: 10px;
+  border: 1px solid #334852;
+  border-radius: 7px;
+  background: #101b21;
+  overflow: auto;
+}
+
+#interactionVisualCanvas {
+  display: block;
+  width: min(100%, 900px);
+  height: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+#interactionVisualCanvas[hidden],
+.interaction-visual-empty[hidden] {
+  display: none;
+}
+
+.interaction-visual-empty {
+  max-width: 520px;
+  color: #9fb2bc;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.interaction-visual-selection {
+  min-height: 38px;
+  padding: 10px 12px;
+  border-left: 3px solid #d9a63d;
+  color: #3f4f57;
+  background: #fff8e8;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.interaction-visual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.interaction-visual-raw {
+  min-width: 0;
+  color: #4c626d;
+  font-size: 12px;
+}
+
+.interaction-visual-raw summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.interaction-visual-raw pre {
+  max-height: 280px;
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 6px;
+  color: #d7e4e9;
+  background: #142129;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow: auto;
+}

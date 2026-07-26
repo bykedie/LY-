@@ -7,6 +7,7 @@ export function createRuntimeSnapshot(event = {}) {
     chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : [],
     protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : [],
     protocolMenu: event.protocolMenu || null,
-    npcDialog: event.npcDialog || null
+    npcDialog: event.npcDialog || null,
+    interactionVisual: event.interactionVisual || null
   };
 }

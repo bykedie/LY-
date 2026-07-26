@@ -11,6 +11,7 @@ export const apiRouteMethods = new Map([
   ['/api/stop', ['POST']],
   ['/api/accounts/stop', ['POST']],
   ['/api/window', ['GET']],
+  ['/api/window/click', ['POST']],
   ['/api/lobby/action', ['POST']],
   ['/api/send', ['POST']]
 ]);

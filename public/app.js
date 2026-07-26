@@ -7,6 +7,7 @@ import {
 } from './interaction-snapshot.js';
 import { renderLogLines } from './log-renderer.js';
 import { collapseAccountLogs, hasLogTextSelection, renderRuntimeLogs, renderStopAccountTargets } from './runtime-control.js';
+import { createInteractionVisualView, renderWindowSlotGrid } from './interaction-visual.js';
 
 const state = {
   config: null,
@@ -24,6 +25,7 @@ const state = {
   windowItems: [],
   interactionModel: { options: [], notices: [] },
   operateWindowEntries: [],
+  interactionVisualView: null,
   logSelectionActive: false,
   resetConfirmTimer: null
 };
@@ -859,7 +861,7 @@ async function refreshWindowSnapshot() {
   }
 
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
-  renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null);
+  renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null, data.interactionVisual || null);
   renderPositionSnapshot(data.position, data.entities || []);
   setWindowSnapshotCollapsed(false);
 }
@@ -918,7 +920,7 @@ function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '-';
 }
 
-function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu = null, chatButtons = [], npcDialog = null) {
+function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu = null, chatButtons = [], npcDialog = null, interactionVisual = null) {
   const title = $('#windowSnapshotTitle');
   const grid = $('#windowGrid');
   if (!title || !grid) return;
@@ -926,6 +928,7 @@ function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu
   state.windowItems = [];
   grid.innerHTML = '';
   state.interactionModel = createInteractionSnapshotModel({ chatButtons, protocolDialogs, npcDialog });
+  state.interactionVisualView?.render(interactionVisual);
   const protocolItems = getProtocolMenuItems(protocolMenu);
   if (!windowSnapshot && protocolItems.length === 0) {
     const protocolDialog = protocolDialogs.at(-1);
@@ -966,27 +969,7 @@ function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu
     title.textContent = `当前模组界面：${protocolMenu.title || 'DragonCore 界面'}，识别到 ${protocolItems.length} 个可选项`;
   }
 
-  for (let slotIndex = 0; slotIndex <= 80; slotIndex += 1) {
-    const slot = slotsByIndex.get(slotIndex) || { slot: slotIndex, item: false, name: '', displayName: '', count: 0, lore: [] };
-    const name = slot.displayName || slot.name || '';
-    const button = document.createElement('button');
-    const selectable = slot.item
-      && (slot.protocolEntry || !Number.isInteger(inventoryStart) || slot.slot < inventoryStart)
-      && isSelectableWindowItem(slot);
-    button.className = `window-slot${selectable ? ' has-item' : ' is-empty'}${slot.protocolEntry ? ' is-protocol-item' : ''}`;
-    button.type = 'button';
-    const loreLines = (slot.lore || []).filter(Boolean);
-    const loreText = loreLines.length ? `\n提示：${loreLines.join(' / ')}` : '';
-    const sourceText = slot.protocolEntry ? '\n来源：DragonCore 槽位映射' : '';
-    button.title = slot.item ? `槽位 ${slot.slot}：${name || '未命名物品'} x${slot.count}${loreText}${sourceText}` : `槽位 ${slot.slot}：空`;
-    button.innerHTML = `<strong>${slot.slot}</strong>${selectable ? `<span>${escapeHtml(name || '物品')}</span>` : ''}`;
-    if (selectable) {
-      button.addEventListener('click', () => fillSelectedWindowItem(slot));
-    } else {
-      button.disabled = true;
-    }
-    grid.appendChild(button);
-  }
+  renderWindowSlotGrid(grid, { slotsByIndex, inventoryStart, isSelectable: isSelectableWindowItem, onSelect: fillSelectedWindowItem });
   document.querySelectorAll('.lobby-action-item').forEach((select) => (
     populateWindowItemSelect(
       select,
@@ -1169,7 +1152,7 @@ async function executeLobbyAction(card) {
       method: 'POST',
       body: JSON.stringify({ target, action: readLobbyActionCard(card, { includeRuntimeReference: true }) })
     });
-    renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null);
+    renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null, data.interactionVisual || null);
     renderPositionSnapshot(data.position, data.entities || []);
     setWindowSnapshotCollapsed(false);
     showToast(`步骤已在 ${target} 执行完成，坐标和窗口已刷新`);
@@ -1181,8 +1164,19 @@ async function executeLobbyAction(card) {
   }
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+async function executeInteractionVisualClick(click) {
+  const target = $('#windowSnapshotTarget')?.value || '';
+  if (!target) throw new Error('请先选择一个正在运行的账号');
+  const data = await requestJson('/api/window/click', {
+    method: 'POST',
+    body: JSON.stringify({ target, ...click })
+  });
+  renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null, data.interactionVisual || null);
+  renderPositionSnapshot(data.position, data.entities || []);
+  setWindowSnapshotCollapsed(false);
+  showToast(data.executed
+    ? `已在 ${target} 执行${click.button === 'right' ? '右键' : '左键'}选点并刷新界面`
+    : (data.message || '选点已保存，但当前协议没有安全执行动作'));
 }
 
 function renderStartAccounts(accounts = []) {
@@ -1626,6 +1620,10 @@ async function refreshStatus() {
 }
 
 function bindEvents() {
+  state.interactionVisualView = createInteractionVisualView({
+    onExecute: executeInteractionVisualClick,
+    onError: (error) => showToast(error.message)
+  });
   mergeCombinedFeatureSections();
   organizeFeaturePanels();
   const compactViewport = window.matchMedia('(max-width: 980px)').matches;

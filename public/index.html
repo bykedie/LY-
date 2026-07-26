@@ -6,6 +6,7 @@
   <title>LY挂机控制台</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/workbench.css">
+  <link rel="stylesheet" href="/interaction-visual.css">
 </head>
 <body>
   <main class="app-shell" id="appShell">
@@ -308,6 +309,30 @@
             <div class="window-snapshot-content" id="windowSnapshotContent">
               <div class="window-snapshot-title" id="windowSnapshotTitle">当前交互窗口：未读取</div>
               <div class="window-grid" id="windowGrid"></div>
+              <section class="interaction-visual-panel" id="interactionVisualPanel">
+                <div class="interaction-visual-head">
+                  <div>
+                    <strong id="interactionVisualTitle">交互界面预览</strong>
+                    <span id="interactionVisualSource">等待 NPC 交互</span>
+                  </div>
+                  <span class="interaction-visual-badge">图上选点</span>
+                </div>
+                <p class="interaction-visual-notice" id="interactionVisualNotice">与 NPC 左键或右键交互后，标准窗口或模组协议会在这里重建为可选点画面。</p>
+                <div class="interaction-visual-stage">
+                  <canvas id="interactionVisualCanvas" aria-label="交互界面协议重建图" hidden></canvas>
+                  <div class="interaction-visual-empty" id="interactionVisualEmpty">尚未检测到交互界面。请先选择账号，与 NPC 交互，再刷新坐标/窗口。</div>
+                </div>
+                <div class="interaction-visual-selection" id="interactionVisualSelection">尚无可选点界面</div>
+                <div class="interaction-visual-actions">
+                  <button class="primary small" id="interactionVisualLeftBtn" type="button" disabled>在选点执行左键</button>
+                  <button class="ghost small" id="interactionVisualRightBtn" type="button" disabled>在选点执行右键</button>
+                  <button class="ghost small" id="interactionVisualClearBtn" type="button" disabled>清除选点</button>
+                </div>
+                <details class="interaction-visual-raw" id="interactionVisualRaw" hidden>
+                  <summary>查看原始界面协议</summary>
+                  <pre id="interactionVisualRawContent"></pre>
+                </details>
+              </section>
             </div>
           </div>
           <div class="lobby-action-list" id="lobbyActionList"></div>

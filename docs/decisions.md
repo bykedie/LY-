@@ -97,3 +97,15 @@
 - 影响模块：前端交互快照、Dashboard 即时动作、Mineflayer 模组协议、测试和架构文档。
 - 替代方案：只延长 NPC 响应等待时间；已拒绝，因为已经采集到但未渲染的聊天按钮不会因此出现。
 - 关联想法、任务和版本：`v1.0.43`、`local/v1.0.43`、NPC 左/右键交互。
+
+## DEC-009：使用协议重建图并限制未知协议坐标执行
+
+- 决策标题：以协议重建图提供 NPC 交互选点，同时保持真实协议安全边界
+- 状态：生效
+- 背景：项目所有者要求在 NPC 交互后直接显示可视界面并由用户指定点击位置；Mineflayer 没有客户端帧缓冲，DragonCore 的真实点击又需要 GUI 完整路径、action 名和 compose key。
+- 最终决定：根据最新标准容器、CustomNPCs、DragonCore、聊天 `clickEvent` 或未知模组信号生成明确标记的 Canvas 协议重建图；选点保存画面坐标、归一化坐标、命中控件和稳定快照 ID。标准窗口、已解析 CustomNPCs 和受支持聊天按钮执行真实协议；DragonCore 或未知协议缺少必要字段时仅保存选点并返回 `executed: false`。可读协议最多保留 16 KiB，无可读文本的二进制信号保留有界 Base64 预览。
+- 选择理由：在无客户端像素截图能力的前提下提供可操作、可诊断的界面，同时避免把坐标猜测伪装成成功的模组点击。
+- 已知风险：协议重建图不是资源包和客户端模组渲染后的真实像素；真实服务器 DragonCore 点击仍需采集完整 GUI 路径、action 名和 compose key。
+- 影响模块：`src/interaction-visual.js`、`src/interaction-visual-runtime.js`、运行快照、Dashboard API、前端 Canvas、协议测试和交接文档。
+- 替代方案：伪称客户端截图或按坐标构造未知 DragonCore 包；已拒绝，因为 Mineflayer 无帧缓冲且缺少协议字段时无法证明动作正确。
+- 关联想法、任务和版本：`DEC-008`、`v1.0.43`、`local/v1.0.43`、NPC 图上选点。

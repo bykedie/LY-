@@ -17,6 +17,7 @@ export function createSessionState() {
     chatButtons: [],
     protocolDialogs: [],
     protocolMenu: null,
+    interactionVisualSelection: null,
     customNpcs: createCustomNpcsProtocolState(),
     protocolMenuLogTimer: null,
     lastProtocolMenuLogSignature: '',
@@ -48,6 +49,7 @@ export function clearConnectionSnapshot(session) {
   session.chatButtons = [];
   session.protocolDialogs = [];
   session.protocolMenu = null;
+  session.interactionVisualSelection = null;
   clearCustomNpcsProtocolState(session.customNpcs);
   clearTimeout(session.protocolMenuLogTimer);
   session.protocolMenuLogTimer = null;

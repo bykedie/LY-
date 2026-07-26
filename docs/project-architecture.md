@@ -5,7 +5,7 @@
 
 ## 一、系统边界
 
-当前稳定架构基线为 `v1.0.42`（发布提交 `8f37dde`），由三层组成：
+当前远端稳定架构基线为 `v1.0.42`（发布提交 `8f37dde`）；本地 `local/v1.0.43` 在该基线上增加 NPC 交互协议重建图和图上选点，整体仍由三层组成：
 
 ```text
 浏览器静态层：public/*
@@ -36,6 +36,7 @@ LY控制台
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
 │  ├─ runtime-account-control.js  # 单账号停止、会话清理和停止回执
+│  ├─ interaction-visual-runtime.js # 图上选点解析后的标准窗口、CustomNPCs、聊天和安全拒绝执行
 │  ├─ runtime-command-listener.js # 执行端 stdin JSON 命令分发
 │  ├─ runtime-chat-command.js     # 运行期聊天命令目标和内容归一化
 │  ├─ runtime-lobby-action.js     # 即时大厅动作输入形状校验和运行期归一化
@@ -45,6 +46,7 @@ LY控制台
 │  ├─ runtime-target.js           # 运行期具体账号目标类型校验和归一化
 │  ├─ session-state.js            # 账号会话状态创建与连接级快照清理
 │  ├─ custom-npcs-protocol.js     # CustomNPCs 同步 NBT、当前对话与真实选项选择包
+│  ├─ interaction-visual.js       # 交互协议重建图、稳定快照 ID、坐标归一化和命中解析
 │  ├─ static-server.js             # 静态方法/路径约束、普通文件检查和流错误响应
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
@@ -53,6 +55,8 @@ LY控制台
 │  ├─ workbench.css               # v1.0.40 三层工作台和响应式视觉覆盖
 │  ├─ api-client.js               # 前端 HTTP 请求与网络/协议错误边界
 │  ├─ interaction-snapshot.js     # 聊天与 CustomNPCs 交互选项建模和渲染
+│  ├─ interaction-visual.js       # Canvas 协议重建图、十字选点、坐标显示和左右键确认
+│  ├─ interaction-visual.css      # 交互画布独立样式和等比响应式缩放
 │  ├─ app.js                      # 配置、档案、自动化、运行控制、窗口快照和即时动作
 │  ├─ log-renderer.js             # Minecraft 颜色日志渲染
 │  └─ runtime-control.js           # 展示层日志折叠、跟尾和单账号停止控件
@@ -132,6 +136,7 @@ POST /api/stop                   # 停止执行端
 POST /api/accounts/stop          # 停止一个运行账号；共享执行进程和其他账号继续运行
 POST /api/send                   # 向全部或指定账号发送聊天/命令；message 和非空 target 必须是文本，指定目标会 trim 首尾空白
 GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标
+POST /api/window/click           # 对稳定交互快照提交画面坐标和左右键；返回执行状态、选点和新快照
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作；target 必须是具体账号文本，action 必须是对象
 ```
 
@@ -145,6 +150,7 @@ Dashboard 通过 `src/process-ipc.js` 向 `src/index.js` 的 stdin 写入一行�
 chat             # 携带 requestId 发送聊天或命令
 config           # 下发运行时配置并携带 requestId
 windowSnapshot   # 携带 requestId 请求位置、实体、窗口和模组数据
+interactionVisualClick # 携带 requestId、稳定快照 ID、画面坐标和左右键执行交互选点
 lobbyAction      # 立即执行单个大厅动作并携带 requestId
 stopAccount      # 停止一个账号的工作器、连接和重连并携带 requestId
 ```
@@ -158,7 +164,8 @@ stopAccount      # 停止一个账号的工作器、连接和重连并携带 req
 当前事件类型：
 
 ```text
-windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话、协议菜单和当前 NPC 对话；主动回执携带 requestId
+windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话、协议菜单、当前 NPC 对话和交互重建图；主动回执携带 requestId
+interactionVisualClickResult # 按 requestId 返回是否真实执行、命中控件、画面坐标和说明
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 configApplyResult   # 按 requestId 确认或拒绝实时配置
 executionReady      # 按启动 requestId 确认执行端关键初始化完成
@@ -166,9 +173,9 @@ chatCommandResult   # 按 requestId 返回成功入队和失败账号
 accountStopResult   # 按 requestId 确认或拒绝单账号停止
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用、账号停止和主动窗口快照的回执等待，`src/runtime-snapshot.js` 统一规范化成功快照；启动就绪、聊天、配置应用、账号停止和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的成功快照才返回。启动时尚未创建 session 的后续账号明确返回“尚未初始化”，创建后恢复成功；曾创建但已断线的账号保留 session，并返回已清空的合法快照，因此未初始化、合法空窗口和无响应三种状态不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、交互选点、配置应用、账号停止和主动窗口快照的回执等待，`src/runtime-snapshot.js` 统一规范化成功快照；启动就绪、聊天、交互选点、配置应用、账号停止和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的成功快照才返回。启动时尚未创建 session 的后续账号明确返回“尚未初始化”，创建后恢复成功；曾创建但已断线的账号保留 session，并返回已清空的合法快照，因此未初始化、合法空窗口和无响应三种状态不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
 
-`POST /api/lobby/action` 收到动作完成回执后必须再请求一次带新 `requestId` 的快照，不能直接复用动作前缓存。`POST /api/accounts/stop` 只有收到 `accountStopResult` 后才从 Dashboard 运行账号和快照中移除目标；执行端停止该账号功能工作器、聊天队列、连接和自动重连。停止一个账号不结束共享执行进程，停止最后一个账号后也由现有 `/api/stop` 显式结束进程。
+`POST /api/lobby/action` 收到动作完成回执后必须再请求一次带新 `requestId` 的快照，不能直接复用动作前缓存。`POST /api/window/click` 先校验快照 ID、坐标范围和鼠标键，再等待 `interactionVisualClickResult`，随后同样主动请求最新窗口快照；响应单独保留本次 `selection`，避免动作后新快照覆盖用户刚刚命中的坐标。`POST /api/accounts/stop` 只有收到 `accountStopResult` 后才从 Dashboard 运行账号和快照中移除目标；执行端停止该账号功能工作器、聊天队列、连接和自动重连。停止一个账号不结束共享执行进程，停止最后一个账号后也由现有 `/api/stop` 显式结束进程。
 
 `GET /api/status` 始终保留完整原始日志。浏览器运行控制展示层只折叠连续、内容相同且账号不同的日志，并合并显示账号名；系统日志和同账号重复日志保持独立。日志初次渲染或用户停留在底部时自动跟随最新内容，用户上翻或选择日志文本时保留阅读位置。
 
@@ -182,10 +189,12 @@ Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费�
 - 战斗、钓鱼、进食、重生、自动走路和防挂机移动；防挂机随机走动原点属于单次连接状态，重连后必须以新出生位置重新建立；
 - 定时任务和大厅动作序列；
 - 使用物品、相对移动、寻找实体/NPC、按键、移动槽位和点击窗口；
-- 采集位置、客户端已知实体、标准容器窗口和聊天按钮；
+- 采集位置、客户端已知实体、标准容器窗口、聊天按钮和交互选点状态；
 - 解析 CustomNPCs `SYNC_ADD`/`SYNC_END` 同步 NBT、`DIALOG` 当前对话和 DragonCore 按钮/槽位映射；CustomNPCs 选项通过 `CustomNPCsPlayer` 的真实对话选择包执行。
 
-标准窗口动作走 Minecraft 容器协议。聊天 `run_command`/`suggest_command` 选项通过现有聊天动作执行；不支持的 `clickEvent` 只显示并禁用。CustomNPCs 基础 `DIALOG` 包只有实体与对话编号，只有匹配到同步 NBT 定义时才显示并执行真实选项；同步缺失或损坏时显示诊断，禁止猜测。纯客户端 DragonCore 控件如果没有真实槽位映射或已采集点击协议，不得伪造执行成功。
+`src/interaction-visual.js` 从标准容器、CustomNPCs、DragonCore、聊天 `clickEvent` 和未知模组信号中选择时间最新的一类，生成带稳定 ID 的协议重建图；可读原始协议最多保留 16 KiB，无可读文本的二进制信号保存有界 Base64 预览。Mineflayer 没有客户端帧缓冲，因此该画面明确标记为协议重建图，不是真人客户端像素截图。选点统一换算为画面坐标和归一化坐标，旧快照 ID 必须拒绝。
+
+标准窗口选点走真实 `bot.clickWindow(slot, mouseButton, 0)`；聊天 `run_command`/`suggest_command` 选项进入现有聊天队列，不支持的 `clickEvent` 只显示。CustomNPCs 基础 `DIALOG` 包只有实体与对话编号，只有匹配到同步 NBT 定义时才显示并执行真实选择包；同步缺失或损坏时显示诊断，禁止猜测。DragonCore 的真实点击还需要完整 GUI 路径、action 名和 compose key；当前载荷缺少这些字段时只保存选点并返回 `executed: false`，未知协议同样不得伪造执行成功。
 
 ## 八、前端结构
 
@@ -196,10 +205,13 @@ state.config / state.control          # 配置和运行控制
 state.profiles / state.activeProfileId # 配置档案
 state.automations                     # 自动化方案
 state.nearbyEntities / state.windowItems # 运行时快照
+state.interactionVisualView           # Canvas 交互重建图和当前选点视图
 state.uiSettings                      # 浏览器 localStorage 界面偏好
 ```
 
-`public/interaction-snapshot.js` 把标准容器、DragonCore、聊天 `clickEvent` 和 CustomNPCs 对话选项统一建模为“操作点击窗口”动作卡的可选项；用户只使用该动作入口，前端保存或立即执行时再转换为 `operateWindow`、`clickChat` 或 `clickNpcDialog` 真实动作。旧方案中的后三类动作载入后也统一回显在该入口。标准容器和 DragonCore 仍保留 9×9 快照网格用于查看和快速选中，槽位网格在窄屏独立横向滚动。协议同步缺失或动作不支持时，诊断显示在动作卡内部。`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查两者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
+`public/interaction-snapshot.js` 把标准容器、DragonCore、聊天 `clickEvent` 和 CustomNPCs 对话选项统一建模为“操作点击窗口”动作卡的可选项；用户只使用该动作入口，前端保存或立即执行时再转换为 `operateWindow`、`clickChat` 或 `clickNpcDialog` 真实动作。旧方案中的后三类动作载入后也统一回显在该入口。标准容器和 DragonCore 仍保留 9×9 快照网格用于查看和快速选中，槽位网格在窄屏独立横向滚动。协议同步缺失或动作不支持时，诊断显示在动作卡内部。
+
+`public/interaction-visual.js` 在快照网格下方绘制 Canvas 协议重建图，显示十字选点、画面坐标、归一化坐标、命中控件、左右键确认和原始协议详情；刷新或执行动作后使用后端新快照重绘。`public/interaction-visual.css` 独立维护该区域，并让画布按协议宽高比等比缩放，窄屏不得产生页面横向溢出。`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查三者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
 
 ## 九、部署架构
 
@@ -232,9 +244,9 @@ npm.cmd test              # 完整测试
 常见修改位置：
 
 ```text
-前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
+前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/interaction-visual.css, public/api-client.js, public/interaction-visual.js, public/app.js
 Dashboard/API     src/dashboard.js, src/profile-store.js, src/runtime-chat-command.js, src/runtime-lobby-action.js, src/runtime-start-accounts.js, src/runtime-target.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
-Minecraft 功能    src/index.js, src/execution-config.js, scripts/*-integration-test.js
+Minecraft 功能    src/index.js, src/execution-config.js, src/interaction-visual.js, src/interaction-visual-runtime.js, scripts/*-integration-test.js, scripts/interaction-visual-*-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md
 ```
