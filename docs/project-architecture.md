@@ -30,6 +30,7 @@ LY控制台
 │  ├─ http-server-listener.js     # Dashboard HTTP 监听、失败诊断和请求超时
 │  ├─ json-request.js             # JSON 媒体类型、大小、解析和对象形状边界
 │  ├─ automation-store.js          # 自动化方案校验、持久化、去重和损坏恢复
+│  ├─ profile-store.js             # 配置档案索引、可选 ID 校验、多文件事务和损坏恢复
 │  ├─ json-store.js               # 单文件原子写入与多文件事务回滚
 │  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
@@ -114,7 +115,7 @@ GET  /api/config                 # 当前配置
 POST /api/config                 # 校验并保存；运行时下发配置
 POST /api/reset                  # 重置默认配置
 GET  /api/profiles               # 配置档案列表
-POST /api/profiles               # 保存档案
+POST /api/profiles               # 保存档案；ID 缺省/空文本时新建，非空 ID 必须是已存在的合法文本
 POST /api/profiles/use           # 使用档案
 POST /api/profiles/delete        # 删除档案
 GET  /api/automations            # 自动化方案列表
@@ -220,7 +221,7 @@ npm.cmd test              # 完整测试
 
 ```text
 前端结构/视觉     public/index.html, public/styles.css, public/workbench.css, public/api-client.js, public/app.js
-Dashboard/API     src/dashboard.js, src/runtime-chat-command.js, src/runtime-lobby-action.js, src/runtime-start-accounts.js, src/runtime-target.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
+Dashboard/API     src/dashboard.js, src/profile-store.js, src/runtime-chat-command.js, src/runtime-lobby-action.js, src/runtime-start-accounts.js, src/runtime-target.js, src/config-schema.js, scripts/config-schema-test.js, scripts/smoke-test.js, scripts/dashboard-*-test.js
 Minecraft 功能    src/index.js, src/execution-config.js, scripts/*-integration-test.js
 部署流程          deploy/*, docs/ubuntu-24.04-deploy.md, README.md
 交接与决策        AGENTS.md, docs/current-status.md, docs/decisions.md, docs/work-log.md

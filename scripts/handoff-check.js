@@ -46,6 +46,7 @@ const requiredFiles = [
   'src/http-server-listener.js',
   'src/json-request.js',
   'src/automation-store.js',
+  'src/profile-store.js',
   'src/json-store.js',
   'src/line-reader.js',
   'src/process-ipc.js',

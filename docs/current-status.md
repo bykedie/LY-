@@ -45,19 +45,26 @@
 
 ## 正在进行事项
 
-自动化方案保存 ID 修复已保存为代码里程碑 `3b64212`；工作日志追加顺序守卫已完成正反向验证和完整测试。当前分支 HEAD 将由独立 `docs:` 交接检查点保存，精确哈希以 `git log -1` 为准。
+配置档案保存 ID 缺陷已完成真实复现、失败回归、最小修复、档案存储模块提取和全部本地门禁；当前只等待创建本地里程碑提交，本轮随后停止继续迭代。
 
 ## 下一步明确动作
 
-继续审计自动化方案名称和配置档案 ID/名称的输入类型边界；先真实复现可见副作用，再决定下一处最小修复。
+创建配置档案 ID 修复的本地 `fix:` 里程碑提交；随后把交接状态更新为“本轮已停止”，不再审计或实现新问题。
 
 ## 已修改文件
 
-无未提交修改。自动化 ID 代码修复位于 `3b64212`，交接守卫和提交后状态由当前本地 `docs:` 检查点保存。
+- `docs/current-status.md`
+- `docs/work-log.md`
+- `scripts/smoke-test.js`
+- `src/profile-store.js`
+- `src/dashboard.js`
+- `scripts/handoff-check.js`
+- `package.json`
+- `docs/project-architecture.md`
 
 ## 未解决问题和阻塞项
 
-- `src/dashboard.js` 通过提取运行期目标 helper 后为 769/800，仍接近维护预算；后续触及 Dashboard 时继续优先小模块拆分。
+- `src/dashboard.js` 已通过配置档案模块提取降至 612/800，不再贴近维护上限；后续仍按具体功能小步拆分。
 - `src/index.js` 维护预算剩余很少，当前为 2222/2225；后续触及执行端逻辑时优先提取小模块。
 - CSS 历史基线仍有 80 个完全重复选择器和 12 个 `!important`；守卫阻止增长，但存量尚未按具体界面清理。
 - `public/app.js`、`src/dashboard.js` 和 `src/index.js` 仍是大型核心文件，需要随真实功能继续拆分。
@@ -67,11 +74,17 @@
 
 ## 最近测试结果
 
+- 最新真实复现：临时 Dashboard 创建合法档案后提交 `{ id: true, name: "Should Reject", config: ... }`；接口返回 200，档案从默认档案加 1 个自定义档案增长为默认档案加 2 个自定义档案，并新增对应 JSON 文件；临时进程和目录已清理。
+- 配置档案修复前失败回归：`node scripts/smoke-test.js` 稳定失败于“保存接口没有拒绝非文本配置档案 ID”。
+- 配置档案修复后专项：`node --check src/profile-store.js`、`node --check src/dashboard.js`、`node --check scripts/smoke-test.js` 和 `node scripts/smoke-test.js` 通过。
+- 配置档案兼容回归覆盖空 ID 新建、合法 ID 原位更新、非文本/非法/不存在 ID 拒绝、列表与文件不增长、切换/删除、损坏索引恢复和多文件事务。
+- 最新维护检查：通过；`src/dashboard.js` 从 769/800 降至 612/800，CSS 与其他大型文件基线未增长。
+- 配置档案修复最终门禁：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过；完整测试约 120 秒，所有业务、协议和集成场景通过。
 - 最新真实复现：临时 Dashboard 首先保存一个合法自动化方案，再提交 `{ id: true, name: "Should Reject", lobby: ... }`；接口错误返回 200，磁盘方案数量从 1 增为 2，临时进程和目录已清理。
 - 修复前失败回归：`node scripts/smoke-test.js` 稳定失败于“保存接口没有拒绝非文本自动化方案 ID”，证明旧实现未拒绝该输入。
 - 修复后专项：`node --check src/automation-store.js`、`node --check scripts/smoke-test.js` 和 `node scripts/smoke-test.js` 通过；覆盖非文本拒绝及列表不增长、空字符串新建、合法 ID 更新、非法字符串拒绝和删除。
 - 本轮完整验证：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过。
-- 维护基线保持：`src/index.js` 2222/2225、`public/app.js` 1728/1800、`src/dashboard.js` 769/800、CSS 重复选择器 80/80、`!important` 12/12。
+- 维护基线保持：`src/index.js` 2222/2225、`public/app.js` 1728/1800、`src/dashboard.js` 612/800、CSS 重复选择器 80/80、`!important` 12/12。
 - 安全审计保持：0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 交接日志守卫正向：当前日志运行 `npm.cmd run handoff:check` 通过。
 - 交接日志守卫负向：临时在文件顶部插入 2099 检查点后，校验准确失败于“最新检查点没有追加在文件末尾”；临时记录已移除，正向复验通过。
@@ -102,4 +115,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-26 10:55:05 +08:00
+2026-07-26 11:16:44 +08:00

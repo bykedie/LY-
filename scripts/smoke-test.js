@@ -331,10 +331,49 @@ try {
   );
   const namedProfile = await requestJson('/api/profiles', {
     method: 'POST',
-    body: JSON.stringify({ name: 'Smoke Profile', config: testConfig })
+    body: JSON.stringify({ id: '', name: 'Smoke Profile', config: testConfig })
   });
   assert(namedProfile.activeProfileId !== 'default', '保存命名配置档案后没有切换到新档案');
   assert(namedProfile.profiles.some((profile) => profile.name === 'Smoke Profile'), '保存后配置档案列表缺少自定义名称');
+  const updatedNamedProfile = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ id: namedProfile.activeProfileId, name: 'Updated Smoke Profile', config: testConfig })
+  });
+  assert(updatedNamedProfile.profiles.length === namedProfile.profiles.length, '合法配置档案 ID 更新时错误创建了副本');
+  assert(
+    updatedNamedProfile.profiles.some((profile) => profile.id === namedProfile.activeProfileId && profile.name === 'Updated Smoke Profile'),
+    '合法配置档案 ID 没有更新原档案'
+  );
+  const profileFilesBeforeInvalidSave = fs.readdirSync(profilesDir).filter((name) => name.endsWith('.json')).sort();
+  const invalidProfileIdType = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ id: true, name: 'Invalid ID Type', config: testConfig }),
+    expectOk: false
+  });
+  assert(
+    invalidProfileIdType.ok === false
+      && invalidProfileIdType.message?.includes('ID')
+      && invalidProfileIdType.message.includes('文本'),
+    '保存接口没有拒绝非文本配置档案 ID'
+  );
+  const invalidProfileId = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ id: '../invalid', name: 'Invalid ID', config: testConfig }),
+    expectOk: false
+  });
+  assert(invalidProfileId.ok === false && invalidProfileId.message.includes('ID 无效'), '保存接口没有拒绝非法配置档案 ID');
+  const missingProfileId = await requestJson('/api/profiles', {
+    method: 'POST',
+    body: JSON.stringify({ id: 'profile-missing', name: 'Missing ID', config: testConfig }),
+    expectOk: false
+  });
+  assert(missingProfileId.ok === false && missingProfileId.message.includes('找不到'), '保存接口没有拒绝不存在的配置档案 ID');
+  const profilesAfterInvalidSave = await requestJson('/api/profiles');
+  assert(profilesAfterInvalidSave.profiles.length === namedProfile.profiles.length, '非法配置档案 ID 错误创建了新档案');
+  assert(
+    JSON.stringify(fs.readdirSync(profilesDir).filter((name) => name.endsWith('.json')).sort()) === JSON.stringify(profileFilesBeforeInvalidSave),
+    '非法配置档案 ID 错误创建了档案文件'
+  );
   const loadedProfile = await requestJson('/api/profiles/use', {
     method: 'POST',
     body: JSON.stringify({ id: namedProfile.activeProfileId })
