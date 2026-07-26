@@ -42,6 +42,7 @@ LY控制台
 │  ├─ runtime-start-accounts.js   # 本次启动账号列表元素校验和归一化
 │  ├─ runtime-target.js           # 运行期具体账号目标类型校验和归一化
 │  ├─ session-state.js            # 账号会话状态创建与连接级快照清理
+│  ├─ custom-npcs-protocol.js     # CustomNPCs 同步 NBT、当前对话与真实选项选择包
 │  ├─ static-server.js             # 静态方法/路径约束、普通文件检查和流错误响应
 │  └─ index.js                    # 批量账号、自动功能、大厅动作、窗口/NPC/DragonCore 协议
 ├─ public/
@@ -49,6 +50,7 @@ LY控制台
 │  ├─ styles.css                  # 基础组件、表单和业务样式
 │  ├─ workbench.css               # v1.0.40 三层工作台和响应式视觉覆盖
 │  ├─ api-client.js               # 前端 HTTP 请求与网络/协议错误边界
+│  ├─ interaction-snapshot.js     # 聊天与 CustomNPCs 交互选项建模和渲染
 │  ├─ app.js                      # 配置、档案、自动化、运行控制、窗口快照和即时动作
 │  └─ log-renderer.js             # Minecraft 颜色日志渲染
 ├─ deploy/
@@ -151,7 +153,7 @@ lobbyAction      # 立即执行单个大厅动作并携带 requestId
 当前事件类型：
 
 ```text
-windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话和协议菜单；主动回执携带 requestId
+windowSnapshot      # 位置、实体、窗口、聊天按钮、协议对话、协议菜单和当前 NPC 对话；主动回执携带 requestId
 lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 configApplyResult   # 按 requestId 确认或拒绝实时配置
 executionReady      # 按启动 requestId 确认执行端关键初始化完成
@@ -159,6 +161,8 @@ chatCommandResult   # 按 requestId 返回成功入队和失败账号
 ```
 
 Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用和主动窗口快照的回执等待，`src/runtime-snapshot.js` 统一规范化成功快照；启动就绪、聊天、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的成功快照才返回。启动时尚未创建 session 的后续账号明确返回“尚未初始化”，创建后恢复成功；曾创建但已断线的账号保留 session，并返回已清空的合法快照，因此未初始化、合法空窗口和无响应三种状态不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
+
+`POST /api/lobby/action` 收到动作完成回执后必须再请求一次带新 `requestId` 的快照，不能直接复用动作前缓存。
 
 ## 七、Mineflayer 执行端
 
@@ -171,9 +175,9 @@ Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费�
 - 定时任务和大厅动作序列；
 - 使用物品、相对移动、寻找实体/NPC、按键、移动槽位和点击窗口；
 - 采集位置、客户端已知实体、标准容器窗口和聊天按钮；
-- 解析 CustomNPCs 对话与 DragonCore 按钮/槽位映射。
+- 解析 CustomNPCs `SYNC_ADD`/`SYNC_END` 同步 NBT、`DIALOG` 当前对话和 DragonCore 按钮/槽位映射；CustomNPCs 选项通过 `CustomNPCsPlayer` 的真实对话选择包执行。
 
-标准窗口动作走 Minecraft 容器协议。纯客户端 DragonCore 控件如果没有真实槽位映射或已采集点击协议，不得伪造执行成功。
+标准窗口动作走 Minecraft 容器协议。聊天 `run_command`/`suggest_command` 选项通过现有聊天动作执行；不支持的 `clickEvent` 只显示并禁用。CustomNPCs 基础 `DIALOG` 包只有实体与对话编号，只有匹配到同步 NBT 定义时才显示并执行真实选项；同步缺失或损坏时显示诊断，禁止猜测。纯客户端 DragonCore 控件如果没有真实槽位映射或已采集点击协议，不得伪造执行成功。
 
 ## 八、前端结构
 
@@ -187,7 +191,7 @@ state.nearbyEntities / state.windowItems # 运行时快照
 state.uiSettings                      # 浏览器 localStorage 界面偏好
 ```
 
-`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查两者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
+`public/interaction-snapshot.js` 将聊天 `clickEvent` 和 CustomNPCs 对话选项渲染到独立协议按钮区，标准容器和 DragonCore 仍使用 9×9 槽位网格；槽位网格在窄屏独立横向滚动，不得把协议按钮推离视口。`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查两者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
 
 ## 九、部署架构
 

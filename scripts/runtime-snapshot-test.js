@@ -11,11 +11,13 @@ const source = {
   messages: [{ text: 'hello' }],
   chatButtons: [{ label: 'run' }],
   protocolDialogs: [{ channel: 'test' }],
-  protocolMenu: { title: 'Protocol' }
+  protocolMenu: { title: 'Protocol' },
+  npcDialog: { dialogId: 77 }
 };
 const snapshot = createRuntimeSnapshot(source);
 assert(snapshot.window === source.window && snapshot.position === source.position, '有效快照丢失窗口或坐标');
 assert(snapshot.entities === source.entities && snapshot.protocolMenu === source.protocolMenu, '有效快照丢失列表或协议菜单');
+assert(snapshot.npcDialog === source.npcDialog, '有效快照丢失 CustomNPCs 当前对话');
 console.log('runtime snapshot test ok');
 
 function assert(condition, message) {

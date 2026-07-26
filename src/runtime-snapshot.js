@@ -6,6 +6,7 @@ export function createRuntimeSnapshot(event = {}) {
     messages: Array.isArray(event.messages) ? event.messages : [],
     chatButtons: Array.isArray(event.chatButtons) ? event.chatButtons : [],
     protocolDialogs: Array.isArray(event.protocolDialogs) ? event.protocolDialogs : [],
-    protocolMenu: event.protocolMenu || null
+    protocolMenu: event.protocolMenu || null,
+    npcDialog: event.npcDialog || null
   };
 }

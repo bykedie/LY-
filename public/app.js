@@ -1,4 +1,5 @@
 import { requestJson } from './api-client.js';
+import { createInteractionSnapshotModel, renderInteractionSnapshot } from './interaction-snapshot.js';
 import { renderLogLines } from './log-renderer.js';
 
 const state = {
@@ -649,6 +650,8 @@ function createLobbyAction(action = {}) {
   populateWindowItemSelect(card.querySelector('.lobby-action-item'), action.item || '', action.slot, action.protocolEntry === true);
   card.querySelector('.lobby-action-chat-text').value = action.chatText || '';
   card.querySelector('.lobby-action-chat-button').value = action.chatButton || '';
+  card.querySelector('.lobby-action-dialog-id').value = action.dialogId ?? '';
+  card.querySelector('.lobby-action-option-id').value = action.optionId ?? '';
   card.querySelector('.lobby-action-type').addEventListener('change', () => updateLobbyActionFields(card));
   card.querySelector('.execute-lobby-action').addEventListener('click', () => executeLobbyAction(card));
   card.querySelector('.remove-lobby-action').addEventListener('click', () => {
@@ -758,6 +761,12 @@ function readLobbyActionCard(card, { includeRuntimeReference = false } = {}) {
   }
   if (type === 'waitChat') action.chatText = card.querySelector('.lobby-action-chat-text').value.trim();
   if (type === 'clickChat') action.chatButton = card.querySelector('.lobby-action-chat-button').value.trim();
+  if (type === 'clickNpcDialog') {
+    const dialogId = card.querySelector('.lobby-action-dialog-id').value;
+    const optionId = card.querySelector('.lobby-action-option-id').value;
+    if (dialogId !== '') action.dialogId = Number(dialogId);
+    if (optionId !== '') action.optionId = Number(optionId);
+  }
   return action;
 }
 function renderSchedulerTasks(tasks = []) {
@@ -837,7 +846,7 @@ async function refreshWindowSnapshot() {
   }
 
   const data = await requestJson(`/api/window?target=${encodeURIComponent(target)}`);
-  renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null);
+  renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null);
   renderPositionSnapshot(data.position, data.entities || []);
   setWindowSnapshotCollapsed(false);
 }
@@ -896,13 +905,20 @@ function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '-';
 }
 
-function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu = null) {
+function renderWindowSnapshot(windowSnapshot, protocolDialogs = [], protocolMenu = null, chatButtons = [], npcDialog = null) {
   const title = $('#windowSnapshotTitle');
   const grid = $('#windowGrid');
   if (!title || !grid) return;
 
   state.windowItems = [];
   grid.innerHTML = '';
+  const interactionModel = createInteractionSnapshotModel({ chatButtons, protocolDialogs, npcDialog });
+  renderInteractionSnapshot(interactionModel, {
+    list: $('#interactionOptionList'),
+    notice: $('#interactionSnapshotNotice'),
+    onChat: (option) => fillSelectedChatButton(option.label),
+    onCustomNpcs: fillSelectedNpcDialogOption
+  });
   const protocolItems = getProtocolMenuItems(protocolMenu);
   if (!windowSnapshot && protocolItems.length === 0) {
     const protocolDialog = protocolDialogs.at(-1);
@@ -1086,7 +1102,7 @@ async function executeLobbyAction(card) {
       method: 'POST',
       body: JSON.stringify({ target, action: readLobbyActionCard(card, { includeRuntimeReference: true }) })
     });
-    renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null);
+    renderWindowSnapshot(data.window, data.protocolDialogs || [], data.protocolMenu || null, data.chatButtons || [], data.npcDialog || null);
     renderPositionSnapshot(data.position, data.entities || []);
     setWindowSnapshotCollapsed(false);
     showToast(`步骤已在 ${target} 执行完成，坐标和窗口已刷新`);
@@ -1110,6 +1126,25 @@ function fillSelectedChatButton(label) {
   targetCard.querySelector('.lobby-action-chat-button').value = label;
   updateLobbyActionFields(targetCard);
   showToast(`已填入聊天按钮：${label}`);
+}
+
+function fillSelectedNpcDialogOption(option) {
+  const action = {
+    type: 'clickNpcDialog',
+    dialogId: option.dialogId,
+    optionId: option.optionId,
+    enabled: true
+  };
+  const cards = [...document.querySelectorAll('.lobby-action-card')];
+  const targetCard = cards.find((card) => card.querySelector('.lobby-action-type').value === 'clickNpcDialog');
+  if (!targetCard) {
+    $('#lobbyActionList').appendChild(createLobbyAction(action));
+    refreshLobbyActionOrder();
+  } else {
+    targetCard.querySelector('.lobby-action-dialog-id').value = option.dialogId;
+    targetCard.querySelector('.lobby-action-option-id').value = option.optionId;
+  }
+  showToast(`已填入 CustomNPCs 对话选项：${option.label}`);
 }
 
 function escapeHtml(value) {

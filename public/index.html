@@ -307,6 +307,8 @@
             </div>
             <div class="window-snapshot-content" id="windowSnapshotContent">
               <div class="window-snapshot-title" id="windowSnapshotTitle">当前交互窗口：未读取</div>
+              <div class="interaction-snapshot-notice" id="interactionSnapshotNotice" hidden></div>
+              <div class="interaction-option-list" id="interactionOptionList" hidden></div>
               <div class="window-grid" id="windowGrid"></div>
             </div>
           </div>
@@ -547,6 +549,7 @@
           <option value="chat">发送聊天/指令</option>
           <option value="waitChat">等待聊天内容</option>
           <option value="clickChat">点击聊天按钮</option>
+          <option value="clickNpcDialog">选择 CustomNPCs 对话选项</option>
         </select>
         <span class="field-note">按从上到下的顺序执行。</span>
       </label>
@@ -601,6 +604,8 @@
       </label>
       <label data-action-types="waitChat">等待聊天文本<input class="lobby-action-chat-text" placeholder="例如：请选择要购买的物品"><span class="field-note">检测到包含这段文字的聊天后继续下一步。</span></label>
       <label data-action-types="clickChat">聊天按钮文字<input class="lobby-action-chat-button" placeholder="例如：[确认]、购买、下一页"><span class="field-note">从协议收到的 clickEvent 按钮中模糊匹配并执行。</span></label>
+      <label data-action-types="clickNpcDialog">CustomNPCs 对话 ID<input class="lobby-action-dialog-id" type="number" min="0"><span class="field-note">由交互快照自动填入，不要手工猜测。</span></label>
+      <label data-action-types="clickNpcDialog">CustomNPCs 选项 ID<input class="lobby-action-option-id" type="number" min="0"><span class="field-note">由对话选项真实协议槽位自动填入。</span></label>
       </article>
       <div class="lobby-action-connector">
         <button class="insert-lobby-action" type="button" aria-label="在此步骤后添加动作" title="在此步骤后添加动作">+</button>

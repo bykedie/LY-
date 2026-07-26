@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 
@@ -10,6 +11,7 @@ const mc = require('minecraft-protocol');
 const mcData = require('minecraft-data')('1.16.4');
 const Chunk = require('prismarine-chunk')('1.16.4');
 const Item = require('prismarine-item')('1.16.4');
+const nbt = require('prismarine-nbt');
 const Vec3 = require('vec3');
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcl-afk-dashboard-'));
@@ -21,6 +23,7 @@ const receivedMessages = [];
 const receivedMovementPackets = [];
 const receivedWindowClicks = [];
 const receivedEntityInteractions = [];
+const receivedCustomNpcsChoices = [];
 const joinedUsers = [];
 const disconnectedUsers = [];
 const connectedClients = new Map();
@@ -76,6 +79,8 @@ try {
   assert(protocolSnapshot.messages.some((item) => item.text.includes('领取奖励')), '协议快照没有返回最近聊天内容');
   assert(protocolSnapshot.chatButtons.some((item) => item.value === '/daily-reward'), '协议快照没有识别聊天 clickEvent 按钮');
   assert(protocolSnapshot.protocolDialogs.some((item) => item.packetType === 'DIALOG' && item.dialogId === 77), '协议快照没有识别 CustomNPCs 对话协议');
+  assert(protocolSnapshot.npcDialog?.resolved === true, '协议快照没有用同步定义解析 CustomNPCs 对话');
+  assert(protocolSnapshot.npcDialog?.options[0]?.title === '领取新手礼包', '协议快照没有返回 CustomNPCs 真实选项文字');
   assert(protocolSnapshot.protocolDialogs.some((item) => item.channel === 'dragoncore:main' && item.text.includes('新手福利')), '协议快照过滤掉了有效 DragonCore NPC 菜单内容');
   assert(!protocolSnapshot.protocolDialogs.some((item) => /更新数据|team_expand_|playertag_/i.test(item.text)), '协议快照没有过滤 DragonCore HUD 更新噪声');
   assert(protocolSnapshot.protocolMenu?.title === '选服', '协议快照没有解析 DragonCore 界面名称');
@@ -102,6 +107,17 @@ try {
   assert(!/更新数据|team_expand_|playertag_|YeeCombatView/i.test(menuLogs), '运行日志不应输出 DragonCore HUD、血条或玩家标签更新');
   assert(!menuLogs.includes('模组界面协议 [dragoncore:main]'), '运行日志不应逐条输出 DragonCore 原始载荷');
   assert(menuLogs.includes('DragonCore 界面 [选服]：识别到 1 个可操作项：槽位 20 新手福利七日签到'), '运行日志缺少精简后的 DragonCore 可操作按钮摘要');
+
+  const npcChoiceStart = receivedCustomNpcsChoices.length;
+  const npcChoiceResult = await requestJson('/api/lobby/action', {
+    method: 'POST',
+    body: JSON.stringify({
+      target: 'DashboardBotA',
+      action: { type: 'clickNpcDialog', dialogId: 77, optionId: 2, enabled: true }
+    })
+  });
+  await waitForCustomNpcsChoice(npcChoiceStart, 77, 2);
+  assert(npcChoiceResult.npcDialog === null, '选择 CustomNPCs 选项后仍返回旧对话快照');
 
   const rightInteractionStart = receivedEntityInteractions.length;
   const delayedWindowResult = await requestJson('/api/lobby/action', {
@@ -519,6 +535,10 @@ function createMinecraftServer(port) {
         accepted: true
       });
     });
+    client.on('custom_payload', (packet) => {
+      if (packet.channel !== 'CustomNPCsPlayer') return;
+      receivedCustomNpcsChoices.push({ username, data: Buffer.from(packet.data) });
+    });
     client.on('use_entity', (packet) => {
       receivedEntityInteractions.push({ username, packet });
       if (username !== 'DashboardBotA' || packet.target !== 9102) return;
@@ -645,11 +665,44 @@ function sendInviteMenu(client) {
 }
 
 function sendCustomNpcsDialog(client) {
+  client.write('custom_payload', { channel: 'CustomNPCs', data: createCustomNpcsSyncPacket(25, createCustomNpcsDialogCategory()) });
+  client.write('custom_payload', { channel: 'CustomNPCs', data: createCustomNpcsSyncPacket(26, nbt.comp({})) });
   const data = Buffer.alloc(12);
   data.writeInt32BE(2, 0);
   data.writeInt32BE(9102, 4);
   data.writeInt32BE(77, 8);
   client.write('custom_payload', { channel: 'CustomNPCs', data });
+}
+
+function createCustomNpcsDialogCategory() {
+  const dialog = nbt.comp({
+    DialogId: nbt.int(77),
+    DialogTitle: nbt.string('新手向导'),
+    DialogText: nbt.string('请选择下一步'),
+    Options: nbt.list(nbt.comp([
+      {
+        OptionSlot: nbt.int(2),
+        Option: nbt.comp({
+          Title: nbt.string('领取新手礼包'),
+          OptionType: nbt.int(0),
+          Dialog: nbt.int(-1),
+          DialogColor: nbt.int(14737632),
+          DialogCommand: nbt.string('')
+        })
+      }
+    ]))
+  });
+  return nbt.comp({ Dialogs: nbt.list(nbt.comp([dialog.value])) });
+}
+
+function createCustomNpcsSyncPacket(packetType, compound) {
+  const compressed = gzipSync(nbt.writeUncompressed(compound));
+  const data = Buffer.alloc(12 + compressed.length);
+  data.writeInt32BE(packetType, 0);
+  data.writeInt32BE(5, 4);
+  data.writeInt32BE(compressed.length, 8);
+  compressed.copy(data, 12);
+  return data;
 }
 
 function sendDragonCorePayload(client, text) {
@@ -775,6 +828,22 @@ async function waitForWindowClick(startIndex, slot, mouseButton) {
     await delay(100);
   }
   throw new Error(`等待窗口点击包超时：slot=${slot}, mouseButton=${mouseButton}`);
+}
+
+async function waitForCustomNpcsChoice(startIndex, dialogId, optionId) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const match = receivedCustomNpcsChoices.slice(startIndex).find(({ username, data }) => (
+      username === 'DashboardBotA'
+      && data.length >= 12
+      && data.readInt32BE(0) === 7
+      && data.readInt32BE(4) === dialogId
+      && data.readInt32BE(8) === optionId
+    ));
+    if (match) return match;
+    await delay(100);
+  }
+  throw new Error(`等待 CustomNPCs 对话选择包超时：dialog=${dialogId}, option=${optionId}`);
 }
 
 async function waitForMovementAfter(startIndex) {

@@ -1,3 +1,5 @@
+import { clearCustomNpcsProtocolState, createCustomNpcsProtocolState } from './custom-npcs-protocol.js';
+
 export function createSessionState() {
   return {
     bot: null,
@@ -15,6 +17,7 @@ export function createSessionState() {
     chatButtons: [],
     protocolDialogs: [],
     protocolMenu: null,
+    customNpcs: createCustomNpcsProtocolState(),
     protocolMenuLogTimer: null,
     lastProtocolMenuLogSignature: '',
     lastProtocolDialogSignature: '',
@@ -45,6 +48,7 @@ export function clearConnectionSnapshot(session) {
   session.chatButtons = [];
   session.protocolDialogs = [];
   session.protocolMenu = null;
+  clearCustomNpcsProtocolState(session.customNpcs);
   clearTimeout(session.protocolMenuLogTimer);
   session.protocolMenuLogTimer = null;
   session.lastProtocolMenuLogSignature = '';

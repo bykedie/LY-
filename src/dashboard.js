@@ -573,7 +573,7 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
         getLobbyActionTimeout(action),
         '等待大厅动作执行结果超时。'
       );
-      const snapshot = runtimeSnapshots.get(target) || await requestWindowSnapshot(target);
+      const snapshot = await requestWindowSnapshot(target);
       sendJson(res, 200, { ok: true, target, ...snapshot });
       return;
     }

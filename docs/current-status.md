@@ -8,25 +8,25 @@
 
 ## 当前本地开发版本
 
-`v1.0.42` 已完成并发布。`v1.0.41` 本轮研发作废且版本号不复用；下一开发版本尚未启动。
+`v1.0.43`，用于修复 NPC 左/右键交互后控制面板缺少可操作选项的问题。`v1.0.41` 已作废且不复用。
 
 ## 当前本地分支
 
-`local/v1.0.42`，本地发布源分支，未设置远端跟踪；远端 `main` 已快进到该分支提交 `8f37dde`。
+`local/v1.0.43`，纯本地开发分支，未设置远端跟踪；从已发布的 `v1.0.42` 基线创建。
 
 ## 当前目标
 
-封存已发布的 `v1.0.42` 并停止继续迭代；保留完整恢复点，等待项目所有者未来明确提出下一项开发需求。
+让 NPC 左/右键交互后的标准容器、DragonCore 菜单和聊天 `clickEvent` 选项在控制面板中明确可见，并能直接填入对应后续动作。
 
 ## 本轮需求和验收标准
 
-- 完成配置档案保存 ID 类型缺陷的根因修复、回归测试和小范围模块提取。
-- 缺省/空字符串 ID 新建、合法现有 ID 原位更新、默认档案、切换/删除和事务恢复保持不回退。
-- 交接、维护、安全和完整测试全部通过，并创建本地恢复点。
-- 本轮完成后停止继续审计和实现新问题。
-- 下一位 AI 在当前状态为暂停、停止或等待新需求时不得自行开启 bug 审计、重构或功能迭代。
+- 复现并定位 NPC 交互后控制面板没有选项的实际丢失环节。
+- 标准容器槽位、DragonCore 映射选项和聊天 `clickEvent` 选项都必须渲染；没有可执行文本的 CustomNPCs 对话也必须显示明确诊断。
+- 执行“寻找实体/NPC并交互”后，动作响应必须返回最新快照，不能复用交互前的旧缓存。
+- 用户点击渲染出的容器/DragonCore 选项时填入操作窗口动作；点击聊天选项时填入点击聊天按钮动作。
+- 增加前端行为回归和协议回归，并使用浏览器验证真实页面布局与交互。
+- 所有改动完成后运行交接、维护、安全和完整测试，再创建本地里程碑。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
-- 本次“推送”许可已于 `v1.0.42` 发布后消费完毕，后续远端变更重新默认禁止。
 
 ## 已完成事项
 
@@ -48,27 +48,50 @@
 
 ## 正在进行事项
 
-无。`v1.0.42` 已发布，发布事实和停止态版本校验已保存；没有正在进行的业务或代码任务。
+NPC 交互界面根因修复、协议接入、专项回归、浏览器验证和最终完整门禁均已完成：标准容器与 DragonCore 保留槽位网格，聊天 `clickEvent` 与 CustomNPCs 真实选项进入独立按钮区；即时动作后强制请求新快照。当前只待创建本地里程碑提交。
 
 ## 下一步明确动作
 
-保持当前发布基线和本地恢复点不变，等待项目所有者明确提出下一项需求；下一开发版本不得自行创建。
+创建本地 `fix:` 里程碑提交，记录提交 SHA 后停止本轮迭代；不推送远端。
 
 ## 已修改文件
 
-无未提交代码修改。发布事实、决策、架构和停止态版本校验已保存为本地提交 `a3686e7`；本页与工作日志由独立本地 `docs:` 封存检查点保存。
+- `docs/current-status.md`
+- `docs/decisions.md`
+- `docs/work-log.md`
+- `docs/project-architecture.md`
+- `package.json`
+- `package-lock.json`
+- `public/index.html`
+- `public/styles.css`
+- `public/app.js`
+- `public/interaction-snapshot.js`
+- `src/config-schema.js`
+- `src/custom-npcs-protocol.js`
+- `src/dashboard.js`
+- `src/index.js`
+- `src/runtime-snapshot.js`
+- `src/session-state.js`
+- `scripts/custom-npcs-protocol-test.js`
+- `scripts/interaction-snapshot-test.js`
+- `scripts/dashboard-fresh-snapshot-test.js`
+- `scripts/dashboard-protocol-test.js`
+- `scripts/runtime-snapshot-test.js`
+- `scripts/session-state-test.js`
+- `scripts/smoke-test.js`
 
 ## 未解决问题和阻塞项
 
 - `src/dashboard.js` 已通过配置档案模块提取降至 612/800，不再贴近维护上限；后续仍按具体功能小步拆分。
-- `src/index.js` 维护预算剩余很少，当前为 2222/2225；后续触及执行端逻辑时优先提取小模块。
+- `src/index.js` 维护预算剩余很少，当前为 2224/2225；CustomNPCs 细节已提取到独立模块，后续继续优先小范围拆分。
 - CSS 历史基线仍有 80 个完全重复选择器和 12 个 `!important`；守卫阻止增长，但存量尚未按具体界面清理。
 - `public/app.js`、`src/dashboard.js` 和 `src/index.js` 仍是大型核心文件，需要随真实功能继续拆分。
 - 依赖审计存在 6 个 Mineflayer 上游中危告警；当前无兼容自动修复，禁止破坏性降级。
 - 具体界面重做范围尚未确认；不应自行全面改版。
 - 当前无外部阻塞，推送许可为否。
-- 当前迭代已停止；以上项目不是自动续做清单，必须等待项目所有者重新明确开发范围。
-- `v1.0.42` 已发布；下一开发版本及分支尚未创建，不应自行推断为 `v1.0.43`。
+- CustomNPCs `DIALOG` 基础包只包含实体 ID 和对话 ID；当前已解析 1.12.2 同步 NBT 与真实选择包，其他不兼容版本或缺失同步数据时会显示诊断而不猜测。
+- 当前真实服务器版本由自动探测决定，`bot.config.json` 未固定 Minecraft 版本；协议适配必须保持多版本兼容。
+- 真实生产服务器仍需用户在实际 NPC 上复验其具体插件/模组版本；本地协议集成已覆盖标准容器、DragonCore、聊天按钮和 CustomNPCs 1.12.2。
 
 ## 最近测试结果
 
@@ -102,12 +125,21 @@
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：通过，覆盖交接、维护、配置、Dashboard、前端、进程、协议、钓鱼、重生、防挂机、自动登录、账号校验和认证场景。
 - 历史远端复核：2026-07-25 尝试 `git ls-remote` 时 GitHub 连接超时；当时本地缓存的 `origin/main` 与本地 `main` 均为 `87be1a8`。2026-07-26 已实时确认并成功发布到 `8f37dde`。
+- NPC 界面链路审计：标准容器 `window`、DragonCore `protocolMenu`、CustomNPCs `protocolDialogs` 和聊天 `chatButtons` 均进入 API 快照；前端只传入前三者，`chatButtons` 在 `refreshWindowSnapshot` 与即时动作完成路径被遗漏。
+- NPC 前端修复前失败回归：`node scripts/interaction-snapshot-test.js` 因 `public/interaction-snapshot.js` 不存在而失败，证明旧前端没有可独立验证的聊天/CustomNPCs 选项模型。
+- NPC 最新快照修复前失败回归：`node scripts/dashboard-fresh-snapshot-test.js` 稳定失败于“即时动作返回了交互前的旧窗口缓存”，证明 `/api/lobby/action` 未主动请求动作后快照。
+- NPC 专项修复后：`interaction-snapshot-test`、`dashboard-fresh-snapshot-test`、`custom-npcs-protocol-test`、`dashboard-protocol-test` 和 `smoke-test` 全部通过；集成测试确认服务器收到 `CustomNPCsPlayer` 的 `7/dialogId/optionId` 选择包。
+- 浏览器桌面验证：标准槽位、DragonCore、聊天按钮、禁用的不支持 clickEvent 和 CustomNPCs 选项均可见；点击后分别填入 `clickChat` 与 `clickNpcDialog 77/2`，无按钮重叠或文字溢出。
+- 浏览器 390×844 窄屏验证：页面和协议按钮区无横向溢出，槽位网格独立横向滚动，所有协议按钮保持在视口内；临时服务、页面和夹具已清理。
+- NPC 修复最终门禁：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit`、完整 `npm.cmd test` 和 `git diff --check` 全部通过；完整流程耗时约 128 秒。
+- 最新维护检查：通过；`src/index.js` 2224/2225、`public/app.js` 1763/1800、`src/dashboard.js` 612/800、CSS 重复选择器 80/80、`!important` 12/12。
+- 最新安全审计：0 严重、0 高危、6 个 Mineflayer 上游中危告警；没有兼容的自动修复，本轮不做破坏性依赖降级。
 
 ## 恢复开发命令
 
 ```powershell
 Set-Location 'C:\Users\Administrator\Documents\MCLY\pcl-afk-bot'
-git switch local/v1.0.42
+git switch local/v1.0.43
 git status --short --branch
 git log --oneline -5
 npm.cmd run handoff:check
@@ -120,4 +152,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-26 14:46:34 +08:00
+2026-07-26 17:02:25 +08:00

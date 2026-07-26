@@ -160,7 +160,7 @@ export function validateLobbyActions(actions) {
   if (!Array.isArray(actions)) throw new Error('大厅动作序列必须是数组。');
   for (const [index, action] of actions.entries()) {
     requirePlainObject(action, `第 ${index + 1} 个大厅动作`);
-    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'clickItem', 'operateWindow', 'relativeWalk', 'findEntity', 'pressKey', 'moveSlot', 'chat', 'waitChat', 'clickChat']);
+    requireEnum(action.type, `第 ${index + 1} 个大厅动作类型`, ['wait', 'switchSlot', 'useItem', 'waitWindow', 'clickSlot', 'clickItem', 'operateWindow', 'relativeWalk', 'findEntity', 'pressKey', 'moveSlot', 'chat', 'waitChat', 'clickChat', 'clickNpcDialog']);
     if (action.button !== undefined) requireEnum(action.button, `第 ${index + 1} 个大厅动作鼠标键`, ['left', 'right']);
     if (action.direction !== undefined) requireEnum(action.direction, `第 ${index + 1} 个大厅动作方向`, ['forward', 'back', 'left', 'right', 'north', 'south', 'east', 'west']);
     if (action.interact !== undefined) requireEnum(action.interact, `第 ${index + 1} 个大厅动作交互方式`, ['approach', 'left', 'right']);
@@ -179,6 +179,8 @@ export function validateLobbyActions(actions) {
     if (action.slot !== undefined) requireNumber(action.slot, `第 ${index + 1} 个大厅动作槽位`, { min: 0, integer: true });
     if (action.toSlot !== undefined) requireNumber(action.toSlot, `第 ${index + 1} 个大厅动作目标槽位`, { min: 0, integer: true });
     if (action.entityId !== undefined) requireNumber(action.entityId, `第 ${index + 1} 个大厅动作实体 ID`, { min: 0, integer: true });
+    if (action.dialogId !== undefined) requireNumber(action.dialogId, `第 ${index + 1} 个大厅动作对话 ID`, { min: 0, integer: true });
+    if (action.optionId !== undefined) requireNumber(action.optionId, `第 ${index + 1} 个大厅动作对话选项 ID`, { min: 0, integer: true });
     if (action.title !== undefined && typeof action.title !== 'string') throw new Error(`第 ${index + 1} 个大厅动作窗口标题必须是文本。`);
     if (typeof action.title === 'string') action.title = action.title.trim();
     if (action.entity !== undefined && typeof action.entity !== 'string') throw new Error(`第 ${index + 1} 个大厅动作实体/NPC 名必须是文本。`);
@@ -208,6 +210,9 @@ export function validateLobbyActions(actions) {
     if (action.type === 'operateWindow' && !action.item && action.slot === undefined) throw new Error(`${actionLabel}需要从当前窗口选择按钮。`);
     if (action.type === 'waitChat' && !action.chatText) throw new Error(`${actionLabel}需要填写等待的聊天文本。`);
     if (action.type === 'clickChat' && !action.chatButton) throw new Error(`${actionLabel}需要填写聊天按钮文字。`);
+    if (action.type === 'clickNpcDialog' && (action.dialogId === undefined || action.optionId === undefined)) {
+      throw new Error(`${actionLabel}需要填写 CustomNPCs 对话 ID 和选项 ID。`);
+    }
     if (action.type === 'clickSlot' && action.slot === undefined && (action.row === undefined || action.column === undefined)) {
       throw new Error(`${actionLabel}需要填写槽位，或者同时填写行和列。`);
     }

@@ -4,6 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
+import { getCustomNpcsDialogSnapshot, handleCustomNpcsPayload, selectCustomNpcsDialogOption } from './custom-npcs-protocol.js';
 import { clearConnectionSnapshot, createSessionState } from './session-state.js';
 import { validateConfig } from './config-schema.js';
 import { loadExecutionConfig } from './execution-config.js';
@@ -955,6 +956,14 @@ async function runLobbyAction(username, action, index) {
 
   if (type === 'clickChat') {
     await runClickChatAction(username, action, index);
+    return;
+  }
+
+  if (type === 'clickNpcDialog') {
+    const session = sessions.get(username);
+    if (!session?.bot?.entity) throw new Error(`账号未在线：${username}`);
+    const result = selectCustomNpcsDialogOption(session.customNpcs, session.bot._client, action.dialogId, action.optionId);
+    log(username, `大厅动作 ${index}：选择 CustomNPCs 对话 ${result.dialogId} 的选项 ${result.optionId} ${result.option.title}`);
   }
 }
 
@@ -1365,7 +1374,8 @@ function emitWindowSnapshot(username, requestId = '') {
     messages: getMessageSnapshot(session),
     chatButtons: getChatButtonSnapshot(session),
     protocolDialogs: getProtocolDialogSnapshot(session),
-    protocolMenu: getProtocolMenuSnapshot(session)
+    protocolMenu: getProtocolMenuSnapshot(session),
+    npcDialog: getCustomNpcsDialogSnapshot(session?.customNpcs)
   });
 }
 
@@ -1683,14 +1693,6 @@ function collectChatButtons(component, output, fallbackLabel = '') {
   collectChatButtons(component.with, output, fallbackLabel);
 }
 
-const CUSTOM_NPCS_CLIENT_PACKETS = [
-  'CHAT', 'MESSAGE', 'DIALOG', 'QUEST_COMPLETION', 'EDIT_NPC', 'PLAY_SOUND', 'PLAY_MUSIC', 'UPDATE_NPC',
-  'ROLE', 'GUI', 'PARTICLE', 'DELETE_NPC', 'SCROLL_LIST', 'SCROLL_DATA', 'SCROLL_DATA_PART', 'SCROLL_SELECTED',
-  'GUI_DATA', 'GUI_ERROR', 'GUI_CLOSE', 'VILLAGER_LIST', 'CHATBUBBLE', 'CLONE', 'DIALOG_DUMMY', 'CONFIG',
-  'EYE_BLINK', 'SYNC_ADD', 'SYNC_END', 'SYNC_UPDATE', 'SYNC_REMOVE', 'MARK_DATA', 'UPDATE_ITEM', 'GUI_UPDATE',
-  'CHEST_NAME'
-];
-
 const CUSTOM_NPCS_DIALOG_PACKETS = new Set([
   'DIALOG', 'DIALOG_DUMMY', 'GUI', 'GUI_DATA', 'SCROLL_LIST', 'SCROLL_DATA', 'SCROLL_DATA_PART',
   'SCROLL_SELECTED', 'VILLAGER_LIST', 'GUI_UPDATE', 'CHEST_NAME'
@@ -1707,10 +1709,18 @@ function recordProtocolPayload(username, session, packet) {
     return;
   }
 
-  const text = extractProtocolPayloadText(data);
+  const customNpcsSignal = handleCustomNpcsPayload(session.customNpcs, channel, data);
+  if (customNpcsSignal?.sync) {
+    if (customNpcsSignal.error) log(username, `CustomNPCs 同步数据解析失败：${customNpcsSignal.error}`);
+    if (customNpcsSignal.changed) emitWindowSnapshot(username);
+    return;
+  }
+  const text = customNpcsSignal?.dialog?.resolved
+    ? [customNpcsSignal.dialog.title, customNpcsSignal.dialog.text].filter(Boolean).join('：')
+    : extractProtocolPayloadText(data);
   if (channel.toLowerCase() === 'dragoncore:main') updateDragonCoreProtocolMenu(username, session, text);
   if (isNoisyProtocolPayload(channel, text)) return;
-  const signal = parseKnownProtocolDialog(channel, data);
+  const signal = customNpcsSignal;
   const likelyUiChannel = /(npc|dialog|gui|menu|quest|screen)/i.test(channel);
   if (!signal && !likelyUiChannel && !/[\u3400-\u9fff]/u.test(text)) return;
   if (signal?.packetType && !CUSTOM_NPCS_DIALOG_PACKETS.has(signal.packetType) && !text) return;
@@ -1736,7 +1746,11 @@ function recordProtocolPayload(username, session, packet) {
   if (duplicate) return;
 
   if (item.packetType === 'DIALOG') {
-    log(username, `模组对话协议 [${channel}]：实体 ID ${item.entityId}，对话 ID ${item.dialogId}。这是 CustomNPCs 客户端对话，不是背包槽位窗口；协议只提供编号，按钮文字来自客户端模组同步数据。`);
+    const optionCount = customNpcsSignal.dialog?.options?.length || 0;
+    const detail = customNpcsSignal.dialog?.resolved
+      ? `已从同步数据解析 ${optionCount} 个选项。`
+      : '尚未收到对应同步定义，面板将显示诊断而不猜测按钮。';
+    log(username, `模组对话协议 [${channel}]：实体 ID ${item.entityId}，对话 ID ${item.dialogId}。${detail}`);
     return;
   }
 }
@@ -1826,18 +1840,6 @@ function isNoisyProtocolPayload(channel, text) {
     /血条视图/i,
     /执行方法\(['"]?更新数据/i
   ].some((pattern) => pattern.test(text));
-}
-
-function parseKnownProtocolDialog(channel, data) {
-  if (channel.toLowerCase() !== 'customnpcs' || data.length < 4) return null;
-  const packetIndex = data.readInt32BE(0);
-  const packetType = CUSTOM_NPCS_CLIENT_PACKETS[packetIndex] || `UNKNOWN_${packetIndex}`;
-  const result = { packetType };
-  if (packetType === 'DIALOG' && data.length >= 12) {
-    result.entityId = data.readInt32BE(4);
-    result.dialogId = data.readInt32BE(8);
-  }
-  return result;
 }
 
 function extractProtocolPayloadText(data) {
