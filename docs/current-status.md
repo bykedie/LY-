@@ -48,19 +48,15 @@
 
 ## 正在进行事项
 
-`v1.0.42` 发布事实、版本状态和校验规则已通过全部本地门禁；当前只等待创建发布收尾本地提交。
+无。`v1.0.42` 已发布，发布事实和停止态版本校验已保存；没有正在进行的业务或代码任务。
 
 ## 下一步明确动作
 
-创建发布事实本地提交，再记录干净停止状态；随后将两个收尾提交推送到远端 `main`。
+保持当前发布基线和本地恢复点不变，等待项目所有者明确提出下一项需求；下一开发版本不得自行创建。
 
 ## 已修改文件
 
-- `docs/current-status.md`
-- `docs/decisions.md`
-- `docs/project-architecture.md`
-- `docs/work-log.md`
-- `scripts/handoff-check.js`
+无未提交代码修改。发布事实、决策、架构和停止态版本校验已保存为本地提交 `a3686e7`；本页与工作日志由独立本地 `docs:` 封存检查点保存。
 
 ## 未解决问题和阻塞项
 
@@ -88,6 +84,7 @@
 - 最新本地交接里程碑：`8beb5b6 docs: 阻止停止状态自动续做`。
 - 发布核对：实时 `origin/main` 已从 `87be1a8` 快进为 `8f37dde`，与本地发布源 HEAD 一致；推送许可已恢复为否。
 - 发布收尾完整验证：`handoff:check`、`maintenance:check`、`security:audit` 和完整 `npm.cmd test` 全部通过；交接校验确认 `v1.0.42 -> v1.0.42` 只允许出现在已完成且停止的状态。
+- 最新发布收尾里程碑：`a3686e7 docs: 同步 v1.0.42 发布状态`。
 - 最新真实复现：临时 Dashboard 首先保存一个合法自动化方案，再提交 `{ id: true, name: "Should Reject", lobby: ... }`；接口错误返回 200，磁盘方案数量从 1 增为 2，临时进程和目录已清理。
 - 修复前失败回归：`node scripts/smoke-test.js` 稳定失败于“保存接口没有拒绝非文本自动化方案 ID”，证明旧实现未拒绝该输入。
 - 修复后专项：`node --check src/automation-store.js`、`node --check scripts/smoke-test.js` 和 `node scripts/smoke-test.js` 通过；覆盖非文本拒绝及列表不增长、空字符串新建、合法 ID 更新、非法字符串拒绝和删除。
@@ -123,4 +120,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-26 14:45:26 +08:00
+2026-07-26 14:46:34 +08:00
