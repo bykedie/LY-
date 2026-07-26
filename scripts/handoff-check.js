@@ -147,7 +147,16 @@ const developmentParts = parseVersion(developmentVersion);
 requireCondition(Boolean(stableParts), '当前稳定版本必须使用 v主版本.次版本.修订号 格式。');
 requireCondition(Boolean(developmentParts), '当前本地开发版本必须使用 v主版本.次版本.修订号 格式。');
 if (stableParts && developmentParts) {
-  requireCondition(compareVersions(developmentParts, stableParts) > 0, '当前本地开发版本必须高于稳定版本。');
+  const comparison = compareVersions(developmentParts, stableParts);
+  requireCondition(comparison >= 0, '当前本地开发版本不得低于稳定版本。');
+  if (comparison === 0) {
+    const developmentState = section(status, '当前本地开发版本');
+    const currentGoal = section(status, '当前目标');
+    requireCondition(
+      /已完成|已发布/.test(developmentState) && /封存|停止|等待/.test(currentGoal),
+      '稳定版与本地开发版本相同时，必须明确记录该版本已完成且项目处于停止状态。'
+    );
+  }
 }
 requireCondition(documentedBranch === `local/${developmentVersion}`, '当前本地分支必须使用 local/<当前本地开发版本>。');
 requireCondition(actualBranch === documentedBranch, `Git 当前分支 ${actualBranch || '(未知)'} 与交接记录 ${documentedBranch || '(缺失)'} 不一致。`);

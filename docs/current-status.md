@@ -4,19 +4,19 @@
 
 ## 当前稳定版本
 
-`v1.0.40`，远端 `origin/main` 基线提交为 `87be1a8`。
+`v1.0.42`，业务代码发布点为 `8f37dde`；远端 `origin/main` 已包含该发布点。
 
 ## 当前本地开发版本
 
-`v1.0.42`。`v1.0.41` 本轮研发作废且版本号不复用。
+`v1.0.42` 已完成并发布。`v1.0.41` 本轮研发作废且版本号不复用；下一开发版本尚未启动。
 
 ## 当前本地分支
 
-`local/v1.0.42`，纯本地分支，未设置远端跟踪。
+`local/v1.0.42`，本地发布源分支，未设置远端跟踪；远端 `main` 已快进到该分支提交 `8f37dde`。
 
 ## 当前目标
 
-封存本轮 `v1.0.42` 本地开发成果并停止继续迭代；保留完整恢复点，等待项目所有者未来明确提出下一项开发需求。
+封存已发布的 `v1.0.42` 并停止继续迭代；保留完整恢复点，等待项目所有者未来明确提出下一项开发需求。
 
 ## 本轮需求和验收标准
 
@@ -26,6 +26,7 @@
 - 本轮完成后停止继续审计和实现新问题。
 - 下一位 AI 在当前状态为暂停、停止或等待新需求时不得自行开启 bug 审计、重构或功能迭代。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
+- 本次“推送”许可已于 `v1.0.42` 发布后消费完毕，后续远端变更重新默认禁止。
 
 ## 已完成事项
 
@@ -42,19 +43,24 @@
 - `/api/lobby/action` 非字符串目标拒绝已修复并完成完整验证，已保存为最新本地提交 `cf57e46`。
 - 自动化方案非字符串 ID 拒绝已修复并完成完整验证，已保存为最新本地提交 `3b64212`。
 - 配置档案非字符串、非法和不存在 ID 拒绝已修复，档案存储已从 Dashboard 提取，已保存为本地提交 `4ccc467`。
+- `v1.0.42` 的 69 个本地提交已由项目所有者明确授权并快进发布到远端 `main`，发布点为 `8f37dde`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-无。本轮迭代已按项目所有者要求停止；停止状态续接门禁已保存，没有正在进行的代码修改或待执行测试。
+`v1.0.42` 发布事实、版本状态和校验规则已通过全部本地门禁；当前只等待创建发布收尾本地提交。
 
 ## 下一步明确动作
 
-保持当前本地恢复点不变，等待项目所有者明确提出下一项需求；恢复开发前先按 `AGENTS.md` 核对文档与 Git 状态。
+创建发布事实本地提交，再记录干净停止状态；随后将两个收尾提交推送到远端 `main`。
 
 ## 已修改文件
 
-无未提交代码修改。停止状态优先规则、下一位 AI 提示语和防回退校验已保存为本地提交 `8beb5b6`；本页与工作日志由独立本地 `docs:` 停止检查点保存。
+- `docs/current-status.md`
+- `docs/decisions.md`
+- `docs/project-architecture.md`
+- `docs/work-log.md`
+- `scripts/handoff-check.js`
 
 ## 未解决问题和阻塞项
 
@@ -66,6 +72,7 @@
 - 具体界面重做范围尚未确认；不应自行全面改版。
 - 当前无外部阻塞，推送许可为否。
 - 当前迭代已停止；以上项目不是自动续做清单，必须等待项目所有者重新明确开发范围。
+- `v1.0.42` 已发布；下一开发版本及分支尚未创建，不应自行推断为 `v1.0.43`。
 
 ## 最近测试结果
 
@@ -79,6 +86,8 @@
 - 停止门禁专项：`node --check scripts/handoff-check.js` 和 `npm.cmd run handoff:check` 通过；续接提示语不再在无新需求时自动开启 bug 审计。
 - 停止门禁完整验证：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过；完整测试约 126 秒。
 - 最新本地交接里程碑：`8beb5b6 docs: 阻止停止状态自动续做`。
+- 发布核对：实时 `origin/main` 已从 `87be1a8` 快进为 `8f37dde`，与本地发布源 HEAD 一致；推送许可已恢复为否。
+- 发布收尾完整验证：`handoff:check`、`maintenance:check`、`security:audit` 和完整 `npm.cmd test` 全部通过；交接校验确认 `v1.0.42 -> v1.0.42` 只允许出现在已完成且停止的状态。
 - 最新真实复现：临时 Dashboard 首先保存一个合法自动化方案，再提交 `{ id: true, name: "Should Reject", lobby: ... }`；接口错误返回 200，磁盘方案数量从 1 增为 2，临时进程和目录已清理。
 - 修复前失败回归：`node scripts/smoke-test.js` 稳定失败于“保存接口没有拒绝非文本自动化方案 ID”，证明旧实现未拒绝该输入。
 - 修复后专项：`node --check src/automation-store.js`、`node --check scripts/smoke-test.js` 和 `node scripts/smoke-test.js` 通过；覆盖非文本拒绝及列表不增长、空字符串新建、合法 ID 更新、非法字符串拒绝和删除。
@@ -91,11 +100,11 @@
 - 旧实现真实复现：临时 Dashboard 与假执行端配置账号 `"true"` 后调用 `/api/lobby/action`，正文为 `{ target: true, action: { type: "wait", delayMs: 100, enabled: true } }`，API 返回成功且目标为 `"true"`，假执行端收到 `lobbyAction target:"true"`。
 - 新回归旧实现失败：`node scripts/runtime-config-protocol-test.js` 失败于“非文本即时动作目标没有被 Dashboard 明确拒绝”，证明旧 Dashboard 未在路由层稳定拒绝非字符串即时动作目标。
 - 修复后专项：`node --check src/runtime-target.js`、`node --check src/dashboard.js` 和 `node scripts/runtime-config-protocol-test.js` 通过；新增回归覆盖非字符串即时动作目标，既有窗口快照、发送目标、发送内容、动作格式和配置热更新场景保持不变。
-- `npm.cmd run handoff:check`：通过，确认 `v1.0.40 -> v1.0.42`、`local/v1.0.42`、推送许可为否。
+- `npm.cmd run handoff:check`：发布前通过，确认 `v1.0.40 -> v1.0.42`、`local/v1.0.42`、推送许可为否。
 - `npm.cmd run maintenance:check`：通过；`src/index.js` 2222/2225，`public/app.js` 1728/1800，`src/dashboard.js` 769/800，CSS 重复选择器 `80/80`、`!important` `12/12`。
 - `npm.cmd run security:audit`：通过，0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 完整 `npm.cmd test`：通过，覆盖交接、维护、配置、Dashboard、前端、进程、协议、钓鱼、重生、防挂机、自动登录、账号校验和认证场景。
-- 远端实时复核：2026-07-25 尝试 `git ls-remote` 时 GitHub 连接超时；本地缓存的 `origin/main` 与本地 `main` 均仍为 `87be1a8`，未将缓存结果冒充实时远端状态。
+- 历史远端复核：2026-07-25 尝试 `git ls-remote` 时 GitHub 连接超时；当时本地缓存的 `origin/main` 与本地 `main` 均为 `87be1a8`。2026-07-26 已实时确认并成功发布到 `8f37dde`。
 
 ## 恢复开发命令
 
@@ -114,4 +123,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-26 11:30:09 +08:00
+2026-07-26 14:45:26 +08:00
