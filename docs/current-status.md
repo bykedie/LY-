@@ -16,7 +16,7 @@
 
 ## 当前目标
 
-修正停止状态下的 AI 续接协议冲突并重新封存 `v1.0.42`；不启动业务研发，完成后继续等待项目所有者明确提出下一项开发需求。
+封存本轮 `v1.0.42` 本地开发成果并停止继续迭代；保留完整恢复点，等待项目所有者未来明确提出下一项开发需求。
 
 ## 本轮需求和验收标准
 
@@ -46,19 +46,15 @@
 
 ## 正在进行事项
 
-停止状态续接门禁已通过专项、维护、安全和完整业务测试；当前只等待创建本地 `docs:` 里程碑，业务迭代仍保持停止。
+无。本轮迭代已按项目所有者要求停止；停止状态续接门禁已保存，没有正在进行的代码修改或待执行测试。
 
 ## 下一步明确动作
 
-创建停止状态续接门禁的本地 `docs:` 里程碑；随后记录提交后干净状态并停止。
+保持当前本地恢复点不变，等待项目所有者明确提出下一项需求；恢复开发前先按 `AGENTS.md` 核对文档与 Git 状态。
 
 ## 已修改文件
 
-- `AGENTS.md`
-- `docs/next-ai-prompt.md`
-- `scripts/handoff-check.js`
-- `docs/current-status.md`
-- `docs/work-log.md`
+无未提交代码修改。停止状态优先规则、下一位 AI 提示语和防回退校验已保存为本地提交 `8beb5b6`；本页与工作日志由独立本地 `docs:` 停止检查点保存。
 
 ## 未解决问题和阻塞项
 
@@ -82,6 +78,7 @@
 - 最新本地代码里程碑：`4ccc467 fix: 校验配置档案 ID 类型`。
 - 停止门禁专项：`node --check scripts/handoff-check.js` 和 `npm.cmd run handoff:check` 通过；续接提示语不再在无新需求时自动开启 bug 审计。
 - 停止门禁完整验证：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过；完整测试约 126 秒。
+- 最新本地交接里程碑：`8beb5b6 docs: 阻止停止状态自动续做`。
 - 最新真实复现：临时 Dashboard 首先保存一个合法自动化方案，再提交 `{ id: true, name: "Should Reject", lobby: ... }`；接口错误返回 200，磁盘方案数量从 1 增为 2，临时进程和目录已清理。
 - 修复前失败回归：`node scripts/smoke-test.js` 稳定失败于“保存接口没有拒绝非文本自动化方案 ID”，证明旧实现未拒绝该输入。
 - 修复后专项：`node --check src/automation-store.js`、`node --check scripts/smoke-test.js` 和 `node scripts/smoke-test.js` 通过；覆盖非文本拒绝及列表不增长、空字符串新建、合法 ID 更新、非法字符串拒绝和删除。
@@ -117,4 +114,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-26 11:29:11 +08:00
+2026-07-26 11:30:09 +08:00
