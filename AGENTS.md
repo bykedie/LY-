@@ -9,6 +9,7 @@
 3. 阅读 `docs/project-architecture.md` 和 `docs/decisions.md`。
 4. 阅读 `docs/work-log.md` 的最近记录；仅在任务涉及历史需求时再查阅 `docs/conversation-handoff.md`。需要向新 AI 交接时使用 `docs/next-ai-prompt.md`。
 5. 按 `docs/current-status.md` 的“下一步明确动作”继续；文档与代码或 Git 冲突时，以代码和 Git 为事实来源，并先修正文档。
+6. 如果 `docs/current-status.md` 记录为暂停、停止或等待新需求，只汇报恢复结果并等待项目所有者明确恢复开发；不得自行开启 bug 审计、重构或功能迭代。
 
 ## 检查点规则
 

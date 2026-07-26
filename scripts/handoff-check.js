@@ -90,6 +90,7 @@ const ideas = read('docs/ideas.md');
 const workLog = read('docs/work-log.md');
 const agents = read('AGENTS.md');
 const architecture = read('docs/project-architecture.md');
+const nextAiPrompt = read('docs/next-ai-prompt.md');
 
 const requiredStatusSections = [
   '当前稳定版本',
@@ -156,6 +157,18 @@ requireCondition(architecture.includes(`\`${stableVersion}\``), '架构文档缺
 const pushPermission = section(status, '是否允许推送');
 requireCondition(/^否[。\s]/.test(pushPermission), '推送许可必须存在并默认明确为“否”。');
 requireCondition(agents.includes('禁止执行 `git push`'), 'AGENTS.md 缺少未经许可禁止推送规则。');
+requireCondition(
+  agents.includes('暂停、停止或等待新需求') && agents.includes('不得自行开启 bug 审计、重构或功能迭代'),
+  'AGENTS.md 缺少停止状态优先规则。'
+);
+requireCondition(
+  nextAiPrompt.includes('暂停、停止或等待新需求') && nextAiPrompt.includes('不得自行开启 bug 审计、重构或功能迭代'),
+  '下一位 AI 提示语缺少停止状态优先规则。'
+);
+requireCondition(
+  !nextAiPrompt.includes('如果当前没有指定功能需求，就主动审计'),
+  '下一位 AI 提示语仍会在停止状态下自动开启新迭代。'
+);
 
 const nextAction = section(status, '下一步明确动作');
 requireCondition(nextAction.length >= 10 && !/^(无|暂无|待定)[。\s]*$/.test(nextAction), '当前状态必须提供具体的下一步明确动作。');
