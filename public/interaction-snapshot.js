@@ -51,34 +51,71 @@ export function createInteractionSnapshotModel(snapshot = {}) {
   return { options: deduplicateOptions(options), notices };
 }
 
-export function renderInteractionSnapshot(model, { list, notice, onChat, onCustomNpcs }) {
-  if (!list || !notice) return;
-  list.innerHTML = '';
-  notice.innerHTML = '';
-  list.hidden = model.options.length === 0;
-  notice.hidden = model.notices.length === 0;
+export function createOperateWindowEntries(windowItems = [], interactionModel = { options: [] }) {
+  const windowEntries = windowItems.map((slot) => ({
+    id: `window:${slot.protocolEntry ? 1 : 0}:${slot.slot}`,
+    kind: 'window',
+    label: String(slot.displayName || slot.name || `槽位 ${slot.slot}`),
+    slot: slot.slot,
+    protocolEntry: slot.protocolEntry === true,
+    lore: Array.isArray(slot.lore) ? slot.lore : [],
+    supported: true
+  }));
+  const interactionEntries = interactionModel.options.map((option) => ({
+    ...option,
+    id: option.kind === 'chat'
+      ? `chat:${option.action}:${option.value}`
+      : `customNpcs:${option.dialogId}:${option.optionId}`
+  }));
+  return [...windowEntries, ...interactionEntries];
+}
 
-  for (const text of model.notices) {
-    const item = document.createElement('p');
-    item.textContent = text;
-    notice.appendChild(item);
+export function createOperateWindowAction(entry, defaults = {}) {
+  if (!entry) return { type: 'operateWindow', enabled: true, ...defaults };
+  if (entry.kind === 'chat') {
+    return { type: 'clickChat', chatButton: entry.label, timeoutMs: defaults.timeoutMs, enabled: true };
   }
-  for (const option of model.options) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `interaction-option is-${option.kind}`;
-    button.disabled = !option.supported;
-    const source = option.kind === 'chat' ? `聊天 ${option.action}` : `CustomNPCs 选项 ${option.optionId}`;
-    button.innerHTML = `<strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(source)}</span>`;
-    button.title = option.supported ? `选择：${option.label}` : `当前不支持自动执行：${source}`;
-    if (option.supported) {
-      button.addEventListener('click', () => {
-        if (option.kind === 'chat') onChat?.(option);
-        else onCustomNpcs?.(option);
-      });
-    }
-    list.appendChild(button);
+  if (entry.kind === 'customNpcs') {
+    return { type: 'clickNpcDialog', dialogId: entry.dialogId, optionId: entry.optionId, enabled: true };
   }
+  return {
+    type: 'operateWindow',
+    title: defaults.title || '',
+    item: entry.label,
+    slot: entry.slot,
+    protocolEntry: entry.protocolEntry === true,
+    button: defaults.button || 'left',
+    count: defaults.count || 1,
+    timeoutMs: defaults.timeoutMs,
+    enabled: true
+  };
+}
+
+export function createOperateWindowEntryFromAction(action = {}) {
+  if (action.type === 'clickChat' && action.chatButton) {
+    return { id: `saved:chat:${action.chatButton}`, kind: 'chat', label: action.chatButton, supported: true };
+  }
+  if (action.type === 'clickNpcDialog' && Number.isInteger(action.dialogId) && Number.isInteger(action.optionId)) {
+    return {
+      id: `customNpcs:${action.dialogId}:${action.optionId}`,
+      kind: 'customNpcs',
+      label: `对话 ${action.dialogId} / 选项 ${action.optionId}`,
+      dialogId: action.dialogId,
+      optionId: action.optionId,
+      supported: true
+    };
+  }
+  if (action.type === 'operateWindow' && (Number.isInteger(action.slot) || action.item)) {
+    return {
+      id: `window:${action.protocolEntry ? 1 : 0}:${action.slot ?? 'saved'}`,
+      kind: 'window',
+      label: action.item || `槽位 ${action.slot}`,
+      slot: action.slot,
+      protocolEntry: action.protocolEntry === true,
+      supported: true
+    };
+  }
+  return null;
 }
 
 function deduplicateOptions(options) {
@@ -91,8 +128,4 @@ function deduplicateOptions(options) {
     seen.add(key);
     return true;
   });
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
 }

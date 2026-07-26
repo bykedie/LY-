@@ -191,7 +191,7 @@ state.nearbyEntities / state.windowItems # 运行时快照
 state.uiSettings                      # 浏览器 localStorage 界面偏好
 ```
 
-`public/interaction-snapshot.js` 将聊天 `clickEvent` 和 CustomNPCs 对话选项渲染到独立协议按钮区，标准容器和 DragonCore 仍使用 9×9 槽位网格；槽位网格在窄屏独立横向滚动，不得把协议按钮推离视口。`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查两者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
+`public/interaction-snapshot.js` 把标准容器、DragonCore、聊天 `clickEvent` 和 CustomNPCs 对话选项统一建模为“操作点击窗口”动作卡的可选项；用户只使用该动作入口，前端保存或立即执行时再转换为 `operateWindow`、`clickChat` 或 `clickNpcDialog` 真实动作。旧方案中的后三类动作载入后也统一回显在该入口。标准容器和 DragonCore 仍保留 9×9 快照网格用于查看和快速选中，槽位网格在窄屏独立横向滚动。协议同步缺失或动作不支持时，诊断显示在动作卡内部。`public/styles.css` 是基础业务样式，`public/workbench.css` 是当前工作台视觉层。修改界面时必须同时检查两者的优先级和响应式规则，并保持现有业务 ID 和事件绑定稳定。
 
 ## 九、部署架构
 

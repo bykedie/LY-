@@ -307,8 +307,6 @@
             </div>
             <div class="window-snapshot-content" id="windowSnapshotContent">
               <div class="window-snapshot-title" id="windowSnapshotTitle">当前交互窗口：未读取</div>
-              <div class="interaction-snapshot-notice" id="interactionSnapshotNotice" hidden></div>
-              <div class="interaction-option-list" id="interactionOptionList" hidden></div>
               <div class="window-grid" id="windowGrid"></div>
             </div>
           </div>
@@ -548,19 +546,17 @@
           <option value="moveSlot">移动背包槽位</option>
           <option value="chat">发送聊天/指令</option>
           <option value="waitChat">等待聊天内容</option>
-          <option value="clickChat">点击聊天按钮</option>
-          <option value="clickNpcDialog">选择 CustomNPCs 对话选项</option>
         </select>
         <span class="field-note">按从上到下的顺序执行。</span>
       </label>
       <label data-action-types="wait,useItem,waitWindow,clickSlot,clickItem,operateWindow,findEntity,waitChat,clickChat">延迟/超时 ms<input class="lobby-action-delay" type="number" min="0" placeholder="例如：500"><span class="field-note">等待动作用作等待时间；等待窗口、聊天或按钮用作最长等待。</span></label>
       <label data-action-types="switchSlot">快捷栏 1-9<input class="lobby-action-hotbar" type="number" min="1" max="9" placeholder="例如：1"><span class="field-note">切换快捷栏动作使用。</span></label>
-      <label data-action-types="waitWindow,clickSlot,clickItem,operateWindow">窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
+      <label data-action-types="waitWindow,clickSlot,clickItem,operateWindow" data-operate-window-only>窗口标题包含<input class="lobby-action-title" placeholder="例如：选择服务器"><span class="field-note">等待窗口或点击槽位前用于确认菜单。</span></label>
       <label data-action-types="clickSlot">行<input class="lobby-action-row" type="number" min="1" max="6" placeholder="3"><span class="field-note">箱子菜单行号，从 1 开始。</span></label>
       <label data-action-types="clickSlot">列<input class="lobby-action-column" type="number" min="1" max="9" placeholder="3"><span class="field-note">箱子菜单列号，从 1 开始。</span></label>
       <label data-action-types="clickSlot,moveSlot">来源槽位<input class="lobby-action-slot" type="number" min="0" placeholder="20"><span class="field-note">菜单点击可填写槽位；背包移动时填写来源槽位。</span></label>
-      <label data-action-types="useItem,clickSlot,clickItem,operateWindow">次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
-      <label data-action-types="useItem,clickSlot,clickItem,operateWindow">鼠标键
+      <label data-action-types="useItem,clickSlot,clickItem,operateWindow" data-operate-window-only>次数<input class="lobby-action-count" type="number" min="1" placeholder="1"><span class="field-note">右键或点击重复次数。</span></label>
+      <label data-action-types="useItem,clickSlot,clickItem,operateWindow" data-operate-window-only>鼠标键
         <select class="lobby-action-button">
           <option value="right">右键</option>
           <option value="left">左键</option>
@@ -598,14 +594,16 @@
       <label data-action-types="pressKey">按住时间 ms<input class="lobby-action-key-duration" type="number" min="50" max="60000" placeholder="500"><span class="field-note">按键保持时间，范围 50-60000ms。</span></label>
       <label data-action-types="moveSlot">目标槽位<input class="lobby-action-to-slot" type="number" min="0" placeholder="21"><span class="field-note">移动背包槽位时的放置位置。</span></label>
       <label data-action-types="chat">聊天/指令<input class="lobby-action-message" placeholder="/spawn 或 普通聊天"><span class="field-note">动作序列执行到这里时发送。</span></label>
-      <label data-action-types="clickItem,operateWindow">当前窗口按钮
+      <label data-action-types="clickItem">当前窗口按钮
         <select class="lobby-action-item"><option value="">请先与 NPC 交互并刷新窗口</option></select>
-        <span class="field-note">从当前协议窗口读取槽位、按钮名称和提示，选择后按协议点击。</span>
+        <span class="field-note">兼容旧方案，只读取标准窗口和 DragonCore 槽位。</span>
+      </label>
+      <label data-action-types="operateWindow">交互后可点击内容
+        <select class="lobby-action-operate-entry"><option value="">请先与 NPC 交互并刷新窗口</option></select>
+        <span class="field-note">统一显示窗口槽位、DragonCore、聊天按钮和 CustomNPCs 对话选项，并按各自真实协议执行。</span>
+        <span class="lobby-action-interaction-notice" hidden></span>
       </label>
       <label data-action-types="waitChat">等待聊天文本<input class="lobby-action-chat-text" placeholder="例如：请选择要购买的物品"><span class="field-note">检测到包含这段文字的聊天后继续下一步。</span></label>
-      <label data-action-types="clickChat">聊天按钮文字<input class="lobby-action-chat-button" placeholder="例如：[确认]、购买、下一页"><span class="field-note">从协议收到的 clickEvent 按钮中模糊匹配并执行。</span></label>
-      <label data-action-types="clickNpcDialog">CustomNPCs 对话 ID<input class="lobby-action-dialog-id" type="number" min="0"><span class="field-note">由交互快照自动填入，不要手工猜测。</span></label>
-      <label data-action-types="clickNpcDialog">CustomNPCs 选项 ID<input class="lobby-action-option-id" type="number" min="0"><span class="field-note">由对话选项真实协议槽位自动填入。</span></label>
       </article>
       <div class="lobby-action-connector">
         <button class="insert-lobby-action" type="button" aria-label="在此步骤后添加动作" title="在此步骤后添加动作">+</button>
