@@ -1160,6 +1160,11 @@ select:disabled {
   margin: 0 0 18px;
 }
 
+.account-stop-box {
+  align-items: center;
+  grid-template-columns: 180px 1fr 120px;
+}
+
 .preset-send-list {
   display: flex;
   flex-wrap: wrap;

@@ -202,11 +202,18 @@ try {
   assert(page.includes('class="lobby-action-connector"'), '大厅步骤之间缺少连接节点');
   assert(page.includes('class="insert-lobby-action"'), '每个大厅步骤后缺少加号动作按钮');
   assert(page.includes('aria-label="在此步骤后添加动作"'), '加号动作按钮缺少用途说明');
+  assert(page.includes('id="stopAccountTarget"'), '运行控制缺少单账号停止目标');
+  assert(page.includes('id="stopAccountBtn"'), '运行控制缺少单账号停止按钮');
 
   const appScript = await requestText('/app.js');
   const apiClientScript = await requestText('/api-client.js');
+  const runtimeControlScript = await requestText('/runtime-control.js');
   assert(appScript.includes("from './api-client.js'"), '前端入口没有导入统一 API 客户端');
   assert(appScript.includes("from './interaction-snapshot.js'"), '前端入口没有导入交互快照模型');
+  assert(appScript.includes("from './runtime-control.js'"), '前端入口没有导入运行控制模块');
+  assert(appScript.includes('/api/accounts/stop'), '前端没有调用单账号停止 API');
+  assert(runtimeControlScript.includes('collapseAccountLogs'), '运行控制模块缺少账号日志折叠');
+  assert(runtimeControlScript.includes('renderRuntimeLogs'), '运行控制模块缺少日志跟随渲染');
   assert(appScript.includes('已加入执行端发送队列'), '前端发送成功提示没有准确表达队列接收语义');
   assert(appScript.includes('挂机初始化中'), '前端缺少执行端初始化状态提示');
   assert(apiClientScript.includes('export async function requestJson'), '统一 API 客户端静态资源不可用');

@@ -445,6 +445,11 @@
           <input id="commandMessage" placeholder="输入聊天内容或 / 指令">
           <button class="primary" id="sendCommandBtn">发送</button>
         </div>
+        <div class="send-box account-stop-box">
+          <strong>单账号控制</strong>
+          <select id="stopAccountTarget" title="选择要单独停止的运行账号"></select>
+          <button class="danger" id="stopAccountBtn" type="button">停止该账号</button>
+        </div>
         <div class="preset-send-list" id="presetSendList"></div>
         <pre class="logs" id="logs">等待日志...</pre>
       </section>

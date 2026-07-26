@@ -253,6 +253,9 @@ function handleBotEventLine(line) {
     if (event.type === 'chatCommandResult' && event.requestId) {
       runtimeRequests.settle(event, '发送命令执行失败。');
     }
+    if (event.type === 'accountStopResult' && event.requestId) {
+      runtimeRequests.settle(event, '停止账号失败。');
+    }
   } catch (error) {
     addLog(`解析运行事件失败：${error.message}`);
   }
@@ -548,6 +551,22 @@ const server = http.createServer(createHttpServerOptions(), async (req, res) => 
     if (req.method === 'POST' && url.pathname === '/api/stop') {
       stopBot();
       sendJson(res, 200, { ok: true, ...getBotProcessStatus() });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/accounts/stop') {
+      const body = await readJsonRequest(req);
+      const target = normalizeSpecificRuntimeTarget(body.target, '停止账号');
+      await requestBotCommandResult(
+        'account-stop',
+        { type: 'stopAccount', target },
+        3000,
+        '等待执行端确认停止账号超时。'
+      );
+      runtimeSnapshots.delete(target);
+      runningConfig.accounts = runningConfig.accounts.filter((account) => account.username !== target);
+      addLog(`账号 ${target} 已停止挂机；其他账号继续运行。`);
+      sendJson(res, 200, { ok: true, stoppedTarget: target, control: getRunningControlState() });
       return;
     }
 

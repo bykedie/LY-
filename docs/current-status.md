@@ -8,76 +8,82 @@
 
 ## 当前本地开发版本
 
-`v1.0.43`，NPC 交互选项统一进入“操作点击窗口”的调整已完成并保存为本地提交 `d489c22`；当前停止迭代，等待真实服务器复验。`v1.0.41` 已作废且不复用。
+`v1.0.43`，已完成多账号运行控制改进：重复账号日志折叠、日志自动跟随底部和单账号停止。本轮代码恢复点为本状态文件所在的最新本地 `fix:` 提交；上一恢复点为 `9ee87e2`。`v1.0.41` 已作废且不复用。
 
 ## 当前本地分支
 
-`local/v1.0.43`，纯本地开发分支，未设置远端跟踪；从已发布的 `v1.0.42` 基线创建。
+`local/v1.0.43`，纯本地开发分支，未设置远端跟踪；远端仍保持 `v1.0.42`。
 
 ## 当前目标
 
-保持 `v1.0.43` 本地恢复点不变，等待项目所有者在真实服务器复验“操作点击窗口”中的 NPC 交互选项；未经新需求不继续迭代。
+多账号运行控制改进已经完成并封存为待提交本地里程碑：相同内容不重复占满日志、底部日志自动可见、单个账号可独立停止而其他账号继续运行。
 
 ## 本轮需求和验收标准
 
-- “操作点击窗口”的下拉列表同时显示标准容器槽位、DragonCore 映射、聊天 `clickEvent` 和 CustomNPCs 对话选项。
-- 聊天和 CustomNPCs 不再作为用户需要单独选择的动作类型；载入旧方案时仍能在“操作点击窗口”中正确回显。
-- 选择列表项后，保存或立即执行时转换为对应真实动作类型和参数，不能把聊天或 NPC 对话伪装成窗口槽位包。
-- 无法解析 CustomNPCs 同步定义或不支持的 `clickEvent` 时，在动作卡内显示明确诊断或禁用选项。
-- 标准槽位网格仍可用于查看和快速选择，并把结果填入“操作点击窗口”动作卡。
-- 增加界面位置与动作映射回归，并使用应用内浏览器验证桌面和 390×844 窄屏布局。
+- API 原始日志保持完整；浏览器展示层只把连续、内容相同且账号不同的日志合并为一条并列出账号。
+- 日志初次渲染和用户停留在底部时自动滚到最新日志；用户主动上翻或选择文本时不抢滚动位置。
+- 运行控制显示当前运行账号，并允许停止某一个账号。
+- 单账号停止必须停止功能工作器、聊天队列、连接与自动重连，清理运行快照，并返回执行端确认。
+- 停止一个账号后共享执行进程和其他账号继续运行；该账号从当前控制目标中移除，后续发送和即时动作拒绝该目标。
+- 停止最后一个账号后仍保留共享进程，用户可使用现有“停止挂机”结束整个进程。
+- 完成页面浏览器验证以及交接、维护、安全和完整测试，再创建本地里程碑。
 - 未经项目所有者明确说“同意推送”，禁止任何远端变更。
 
 ## 已完成事项
 
-- AI 续接体系、单一当前状态、想法/决策/工作日志及自动交接校验已建立。
-- `v1.0.42` 已由项目所有者授权发布到远端 `main`；当前稳定发布点为 `8f37dde`。
-- 配置、存储、进程 IPC、Dashboard HTTP、安全和 Mineflayer 行为已完成多轮真实审计与回归修复。
-- NPC 交互数据链路、动作后最新快照和 CustomNPCs 1.12.2 真实选择协议已完成，代码恢复点为 `2f817d6`。
-- 标准窗口、DragonCore、聊天按钮和 CustomNPCs 已统一进入“操作点击窗口”动作卡；旧聊天/NPC 动作载入时自动回显到统一入口。
-- 独立协议按钮区以及聊天/CustomNPCs 独立动作类型已从用户界面移除。
-- 统一操作入口已保存为本地提交 `d489c22`。
+- AI 续接体系和本地优先发布边界已建立；`v1.0.42` 已发布到远端 `main`。
+- NPC 标准窗口、DragonCore、聊天按钮和 CustomNPCs 已统一进入“操作点击窗口”，本地代码恢复点为 `d489c22`。
+- 新增浏览器展示层日志折叠与有条件跟尾；API 原始日志未改变。
+- 新增运行账号下拉和“停止该账号”操作。
+- 新增 `POST /api/accounts/stop`、`stopAccount` IPC 和 `accountStopResult` 回执；执行端按账号清理工作器、队列、连接、快照与重连。
+- 停止尚未初始化的后续账号时，账号启动循环会跳过该账号。
+- 执行端 stdin 命令分发已提取到 `src/runtime-command-listener.js`，`src/index.js` 和 `public/app.js` 均保持维护预算内。
 
 ## 正在进行事项
 
-无。`v1.0.43` 本轮调整已完成并停止，没有进行中的代码修改。
+本轮实现、测试、架构同步和本地里程碑均已完成，等待项目所有者在真实服务器复验。
 
 ## 下一步明确动作
 
-等待项目所有者在真实服务器复验 NPC 左/右键交互后的“操作点击窗口”下拉；收到明确结果或新需求后再恢复本地开发，不推送远端。
+等待项目所有者在真实服务器验证三账号日志折叠、自动跟尾和单账号停止；收到明确反馈后再恢复开发。
 
 ## 已修改文件
 
-- `docs/current-status.md`
-- `docs/project-architecture.md`
-- `docs/work-log.md`
-- `public/app.js`
 - `public/index.html`
-- `public/interaction-snapshot.js`
+- `public/app.js`
 - `public/styles.css`
-- `scripts/interaction-snapshot-test.js`
+- `public/runtime-control.js`
+- `src/index.js`
+- `src/dashboard.js`
+- `src/api-route-boundary.js`
+- `src/runtime-account-control.js`
+- `src/runtime-command-listener.js`
+- `scripts/runtime-control-test.js`
+- `scripts/dashboard-protocol-test.js`
 - `scripts/smoke-test.js`
+- `package.json`
+- `docs/project-architecture.md`
+- `docs/current-status.md`
+- `docs/work-log.md`
 
 ## 未解决问题和阻塞项
 
-- `src/index.js` 当前为 2224/2225，维护预算剩余很少；本轮没有修改执行端协议实现。
-- CSS 历史基线仍有 80 个完全重复选择器和 12 个 `!important`；本轮只调整新交互区相关样式。
-- `public/app.js` 当前为 1795/1800，接近维护上限；后续随具体功能优先小步提取。
-- 依赖审计存在 6 个 Mineflayer 上游中危告警；当前无兼容自动修复，禁止破坏性降级。
-- 真实生产服务器仍需用户复验其具体 Minecraft、CustomNPCs 或其他 NPC 插件版本。
+- 自动化和本地模拟无法代替真实 Minecraft 服务器复验；需由项目所有者验证实际三账号日志与单停行为。
+- CSS 历史基线仍有 80 个重复选择器和 12 个 `!important`；本轮没有增加。
+- 依赖审计存在 6 个 Mineflayer 上游中危告警，本轮不做破坏性依赖变更。
 - 当前无外部阻塞，推送许可为否。
 
 ## 最近测试结果
 
-- 专项回归：`node scripts/interaction-snapshot-test.js` 通过，覆盖四类来源汇总、三种真实动作映射、旧方案回显、独立按钮区移除和诊断区域存在。
-- smoke 回归：`node scripts/smoke-test.js` 通过，静态守卫确认统一入口存在、旧独立动作类型和按钮区不存在。
-- 浏览器桌面验证：统一下拉显示标准窗口、DragonCore、聊天按钮、禁用的 `open_url` 和 CustomNPCs；页面外无独立交互按钮区，控制台无警告或错误。
-- 浏览器动作验证：聊天选项发送 `clickChat`，CustomNPCs 发送 `clickNpcDialog 77/2`，标准槽位发送 `operateWindow slot 12`；协议映射正确。
-- 浏览器 390×844 窄屏验证：页面、动作卡和统一下拉均无横向溢出；临时服务、页面和文件已清理。
-- 最终完整门禁：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit`、完整 `npm.cmd test` 和 `git diff --check` 全部通过，耗时约 131 秒。
-- 维护基线：`src/index.js` 2224/2225、`public/app.js` 1795/1800、`src/dashboard.js` 612/800、CSS 重复选择器 80/80、`!important` 12/12。
-- 安全审计：0 严重、0 高危、6 个 Mineflayer 上游中危告警。
-- 最新本地代码里程碑：`d489c22 fix: 统一 NPC 交互操作入口`；提交后工作区无代码修改。
+- `node scripts/runtime-control-test.js`：通过；覆盖三账号相同日志折叠、系统/同账号日志保留、底部跟随和上翻保持。
+- `node scripts/dashboard-protocol-test.js`：通过；停止 A 后 B 继续在线、共享进程保持运行、A 不重连且不再接受发送。
+- `npm.cmd run maintenance:check`：通过；API 14 个，CSS 重复 80/80，`!important` 12/12，`src/index.js` 2205/2225，`public/app.js` 1796/1800。
+- `node scripts/smoke-test.js`：通过。
+- 应用内浏览器：桌面运行控制可见且无横向溢出；390×844 窄屏单账号控件折叠为单列，日志宽度正常且无横向溢出。
+- `npm.cmd run handoff:check`：通过；稳定 `v1.0.42`、本地 `v1.0.43`、分支与推送许可一致。
+- `npm.cmd run security:audit`：通过；0 个 critical、0 个 high，保留 6 个既有 Mineflayer 上游 moderate 告警。
+- `npm.cmd test`：通过；完整测试链 129.5 秒全绿。
+- `git diff --check`：通过。
 
 ## 恢复开发命令
 
@@ -86,9 +92,8 @@ Set-Location 'C:\Users\Administrator\Documents\MCLY\pcl-afk-bot'
 git switch local/v1.0.43
 git status --short --branch
 git log --oneline -5
-node scripts/interaction-snapshot-test.js
-node scripts/smoke-test.js
-npm.cmd run handoff:check
+git status --short --branch
+npm.cmd test
 ```
 
 ## 是否允许推送
@@ -97,4 +102,4 @@ npm.cmd run handoff:check
 
 ## 最后更新时间
 
-2026-07-26 18:09:11 +08:00
+2026-07-26 19:41:57 +08:00

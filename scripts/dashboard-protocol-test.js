@@ -349,6 +349,25 @@ try {
   assert(partialSend.failedTargets?.some((item) => item.username === 'DashboardBotA' && item.message.includes('不在线')), '全部账号发送没有返回断线失败目标');
   await waitForMessageFrom('DashboardBotB', '/partial-online');
 
+  const stoppedAccount = await requestJson('/api/accounts/stop', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'DashboardBotA' })
+  });
+  assert(stoppedAccount.stoppedTarget === 'DashboardBotA', '单账号停止响应缺少目标账号');
+  const accountStoppedStatus = await waitForControlAccounts(['DashboardBotB']);
+  assert(accountStoppedStatus.running === true, '停止单账号后共享执行进程不应退出');
+  assert(connectedClients.get('DashboardBotB')?.state === 'play', '停止单账号影响了其他在线账号');
+  const stoppedTargetSend = await requestJson('/api/send', {
+    method: 'POST',
+    body: JSON.stringify({ target: 'DashboardBotA', message: '/stopped-target' }),
+    expectOk: false
+  });
+  assert(stoppedTargetSend.message.includes('不存在或未启用'), '已停止账号仍能作为运行控制目标');
+  await delay(3200);
+  assert(joinedUsers.filter((username) => username === 'DashboardBotA').length === 1, '单账号停止后发生了自动重连');
+  await requestJson('/api/send', { method: 'POST', body: JSON.stringify({ target: 'DashboardBotB', message: '/other-still-running' }) });
+  await waitForMessageFrom('DashboardBotB', '/other-still-running');
+
   dashboardProcess.kill('SIGINT');
   const dashboardExit = await waitForProcessExit(dashboardProcess, 8000);
   await waitForDisconnectedUsers(['DashboardBotA', 'DashboardBotB']);
@@ -380,8 +399,8 @@ function createDashboardConfig(port) {
     },
     runtime: {
       connectIntervalMs: 1000,
-      reconnect: false,
-      reconnectDelayMs: 1000,
+      reconnect: true,
+      reconnectDelayMs: 3000,
       idleActions: false,
       idleIntervalMs: 45000,
       messageCooldownMs: 250,
@@ -876,6 +895,17 @@ async function waitForStopped(timeoutMs = 10000) {
     await delay(250);
   }
   throw new Error('等待 dashboard 停止执行端超时');
+}
+
+async function waitForControlAccounts(expectedAccounts, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = await requestJson('/api/status');
+    const accounts = status.control?.accounts?.map((account) => account.username) || [];
+    if (accounts.join(',') === expectedAccounts.join(',')) return status;
+    await delay(100);
+  }
+  throw new Error(`等待运行账号更新超时：${expectedAccounts.join(',')}`);
 }
 
 function requestJson(pathname, options = {}) {

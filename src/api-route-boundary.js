@@ -9,6 +9,7 @@ export const apiRouteMethods = new Map([
   ['/api/status', ['GET']],
   ['/api/start', ['POST']],
   ['/api/stop', ['POST']],
+  ['/api/accounts/stop', ['POST']],
   ['/api/window', ['GET']],
   ['/api/lobby/action', ['POST']],
   ['/api/send', ['POST']]

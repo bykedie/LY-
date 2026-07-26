@@ -1,11 +1,12 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import readline from 'node:readline';
 import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
 import { getCustomNpcsDialogSnapshot, handleCustomNpcsPayload, selectCustomNpcsDialogOption } from './custom-npcs-protocol.js';
 import { clearConnectionSnapshot, createSessionState } from './session-state.js';
+import { handleStopRuntimeAccountCommand } from './runtime-account-control.js';
+import { listenRuntimeCommands } from './runtime-command-listener.js';
 import { validateConfig } from './config-schema.js';
 import { loadExecutionConfig } from './execution-config.js';
 
@@ -2066,6 +2067,7 @@ async function startAllAccounts() {
   log(null, enabledFeatures.length ? `已启用功能：${enabledFeatures.join('、')}` : '未启用扩展功能。');
 
   for (const account of accounts) {
+    if (!activeAccountNames.includes(account.username)) continue;
     createBot(account);
     await sleep(ACTIVE_CONFIG.connectIntervalMs);
   }
@@ -2112,37 +2114,6 @@ function applyRuntimeConfig(config) {
 
   const enabledFeatures = getEnabledFeatures();
   log(null, enabledFeatures.length ? `实时配置已应用，当前启用功能：${enabledFeatures.join('、')}` : '实时配置已应用，当前没有启用扩展功能。');
-}
-
-function listenDashboardCommands() {
-  const input = readline.createInterface({ input: process.stdin });
-
-  input.on('line', (line) => {
-    try {
-      const command = JSON.parse(line);
-
-      if (command.type === 'chat') {
-        sendChatCommand(command.target || 'all', command.message || '', command.requestId || '');
-        return;
-      }
-
-      if (command.type === 'windowSnapshot') {
-        emitWindowSnapshot(command.target || '', command.requestId || '');
-        return;
-      }
-
-      if (command.type === 'lobbyAction') {
-        void runManualLobbyAction(command.target || '', command.action || {}, command.requestId || '');
-        return;
-      }
-
-      if (command.type === 'config') {
-        applyRuntimeConfigCommand(command);
-      }
-    } catch (error) {
-      log(null, `控制台指令解析失败：${error.message}`);
-    }
-  });
 }
 
 function applyRuntimeConfigCommand(command) {
@@ -2212,7 +2183,17 @@ function shutdownExecution(signal) {
 process.once('SIGINT', () => shutdownExecution('SIGINT'));
 process.once('SIGTERM', () => shutdownExecution('SIGTERM'));
 
-listenDashboardCommands();
+listenRuntimeCommands(process.stdin, {
+  chat: (command) => sendChatCommand(command.target || 'all', command.message || '', command.requestId || ''),
+  windowSnapshot: (command) => emitWindowSnapshot(command.target || '', command.requestId || ''),
+  lobbyAction: (command) => void runManualLobbyAction(command.target || '', command.action || {}, command.requestId || ''),
+  config: applyRuntimeConfigCommand,
+  stopAccount: (command) => {
+    activeAccountNames = handleStopRuntimeAccountCommand(command, {
+      activeAccountNames, sessions, stopFeatureWorkers, clearConnectionSnapshot, emitWindowSnapshot, log, emitRuntimeEvent
+    });
+  }
+}, (error) => log(null, `控制台指令解析失败：${error.message}`));
 startAllAccounts().catch((error) => {
   const message = `执行端启动失败：${error.message}`;
   if (dashboardStartRequestId && !executionReadySent) {

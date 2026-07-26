@@ -35,6 +35,8 @@ LY控制台
 │  ├─ line-reader.js               # 单个执行子进程 stdout 分行和尾行刷新
 │  ├─ process-ipc.js                # stdin 单行 JSON 写入与异步错误回传
 │  ├─ process-lifecycle.js        # 子进程优雅停止和超时强制清理
+│  ├─ runtime-account-control.js  # 单账号停止、会话清理和停止回执
+│  ├─ runtime-command-listener.js # 执行端 stdin JSON 命令分发
 │  ├─ runtime-chat-command.js     # 运行期聊天命令目标和内容归一化
 │  ├─ runtime-lobby-action.js     # 即时大厅动作输入形状校验和运行期归一化
 │  ├─ runtime-request-tracker.js  # 跨进程请求回执、超时、取消和退出清理
@@ -52,7 +54,8 @@ LY控制台
 │  ├─ api-client.js               # 前端 HTTP 请求与网络/协议错误边界
 │  ├─ interaction-snapshot.js     # 聊天与 CustomNPCs 交互选项建模和渲染
 │  ├─ app.js                      # 配置、档案、自动化、运行控制、窗口快照和即时动作
-│  └─ log-renderer.js             # Minecraft 颜色日志渲染
+│  ├─ log-renderer.js             # Minecraft 颜色日志渲染
+│  └─ runtime-control.js           # 展示层日志折叠、跟尾和单账号停止控件
 ├─ deploy/
 │  ├─ bootstrap.sh                # 首次部署、下载回退和进入管理菜单
 │  └─ ly-afk-manager.sh           # Ubuntu、PM2、Nginx、HTTPS、日志和更新
@@ -126,6 +129,7 @@ POST /api/automations/delete     # 删除自动化方案
 GET  /api/status                 # 运行状态、控制状态和日志
 POST /api/start                  # 启动执行端；accounts 缺省/数组合法，元素必须是文本
 POST /api/stop                   # 停止执行端
+POST /api/accounts/stop          # 停止一个运行账号；共享执行进程和其他账号继续运行
 POST /api/send                   # 向全部或指定账号发送聊天/命令；message 和非空 target 必须是文本，指定目标会 trim 首尾空白
 GET  /api/window                 # 请求具体账号窗口和协议快照；拒绝空目标和 all 聚合目标
 POST /api/lobby/action           # 对指定账号立即执行单个大厅动作；target 必须是具体账号文本，action 必须是对象
@@ -142,6 +146,7 @@ chat             # 携带 requestId 发送聊天或命令
 config           # 下发运行时配置并携带 requestId
 windowSnapshot   # 携带 requestId 请求位置、实体、窗口和模组数据
 lobbyAction      # 立即执行单个大厅动作并携带 requestId
+stopAccount      # 停止一个账号的工作器、连接和重连并携带 requestId
 ```
 
 执行端用 stdout 输出带前缀的结构化事件：
@@ -158,11 +163,14 @@ lobbyActionResult   # 按 requestId 完成或拒绝即时动作
 configApplyResult   # 按 requestId 确认或拒绝实时配置
 executionReady      # 按启动 requestId 确认执行端关键初始化完成
 chatCommandResult   # 按 requestId 返回成功入队和失败账号
+accountStopResult   # 按 requestId 确认或拒绝单账号停止
 ```
 
-Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用和主动窗口快照的回执等待，`src/runtime-snapshot.js` 统一规范化成功快照；启动就绪、聊天、配置应用和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的成功快照才返回。启动时尚未创建 session 的后续账号明确返回“尚未初始化”，创建后恢复成功；曾创建但已断线的账号保留 session，并返回已清空的合法快照，因此未初始化、合法空窗口和无响应三种状态不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
+Dashboard 为每个执行子进程创建独立 stdout 行读取器，再消费结构化事件，不把事件原文写入普通日志；子进程重启时不得继承上一进程未完成的半行。`src/runtime-request-tracker.js` 统一管理启动就绪、聊天命令、即时动作、配置应用、账号停止和主动窗口快照的回执等待，`src/runtime-snapshot.js` 统一规范化成功快照；启动就绪、聊天、配置应用、账号停止和窗口快照使用固定有界超时，即时动作按动作类型计算超时，进程退出或 Dashboard 关闭时拒绝全部等待请求。执行端主动产生的不带 `requestId` 快照只刷新缓存；`GET /api/window` 只有收到匹配请求的成功快照才返回。启动时尚未创建 session 的后续账号明确返回“尚未初始化”，创建后恢复成功；曾创建但已断线的账号保留 session，并返回已清空的合法快照，因此未初始化、合法空窗口和无响应三种状态不会混淆。`POST /api/send` 只有收到 `chatCommandResult` 才成功：指定账号失败时 API 失败；发送到全部账号时至少一个账号成功入队即可成功，并返回 `queuedTargets` 和 `failedTargets`。入队确认不等同于 Minecraft 服务端已经处理消息，前端提示必须保持这一边界。
 
-`POST /api/lobby/action` 收到动作完成回执后必须再请求一次带新 `requestId` 的快照，不能直接复用动作前缓存。
+`POST /api/lobby/action` 收到动作完成回执后必须再请求一次带新 `requestId` 的快照，不能直接复用动作前缓存。`POST /api/accounts/stop` 只有收到 `accountStopResult` 后才从 Dashboard 运行账号和快照中移除目标；执行端停止该账号功能工作器、聊天队列、连接和自动重连。停止一个账号不结束共享执行进程，停止最后一个账号后也由现有 `/api/stop` 显式结束进程。
+
+`GET /api/status` 始终保留完整原始日志。浏览器运行控制展示层只折叠连续、内容相同且账号不同的日志，并合并显示账号名；系统日志和同账号重复日志保持独立。日志初次渲染或用户停留在底部时自动跟随最新内容，用户上翻或选择日志文本时保留阅读位置。
 
 ## 七、Mineflayer 执行端
 

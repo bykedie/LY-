@@ -6,6 +6,7 @@ import {
   createOperateWindowEntryFromAction
 } from './interaction-snapshot.js';
 import { renderLogLines } from './log-renderer.js';
+import { collapseAccountLogs, hasLogTextSelection, renderRuntimeLogs, renderStopAccountTargets } from './runtime-control.js';
 
 const state = {
   config: null,
@@ -329,6 +330,7 @@ function updateRuntimeControlState() {
 
   renderStartAccounts(runningControl?.accounts || readAccounts());
   renderCommandTargets(runningControl?.accounts || readAccounts());
+  renderStopAccountTargets($('#stopAccountTarget'), $('#stopAccountBtn'), runningControl?.accounts || [], commandEnabled);
   $('#commandTarget').disabled = !commandEnabled;
   $('#commandMessage').disabled = !commandEnabled;
   $('#sendCommandBtn').disabled = !commandEnabled;
@@ -1401,14 +1403,7 @@ async function deleteSelectedProfile() {
 }
 
 function isSelectingLogText() {
-  if (state.logSelectionActive) return true;
-  const logs = $('#logs');
-  const selection = window.getSelection?.();
-  if (!logs || !selection || selection.isCollapsed) return false;
-  return [...Array(selection.rangeCount)].some((_, index) => {
-    const range = selection.getRangeAt(index);
-    return logs.contains(range.commonAncestorContainer);
-  });
+  return state.logSelectionActive || hasLogTextSelection($('#logs'));
 }
 
 function setAutoWalkCollapsed(collapsed) {
@@ -1627,11 +1622,7 @@ async function refreshStatus() {
   $('#stopBtn').disabled = Boolean(data.stopping || (!data.running && !data.starting));
   updateRuntimeControlState();
   if (isSelectingLogText()) return;
-  if (data.logs.length) {
-    $('#logs').innerHTML = renderLogLines(data.logs);
-  } else {
-    $('#logs').textContent = '等待日志...';
-  }
+  renderRuntimeLogs($('#logs'), collapseAccountLogs(data.logs), renderLogLines);
 }
 
 function bindEvents() {
@@ -1775,6 +1766,16 @@ function bindEvents() {
       await requestJson('/api/stop', { method: 'POST' });
       await refreshStatus();
       showToast('停止指令已发送');
+    } catch (error) {
+      showToast(error.message);
+    }
+  });
+  $('#stopAccountBtn').addEventListener('click', async () => {
+    try {
+      const target = $('#stopAccountTarget').value;
+      await requestJson('/api/accounts/stop', { method: 'POST', body: JSON.stringify({ target }) });
+      await refreshStatus();
+      showToast(`${target} 已停止，其他账号继续运行`);
     } catch (error) {
       showToast(error.message);
     }
