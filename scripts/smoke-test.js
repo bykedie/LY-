@@ -383,6 +383,19 @@ try {
     expectOk: false
   });
   assert(invalidAutomationId.message.includes('ID 无效'), '保存接口没有拒绝非法自动化方案 ID');
+  const invalidAutomationIdType = await requestJson('/api/automations', {
+    method: 'POST',
+    body: JSON.stringify({ id: true, name: 'Invalid ID Type', lobby: testConfig.features.lobby }),
+    expectOk: false
+  });
+  assert(
+    invalidAutomationIdType.ok === false
+      && invalidAutomationIdType.message?.includes('ID')
+      && invalidAutomationIdType.message.includes('文本'),
+    '保存接口没有拒绝非文本自动化方案 ID'
+  );
+  const automationsAfterInvalidIdType = await requestJson('/api/automations');
+  assert(automationsAfterInvalidIdType.automations.length === 1, '非文本自动化方案 ID 错误创建了新方案');
   fs.writeFileSync(automationPath, '{broken-automations', 'utf8');
   const recoveredAutomations = await requestJson('/api/automations');
   assert(recoveredAutomations.automations.length === 0, '损坏自动化库没有恢复为空方案库');
@@ -393,6 +406,7 @@ try {
   const savedAutomation = await requestJson('/api/automations', {
     method: 'POST',
     body: JSON.stringify({
+      id: '',
       name: 'Smoke Automation',
       lobby: {
         ...testConfig.features.lobby,
@@ -405,12 +419,22 @@ try {
     })
   });
   assert(savedAutomation.automations.some((item) => item.name === 'Smoke Automation'), '自动化方案保存后没有出现在列表中');
+  const updatedAutomation = await requestJson('/api/automations', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: savedAutomation.activeAutomationId,
+      name: 'Updated Smoke Automation',
+      lobby: savedAutomation.automations.find((item) => item.id === savedAutomation.activeAutomationId).lobby
+    })
+  });
+  assert(updatedAutomation.automations.length === 1, '合法自动化方案 ID 更新时错误创建了副本');
+  assert(updatedAutomation.automations[0].name === 'Updated Smoke Automation', '合法自动化方案 ID 没有更新原方案');
   const automationList = await requestJson('/api/automations');
   assert(automationList.automations[0].lobby.actions[1].type === 'clickChat', '自动化方案重新读取后动作内容不正确');
   assert(fs.existsSync(automationPath), '自动化方案没有写入独立持久化文件');
   const deletedAutomation = await requestJson('/api/automations/delete', {
     method: 'POST',
-    body: JSON.stringify({ id: savedAutomation.activeAutomationId })
+    body: JSON.stringify({ id: updatedAutomation.activeAutomationId })
   });
   assert(deletedAutomation.automations.length === 0, '自动化方案删除后仍然存在');
   assert(saved.config.runtime.messageCooldownMs === 1000, '配置保存后 messageCooldownMs 不正确');

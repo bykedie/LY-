@@ -39,19 +39,24 @@
 - `/api/lobby/action` 非对象 `action` 和非法 `enabled` 类型拒绝已修复并完成完整验证，已保存为本地提交 `03ce3f4`。
 - `/api/send` 非字符串 `target` 拒绝已修复并完成完整验证，已保存为本地提交 `d0a565c`。
 - `/api/start` 非字符串账号元素拒绝已修复并完成完整验证，已保存为最新本地提交 `da222aa`。
+- `/api/lobby/action` 非字符串目标拒绝已修复并完成完整验证，已保存为最新本地提交 `cf57e46`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-`/api/lobby/action` 非字符串 `target` 输入形状修复已完成真实复现、失败回归、最小修复和完整验证，已保存为最新本地里程碑；`target:true` 会返回明确“立即执行动作目标必须是文本。”，不会再被隐式转换为用户名 `"true"`。
+自动化方案保存接口的非字符串 `id` 缺陷已完成真实复现、失败回归、最小修复和完整验证：`id:true` 返回明确“自动化方案 ID 必须是文本。”且列表不增长；缺省/空字符串新建、合法字符串 ID 原位更新和删除语义保持不变。当前可创建本地里程碑提交。
 
 ## 下一步明确动作
 
-继续审计 Dashboard 与执行端运行期控制边界中的隐式类型转换；发现真实缺陷后按“复现 → 失败回归 → 最小修复 → 完整验证 → 本地提交”推进。
+创建本地 `fix:` 里程碑提交；提交后核对工作区，并把当前状态更新为最新提交后的干净续接视角。
 
 ## 已修改文件
 
-无未提交修改。本轮即时动作目标类型修复将随本状态一并保存为最新本地提交。
+- `docs/current-status.md`
+- `docs/work-log.md`
+- `scripts/smoke-test.js`
+- `src/automation-store.js`
+- `docs/project-architecture.md`
 
 ## 未解决问题和阻塞项
 
@@ -65,6 +70,12 @@
 
 ## 最近测试结果
 
+- 最新真实复现：临时 Dashboard 首先保存一个合法自动化方案，再提交 `{ id: true, name: "Should Reject", lobby: ... }`；接口错误返回 200，磁盘方案数量从 1 增为 2，临时进程和目录已清理。
+- 修复前失败回归：`node scripts/smoke-test.js` 稳定失败于“保存接口没有拒绝非文本自动化方案 ID”，证明旧实现未拒绝该输入。
+- 修复后专项：`node --check src/automation-store.js`、`node --check scripts/smoke-test.js` 和 `node scripts/smoke-test.js` 通过；覆盖非文本拒绝及列表不增长、空字符串新建、合法 ID 更新、非法字符串拒绝和删除。
+- 本轮完整验证：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过。
+- 维护基线保持：`src/index.js` 2222/2225、`public/app.js` 1728/1800、`src/dashboard.js` 769/800、CSS 重复选择器 80/80、`!important` 12/12。
+- 安全审计保持：0 严重、0 高危、6 个 Mineflayer 上游中危告警。
 - 旧实现真实复现：临时 Dashboard 与假执行端配置账号 `"true"` 后调用 `/api/lobby/action`，正文为 `{ target: true, action: { type: "wait", delayMs: 100, enabled: true } }`，API 返回成功且目标为 `"true"`，假执行端收到 `lobbyAction target:"true"`。
 - 新回归旧实现失败：`node scripts/runtime-config-protocol-test.js` 失败于“非文本即时动作目标没有被 Dashboard 明确拒绝”，证明旧 Dashboard 未在路由层稳定拒绝非字符串即时动作目标。
 - 修复后专项：`node --check src/runtime-target.js`、`node --check src/dashboard.js` 和 `node scripts/runtime-config-protocol-test.js` 通过；新增回归覆盖非字符串即时动作目标，既有窗口快照、发送目标、发送内容、动作格式和配置热更新场景保持不变。
@@ -91,4 +102,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-25 17:36:52 +08:00
+2026-07-26 10:42:32 +08:00

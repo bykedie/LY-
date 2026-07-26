@@ -3,7 +3,8 @@ import { backupCorruptJson, readJson, writeJson } from './json-store.js';
 
 export function createAutomationStore({ filePath, recoveryDir, validateLobby, addLog = () => {} }) {
   function normalizeId(id) {
-    const normalized = String(id || '').trim();
+    if (typeof id !== 'string') throw new Error('自动化方案 ID 必须是文本。');
+    const normalized = id.trim();
     if (/^automation-[a-z0-9-]+$/.test(normalized)) return normalized;
     throw new Error('自动化方案 ID 无效。');
   }
@@ -63,7 +64,9 @@ export function createAutomationStore({ filePath, recoveryDir, validateLobby, ad
   }
 
   function saveAutomation({ id, name, lobby }) {
-    const automationId = typeof id === 'string' && id.trim() ? normalizeId(id) : createId();
+    const automationId = id === undefined || (typeof id === 'string' && !id.trim())
+      ? createId()
+      : normalizeId(id);
     const automationName = normalizeName(name || '未命名自动化');
     const normalizedLobby = structuredClone(lobby);
     validateLobby(normalizedLobby);

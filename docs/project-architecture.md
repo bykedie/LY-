@@ -118,7 +118,7 @@ POST /api/profiles               # 保存档案
 POST /api/profiles/use           # 使用档案
 POST /api/profiles/delete        # 删除档案
 GET  /api/automations            # 自动化方案列表
-POST /api/automations            # 保存自动化方案
+POST /api/automations            # 保存自动化方案；ID 缺省/空文本时新建，非空 ID 必须是合法文本
 POST /api/automations/delete     # 删除自动化方案
 GET  /api/status                 # 运行状态、控制状态和日志
 POST /api/start                  # 启动执行端；accounts 缺省/数组合法，元素必须是文本
