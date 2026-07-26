@@ -86,6 +86,7 @@ for (const commitRef of documentedCommitRefs) {
 const status = read('docs/current-status.md');
 const decisions = read('docs/decisions.md');
 const ideas = read('docs/ideas.md');
+const workLog = read('docs/work-log.md');
 const agents = read('AGENTS.md');
 const architecture = read('docs/project-architecture.md');
 
@@ -109,6 +110,15 @@ const requiredStatusSections = [
 for (const heading of requiredStatusSections) {
   requireCondition(Boolean(section(status, heading)), `当前状态缺少内容：${heading}`);
 }
+
+const statusUpdatedAt = section(status, '最后更新时间').match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/)?.[0];
+const workLogTimes = [...workLog.matchAll(/^## (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) [^\n]*$/gm)]
+  .map((match) => match[1]);
+const lastWorkLogTime = workLogTimes.at(-1);
+const newestWorkLogTime = workLogTimes.reduce((latest, current) => current > latest ? current : latest, '');
+requireCondition(workLogTimes.length > 0, '工作日志缺少带时间的检查点。');
+requireCondition(lastWorkLogTime === newestWorkLogTime, `工作日志最新检查点没有追加在文件末尾：末尾 ${lastWorkLogTime || '(缺失)'}，最新 ${newestWorkLogTime || '(缺失)'}。`);
+requireCondition(statusUpdatedAt === lastWorkLogTime, `当前状态更新时间 ${statusUpdatedAt || '(缺失)'} 与工作日志末尾 ${lastWorkLogTime || '(缺失)'} 不一致。`);
 
 const stableVersion = section(status, '当前稳定版本').match(/`(v\d+\.\d+\.\d+)`/)?.[1];
 const developmentVersion = section(status, '当前本地开发版本').match(/`(v\d+\.\d+\.\d+)`/)?.[1];

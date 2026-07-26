@@ -40,23 +40,20 @@
 - `/api/send` 非字符串 `target` 拒绝已修复并完成完整验证，已保存为本地提交 `d0a565c`。
 - `/api/start` 非字符串账号元素拒绝已修复并完成完整验证，已保存为最新本地提交 `da222aa`。
 - `/api/lobby/action` 非字符串目标拒绝已修复并完成完整验证，已保存为最新本地提交 `cf57e46`。
+- 自动化方案非字符串 ID 拒绝已修复并完成完整验证，已保存为最新本地提交 `3b64212`。
 - CSS 重复选择器、`!important` 和大型文件已建立不得继续增长的维护基线。
 
 ## 正在进行事项
 
-自动化方案保存接口的非字符串 `id` 缺陷已完成真实复现、失败回归、最小修复和完整验证：`id:true` 返回明确“自动化方案 ID 必须是文本。”且列表不增长；缺省/空字符串新建、合法字符串 ID 原位更新和删除语义保持不变。当前可创建本地里程碑提交。
+自动化方案保存 ID 修复已保存为代码里程碑 `3b64212`；工作日志追加顺序守卫已完成正反向验证和完整测试。当前分支 HEAD 将由独立 `docs:` 交接检查点保存，精确哈希以 `git log -1` 为准。
 
 ## 下一步明确动作
 
-创建本地 `fix:` 里程碑提交；提交后核对工作区，并把当前状态更新为最新提交后的干净续接视角。
+继续审计自动化方案名称和配置档案 ID/名称的输入类型边界；先真实复现可见副作用，再决定下一处最小修复。
 
 ## 已修改文件
 
-- `docs/current-status.md`
-- `docs/work-log.md`
-- `scripts/smoke-test.js`
-- `src/automation-store.js`
-- `docs/project-architecture.md`
+无未提交修改。自动化 ID 代码修复位于 `3b64212`，交接守卫和提交后状态由当前本地 `docs:` 检查点保存。
 
 ## 未解决问题和阻塞项
 
@@ -76,6 +73,9 @@
 - 本轮完整验证：`npm.cmd run handoff:check`、`npm.cmd run maintenance:check`、`npm.cmd run security:audit` 和完整 `npm.cmd test` 全部通过。
 - 维护基线保持：`src/index.js` 2222/2225、`public/app.js` 1728/1800、`src/dashboard.js` 769/800、CSS 重复选择器 80/80、`!important` 12/12。
 - 安全审计保持：0 严重、0 高危、6 个 Mineflayer 上游中危告警。
+- 交接日志守卫正向：当前日志运行 `npm.cmd run handoff:check` 通过。
+- 交接日志守卫负向：临时在文件顶部插入 2099 检查点后，校验准确失败于“最新检查点没有追加在文件末尾”；临时记录已移除，正向复验通过。
+- 交接守卫完整验证：`npm.cmd run maintenance:check` 和完整 `npm.cmd test` 通过，全部既有业务场景无回退。
 - 旧实现真实复现：临时 Dashboard 与假执行端配置账号 `"true"` 后调用 `/api/lobby/action`，正文为 `{ target: true, action: { type: "wait", delayMs: 100, enabled: true } }`，API 返回成功且目标为 `"true"`，假执行端收到 `lobbyAction target:"true"`。
 - 新回归旧实现失败：`node scripts/runtime-config-protocol-test.js` 失败于“非文本即时动作目标没有被 Dashboard 明确拒绝”，证明旧 Dashboard 未在路由层稳定拒绝非字符串即时动作目标。
 - 修复后专项：`node --check src/runtime-target.js`、`node --check src/dashboard.js` 和 `node scripts/runtime-config-protocol-test.js` 通过；新增回归覆盖非字符串即时动作目标，既有窗口快照、发送目标、发送内容、动作格式和配置热更新场景保持不变。
@@ -102,4 +102,4 @@ npm.cmd run maintenance:check
 
 ## 最后更新时间
 
-2026-07-26 10:42:32 +08:00
+2026-07-26 10:55:05 +08:00
