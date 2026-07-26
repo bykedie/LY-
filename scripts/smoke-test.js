@@ -252,8 +252,9 @@ try {
   const bootstrapScript = fs.readFileSync(path.join(projectRoot, 'deploy', 'bootstrap.sh'), 'utf8');
   assert(styles.includes('grid-template-columns: repeat(5, minmax(0, 1fr))'), '大厅步骤没有按每排五张卡片布局');
   assert(styles.includes('.lobby-action-step-block:nth-child(5n) .lobby-action-connector'), '每排第五张步骤卡缺少换行连接节点');
-  assert(managerScript.includes('v1.0.40'), '管理脚本版本没有更新到 v1.0.40');
-  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.40"'), '启动脚本期望版本没有更新到 v1.0.40');
+  assert(managerScript.includes('v1.0.42'), '管理脚本版本没有同步远端稳定版 v1.0.42');
+  assert(bootstrapScript.includes('BOOTSTRAP_VERSION="v1.0.42"'), '启动脚本版本没有同步远端稳定版 v1.0.42');
+  assert(bootstrapScript.includes('EXPECTED_MANAGER_VERSION="v1.0.42"'), '启动脚本期望版本没有同步远端稳定版 v1.0.42');
   assert(styles.includes('--accent: #ed6a5a'), '新视觉系统缺少珊瑚强调色');
   assert(styles.includes('grid-template-columns: 68px minmax(0, 1fr)'), '手机端侧栏没有固定在左侧');
   assert(styles.includes('@keyframes status-pulse'), '控制台在线状态缺少呼吸动效');
