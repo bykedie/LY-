@@ -2554,3 +2554,14 @@
 - 待确认问题：尚未在真实 Ubuntu 24.04 主机执行破坏性卸载，不阻塞当前自动化检查覆盖的脚本发布。
 - 未提交修改：有，当前 `v1.0.43` 发布候选。
 - 推送许可：项目所有者已明确给予本轮一次性远端 `main` 发布许可；长期默认仍为否。
+
+## 2026-08-04 16:26:15 +08:00 — v1.0.43 一键卸载功能已发布
+
+- 完成内容：创建发布提交 `9373206`（`feat: 增加一键卸载能力`），并通过 `git push origin HEAD:main` 将远端从 `3daf459` 快进到该提交；未创建远端分支或标签。
+- 修改文件：发布提交包含 `deploy/uninstall.sh`、管理菜单与 Bootstrap 接入、README 和 Ubuntu 部署教程、架构与决策记录、smoke 和卸载隔离专项；收尾同步 `docs/current-status.md`、`docs/project-architecture.md` 和 `docs/work-log.md`。
+- 可运行状态：`v1.0.43` 已成为远端稳定版；`https://raw.githubusercontent.com/bykedie/LY-/main/deploy/uninstall.sh` 返回 HTTP 200，并确认 `UNINSTALL_VERSION="v1.0.43"`。
+- 测试结果：沿用发布提交前全部通过的完整门禁；推送成功后公开脚本内容核验通过。收尾交接检查首次识别架构文档仍为 `v1.0.42` 基线，最小同步到 `v1.0.43` 后 `handoff:check` 通过；`git ls-remote` 的一次查询收到 GitHub 空响应，但成功推送回执和公开 `main` 文件共同确认功能已上线。
+- 下一步：在 Ubuntu 24.04 测试机或目标服务器复验完整破坏性卸载流程；没有新的明确需求时停止修改和推送。
+- 待确认问题：真实 Ubuntu 上的 PM2/Nginx/UFW/Certbot 集成卸载尚未破坏性执行；云安全组和 DNS 仍需手动处理。
+- 未提交修改：无；发布收尾提交后工作区保持干净。
+- 推送许可：本轮一次性许可已用于功能发布和必要收尾，现已消费并失效；长期默认仍为否。
