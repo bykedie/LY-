@@ -5,7 +5,7 @@
 
 ## 一、系统边界
 
-当前远端稳定架构基线为 `v1.0.42`（发布提交 `8f37dde`）；本地 `local/v1.0.43` 在该基线上增加 NPC 交互协议重建图和图上选点，整体仍由三层组成：
+当前远端稳定架构基线为 `v1.0.42`；待发布的 `local/v1.0.43` 在该基线上增加 NPC 交互协议重建图、图上选点、多账号运行控制和统一交互入口，整体仍由三层组成：
 
 ```text
 浏览器静态层：public/*
@@ -62,7 +62,8 @@ LY控制台
 │  └─ runtime-control.js           # 展示层日志折叠、跟尾和单账号停止控件
 ├─ deploy/
 │  ├─ bootstrap.sh                # 首次部署、下载回退和进入管理菜单
-│  └─ ly-afk-manager.sh           # Ubuntu、PM2、Nginx、HTTPS、日志和更新
+│  ├─ ly-afk-manager.sh           # Ubuntu、PM2、Nginx、HTTPS、日志、更新和卸载入口
+│  └─ uninstall.sh                # 独立一键卸载、配置备份和项目专属资源清理
 ├─ scripts/                       # 语法、smoke、协议、鉴权和功能集成测试
 ├─ docs/                          # 当前状态、架构、决策、想法、日志、历史交接和部署文档
 ├─ bot.config.example.json        # 默认配置和配置结构来源
@@ -221,7 +222,7 @@ state.uiSettings                      # 浏览器 localStorage 界面偏好
 curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/bootstrap.sh | sudo bash
 ```
 
-`bootstrap.sh` 安装基础工具，优先使用 Git，失败时依次回退 GitHub 压缩包和 jsDelivr，然后通过 `bash` 打开管理菜单。`ly-afk-manager.sh` 管理 Node.js、npm、PM2、Nginx、UFW、HTTPS、日志和项目更新；快捷入口为 `/usr/local/bin/j`。
+`bootstrap.sh` 安装基础工具，优先使用 Git，失败时依次回退 GitHub 压缩包和 jsDelivr，然后通过 `bash` 打开管理菜单。`ly-afk-manager.sh` 管理 Node.js、npm、PM2、Nginx、UFW、HTTPS、日志、项目更新和卸载入口；快捷入口为 `/usr/local/bin/j`。`uninstall.sh` 可由远程单命令或菜单调用，删除 `ly-afk-dashboard` PM2 服务、项目专属 Nginx 站点、`j` 和安装目录，默认把运行数据备份到 `/var/backups/ly-console/`。卸载器保留共享软件包、HTTPS 证书、`22/80/443` 规则、云安全组和历史项目备份，并拒绝删除系统关键路径、符号链接路径或无法识别的目录。
 
 线上推荐：
 

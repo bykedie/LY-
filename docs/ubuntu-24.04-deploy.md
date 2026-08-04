@@ -51,6 +51,20 @@ j
 
 以后你 SSH 登录服务器后，直接输入 `j` 就能打开 LY 控制台一键管理菜单。
 
+如果以后需要完整移除 LY 控制台，可以直接执行：
+
+```bash
+curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/uninstall.sh | sudo bash
+```
+
+自定义安装目录需要在卸载时传入同一个 `INSTALL_DIR`：
+
+```bash
+curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/uninstall.sh | sudo INSTALL_DIR=/opt/pcl-afk-bot bash
+```
+
+也可以输入 `j` 后选择 `16. 一键卸载 LY 控制台`。卸载器会要求输入 `UNINSTALL`，默认先把运行配置备份到 `/var/backups/ly-console/`，再清理本项目的 PM2 服务、Nginx 站点、快捷命令、面板端口规则和项目目录。
+
 如果卡在 `[2/5] 检查 GitHub 仓库是否可以访问`，通常不是权限问题，而是服务器访问 `github.com` 超时。新脚本会限制 GitHub 检查最多等待 20 秒，失败后自动尝试下载仓库压缩包继续安装。
 
 如果 `/opt/ly-console` 已经存在，一键命令会先更新已有项目，再进入菜单。Git 安装会优先用 `git fetch/merge` 更新；压缩包安装或 Git 失败时，会下载最新压缩包替换代码，并保留 `.env`、`bot.config.json`、`accounts.json`。
@@ -352,7 +366,22 @@ nano /opt/pcl-afk-bot/.env
 pm2 restart ly-afk-dashboard --update-env
 ```
 
-## 十、常见问题
+## 十、完整卸载
+
+卸载器只移除 LY 控制台专属资源。它默认保留 Node.js、npm、PM2、Nginx、UFW、Certbot、HTTPS 证书、`22/80/443` 规则和 `/opt/ly-console.backup.*` 等历史项目备份，避免误伤服务器上的其他网站或服务。
+
+如果证书名称与 `.env` 中的 `DASHBOARD_DOMAIN` 一致，脚本会单独询问是否删除；默认选择是保留。卸载后还应手动检查：
+
+```text
+1. 云厂商安全组中是否仍放行旧面板端口
+2. 域名 DNS 是否还指向这台服务器
+3. /var/backups/ly-console/ 中的配置备份是否仍需保留
+4. /opt/ly-console.backup.* 等历史项目备份是否仍需保留
+```
+
+脚本拒绝删除 `/`、`/opt`、`/var` 等系统关键路径，也拒绝删除无法识别为 LY 控制台或包含符号链接的安装路径。
+
+## 十一、常见问题
 
 ### 访问域名显示 502
 

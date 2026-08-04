@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # 也可以运行时覆盖，例如：
 # REPO_URL=https://github.com/bykedie/LY-.git bash deploy/bootstrap.sh
 REPO_URL="${REPO_URL:-https://github.com/bykedie/LY-.git}"
-BOOTSTRAP_VERSION="v1.0.42"
-EXPECTED_MANAGER_VERSION="v1.0.42"
+BOOTSTRAP_VERSION="v1.0.43"
+EXPECTED_MANAGER_VERSION="v1.0.43"
 
 # 项目安装目录。
 # 推荐放到 /opt/ly-console，便于后续用 pm2 / nginx 管理。
@@ -552,7 +552,7 @@ run_manager() {
   local SUDO
   SUDO="$(need_sudo)"
   cd "$INSTALL_DIR"
-  run $SUDO chmod +x deploy/ly-afk-manager.sh
+  run $SUDO chmod +x deploy/ly-afk-manager.sh deploy/uninstall.sh
   install_j_shortcut
   show_installed_version
   info "项目已准备完成，正在打开 LY 控制台一键管理菜单。"

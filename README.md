@@ -34,6 +34,24 @@ curl -fL https://raw.githubusercontent.com/bykedie/LY-/main/deploy/bootstrap.sh 
 
 如果 `/opt/ly-console` 已经存在，一键命令会先更新到最新版本，再进入菜单，不会再直接打开旧版本。
 
+## 一键卸载
+
+不再使用 LY 控制台时，可以执行对应的一键卸载命令：
+
+```bash
+curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/uninstall.sh | sudo bash
+```
+
+如果安装时使用了自定义目录，卸载时传入相同目录：
+
+```bash
+curl -fL https://cdn.jsdelivr.net/gh/bykedie/LY-@main/deploy/uninstall.sh | sudo INSTALL_DIR=/opt/pcl-afk-bot bash
+```
+
+也可以在服务器终端输入 `j`，选择 `16. 一键卸载 LY 控制台`。脚本会先要求输入 `UNINSTALL` 二次确认，并默认把 `.env`、账号、配置档案和自动化数据备份到 `/var/backups/ly-console/时间戳.随机码/`。
+
+卸载会删除 LY 控制台的 PM2 服务、项目专属 Nginx 站点、`j` 快捷命令、面板 UFW 端口规则和项目目录。Node.js、npm、PM2、Nginx、UFW、Certbot、`22/80/443` 规则、HTTPS 证书和历史项目备份默认保留，避免影响服务器上的其他服务。云厂商安全组和 DNS 无法由服务器脚本自动修改，需要在对应控制台自行关闭或删除。
+
 更新后如果域名可以访问、但 `http://公网IP:端口` 无法打开，在服务器终端输入 `j`，选择 `15. 修复公网 IP + 端口访问`。该功能会恢复 `0.0.0.0` 监听、放行 Ubuntu 端口并让 PM2 按 `.env` 重新载入；轻量云控制台的防火墙/安全组仍需手动放行同一个 TCP 端口。
 
 第一次进入菜单建议选择：

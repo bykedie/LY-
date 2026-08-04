@@ -122,7 +122,7 @@ print_header() {
 |_____|   |_|  /_/   \_\_|   |_|\_\
 LOGO
   printf "${RESET}"
-  echo "LY 挂机控制台一键管理脚本  v1.0.42"
+  echo "LY 挂机控制台一键管理脚本  v1.0.43"
   echo "快捷打开面板：j"
   echo "--------------------------------"
   echo "适配系统：Ubuntu 24.04"
@@ -908,7 +908,7 @@ update_project() {
     echo "旧项目已备份到：${backup_dir}"
     info "代码替换完成。"
   fi
-  $SUDO chmod +x "$PROJECT_DIR/deploy/ly-afk-manager.sh"
+  $SUDO chmod +x "$PROJECT_DIR/deploy/ly-afk-manager.sh" "$PROJECT_DIR/deploy/uninstall.sh"
   progress "3/5" "当前正在安装/更新 npm 依赖..."
   npm install --progress=true
   info "npm 依赖安装完成。"
@@ -960,6 +960,13 @@ quick_install() {
   pause
 }
 
+run_uninstall() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    exec env INSTALL_DIR="$PROJECT_DIR" bash "$PROJECT_DIR/deploy/uninstall.sh"
+  fi
+  exec sudo env INSTALL_DIR="$PROJECT_DIR" bash "$PROJECT_DIR/deploy/uninstall.sh"
+}
+
 main_menu() {
   ensure_interactive_terminal
   while true; do
@@ -979,6 +986,7 @@ main_menu() {
     echo "13. 更新项目并重启"
     echo "14. 安装/修复快捷命令 j"
     echo "15. 修复公网 IP + 端口访问"
+    echo "16. 一键卸载 LY 控制台"
     echo
     echo "0.  退出脚本"
     echo "--------------------------------"
@@ -999,6 +1007,7 @@ main_menu() {
       13) update_project ;;
       14) install_j_shortcut; pause ;;
       15) repair_public_port_access ;;
+      16) run_uninstall ;;
       0) exit 0 ;;
       *) warn "无效选择，请重新输入。"; sleep 1 ;;
     esac
